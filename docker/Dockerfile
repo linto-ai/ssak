@@ -73,23 +73,11 @@ RUN git clone https://github.com/speechbrain/speechbrain /opt/speechbrain \
 # whisper
 # RUN pip3 install git+https://github.com/openai/whisper.git 
 
-# py-ctc-decode
-# RUN git clone https://github.com/ynop/py-ctc-decode \
-#     && cd py-ctc-decode \
-#     && mv ctcdecode ~/.local/lib/python3.9/site-packages/ \
-#     && cd .. && rm -R py-ctc-decode
-
-# Perso tweaks
+# Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
 COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
 
 RUN pip3 install \
     tensorboard \
     git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd7fb01e1e6e063be492fddeab # Fix for hyperpyyaml
 
-# No way
-# RUN mkdir -p /home/
-# WORKDIR /home/jlouradour
-# ENV HOME=/home/jlouradour
-
 ENTRYPOINT ["/bin/bash"]
-
