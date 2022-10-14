@@ -113,3 +113,5 @@ class suppress_stderr(object):
         os.dup2 ( self.old_stderr_fileno, self.old_stderr_fileno_undup )
         os.close ( self.old_stderr_fileno )
         self.errnull_file.close()
+
+

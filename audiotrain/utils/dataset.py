@@ -493,3 +493,59 @@ def apply_processor(processor, batch, sampling_rate):
     with processor.as_target_processor():
         batch["labels"] = processor(batch["labels"]).input_ids
     return batch
+
+def to_audio_batches(
+    input,
+    batch_size = 0,
+    sampling_rate = 16_000,
+    mono = True,
+    return_torch = False,
+    sort_by_len = False,
+    ):
+    """ 
+    Convert a filename, a kaldi folder, or a list of those into batches of audio
+    """
+    if isinstance(input, str):
+        
+        if os.path.isfile(input):
+            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch)
+            if batch_size == 0:
+                yield audio
+            else:
+                yield [audio]
+        
+        elif os.path.isdir(input):
+            _, dataset = kaldi_folder_to_dataset(input, sort_by_len = -1 if sort_by_len else 0)
+            batch = []
+            for data in dataset:
+                audio = load_audio(data["path"], data.get("start"), data.get("end"), return_torch = True)
+                if batch_size == 0:
+                    yield audio
+                else:
+                    batch.append(audio)
+                    if len(batch) == batch_size:
+                        yield batch
+                        batch = []
+            if len(batch) > 0:
+                yield batch
+
+        else:
+            raise ValueError(f"Cannot interpret {input} as a file or a directory")
+
+    elif isinstance(input, list):
+        batch = []
+        for data in input:
+            audios = to_audio_batches(input, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch, sort_by_len = sort_by_len)
+            for audio in audios:
+                if batch_size == 0:
+                    yield audio
+                else:
+                    batch.append(audio)
+                    if len(batch) == batch_size:
+                        yield batch
+                        batch = []
+        if len(batch) > 0:
+            yield batch
+
+    else:
+        raise NotImplementedError("Unsupported type: %s" % type(input))
