@@ -3,10 +3,10 @@
 ## Structure
 
 ```
-├── audiotrain/
-│   ├── infer/           : Functions and scripts to run inference and evaluate models
-│   ├── train/           : Scripts to train models (transformers, speechbrain, ...)
-│   └── utils/           : Helpers (python)
+├── audiotrain/      : Main python library
+│   ├── infer/          : Functions and scripts to run inference and evaluate models
+│   ├── train/          : Scripts to train models (transformers, speechbrain, ...)
+│   └── utils/          : Helpers (python)
 ├── tools/           : Scripts to cope with audio data (data curation, ...)
 │   └── kaldi/       
 │       └── utils/      : Scripts to check and complete kaldi's data folders (.sh and .pl scripts)
