@@ -3,12 +3,13 @@
 ## Structure
 
 ```
-├── eval/            : Functions and scripts to run inference and evaluate models
-├── train            : Scripts to train models (transformers, speechbrain, ...)
+├── audiotrain/
+│   ├── infer/           : Functions and scripts to run inference and evaluate models
+│   ├── train/           : Scripts to train models (transformers, speechbrain, ...)
+│   └── utils/           : Helpers (python)
 ├── tools/           : Scripts to cope with audio data (data curation, ...)
 │   └── kaldi/       
 │       └── utils/      : Scripts to check and complete kaldi's data folders (.sh and .pl scripts)
-├── utils            : Helpers (python)
 ├── docker/          : Docker environment
 └── tests/           : Unittest suite
     ├── data/           : Data to run the tests

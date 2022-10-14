@@ -1,4 +1,4 @@
-from utils.dataset import kaldi_folder_to_dataset, process_dataset
+from audiotrain.utils.dataset import kaldi_folder_to_dataset, process_dataset
 
 import os
 import time
@@ -38,8 +38,6 @@ class TestAudioDataset(Test):
         processed = process_dataset(processor, dataset, verbose = False)
         t = time.time() - tic
         EXPECTED = "178610fbfc22db68dad01f8b7148a509"
-
-        print(self.loose(list(processed)), file = open(f"tmp_{self.loosehash(list(processed))}.txt", "w"))
 
         self.check_audio_dataset(processed)
         self.assertTrue(hasattr(dataset, "__len__"))
