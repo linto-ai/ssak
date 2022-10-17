@@ -14,7 +14,7 @@ import torchaudio
 import numpy as np
 import torch
 
-def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = True, return_torch = False, verbose = False):
+def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = True, return_format = 'array', verbose = False):
     """ 
     Load an audio file and return the data.
 
@@ -30,11 +30,15 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
         destination sampling rate in Hz
     mono: bool
         if True, convert to mono
-    return_torch: bool
-        if True, return a torch tensor, otherwise a numpy array
+    return_format: str (default: 'array')
+        'array': numpy.array
+        'torch': torch.Tensor
+        'bytes': bytes
+    
     verbose: bool
         if True, print the steps
     """
+    assert return_format in ['array', 'torch', 'bytes']
     if not os.path.isfile(path):
         # Because soxbindings does not indicate the filename if the file does not exist
         raise RuntimeError("File not found: %s" % path)
@@ -76,17 +80,20 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
         #audio = librosa.resample(audio, orig_sr = sr, target_sr = sampling_rate)
         audio = torchaudio.transforms.Resample(sr, sampling_rate)(torch.Tensor(audio))
     
-    if return_torch and not isinstance(audio, torch.Tensor):
+    if return_format == "torch" and not isinstance(audio, torch.Tensor):
         if verbose:
             print("- Convert to Torch")
         audio = torch.Tensor(audio)
-    elif not return_torch:
+    elif return_format != "torch":
         if isinstance(audio, torch.Tensor):
             if verbose:
                 print("- Convert to Numpy")
             audio = audio.numpy()
         elif isinstance(audio, list):
             audio = np.array(audio, dtype=np.float32)
+        if return_format == "bytes":
+            audio = (audio * 32768).astype(np.int16).tobytes()
+
     if verbose:
         print("- Done", path, start, end)
 

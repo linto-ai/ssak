@@ -16,28 +16,45 @@ import json
 
 
 def speechbrain_infer(
-    model, audios,
+    model,
+    audios,
     batch_size = 1,
+    device = None,
     arpa_path = None, alpha = 0.5, beta = 1.0,
     sort_by_len = False,
     log_memtime = False,
     ):
     """
-    Infer a single audio file.
+    Transcribe audio(s) with speechbrain model
 
     Args:
         model: SpeechBrain model or a path to the model
-        audio: Audio file path
-        log_memtime: If True, print timing and memory usage information
+        audios:
+            Audio file path(s) or Audio waveform(s) or Audio tensor(s)
+        batch_size: int
+            Batch size (default 1).
+        device: str
+            Device to use (default "cuda:0" if GPU available else "cpu").
+            Can be: "cpu", "cuda:0", "cuda:1", etc.
+        arpa_path: str
+            Path to arpa file for decoding with Language Model.
+        alpha: float
+            Language Model weight.
+        beta: float
+            Word insertion penalty.
+        sort_by_len: bool
+            Sort audio by length before batching (longest audio first).
+        log_memtime: bool
+            If True, print timing and memory usage information.
     """
     if isinstance(model, str):
-        model = speechbrain_load_model(model)
+        model = speechbrain_load_model(model, device = device)
 
     assert isinstance(model, sb.pretrained.interfaces.EncoderASR), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
 
     sampling_rate = model.audio_normalizer.sample_rate
 
-    batches = to_audio_batches(audios, return_torch = True,
+    batches = to_audio_batches(audios, return_format = 'torch',
         sampling_rate = sampling_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
@@ -114,8 +131,10 @@ def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
     """
     tokenizer: tokenizer from speechbrain
     arpa_file: path to arpa file
-    return a processor of type Wav2Vec2ProcessorWithLM to be used as "processor.batch_decode(log_probas.numpy()).text"
+    alpha: language model weight
+    beta: word insertion penalty
 
+    return a processor of type Wav2Vec2ProcessorWithLM to be used as "processor.batch_decode(log_probas.numpy()).text"
     """
     labels = [{'':" ", ' ⁇ ':"<pad>"}.get(i,i).lower() for i in tokenizer.decode([[i] for i in range(tokenizer.get_piece_size())])] + ["<s>", "</s>"]
     vocab = dict((c,i) for i,c in enumerate(labels))

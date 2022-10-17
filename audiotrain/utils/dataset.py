@@ -2,6 +2,8 @@ import os
 import pathlib
 from operator import itemgetter
 import logging
+import random
+import math
 
 from .audio import load_audio
 from .text import remove_special_words
@@ -368,6 +370,32 @@ def make_cachable(dataset, online = False, shuffle = False, return_csv = False, 
         res = list(res.values())[0]
     return res
 
+def format_cache_files(cache_files):
+    if isinstance(cache_files, list):
+        res = list(set([format_cache_files(f) for f in cache_files]))
+        pref = commonprefix(res)
+        return pref + " | ".join(sorted([f[len(pref):] for f in res if f != pref]))
+    elif isinstance(cache_files, dict):
+        if "filename" in cache_files:
+            return cache_files["filename"]
+        elif len(cache_files) == 1:
+            return format_cache_files(list(cache_files.values())[0])
+        else:
+            return str(cache_files)
+    else:
+        return str(cache_files)
+# Return the longest prefix of all list elements.
+def commonprefix(m):
+    "Given a list of pathnames, returns the longest common leading component"
+    if not m: return ''
+    s1 = min(m)
+    s2 = max(m)
+    for i, c in enumerate(s1):
+        if c != s2[i]:
+            return s1[:i]
+    return s1
+
+
 def process_dataset(processor, dataset,
     batch_size = 32, num_proc = 1,
     data_augmenter = None,
@@ -499,7 +527,7 @@ def to_audio_batches(
     batch_size = 0,
     sampling_rate = 16_000,
     mono = True,
-    return_torch = False,
+    return_format = 'array',
     sort_by_len = False,
     ):
     """ 
@@ -508,7 +536,7 @@ def to_audio_batches(
     if isinstance(input, str):
         
         if os.path.isfile(input):
-            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch)
+            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
             if batch_size == 0:
                 yield audio
             else:
@@ -518,7 +546,7 @@ def to_audio_batches(
             _, dataset = kaldi_folder_to_dataset(input, sort_by_len = -1 if sort_by_len else 0)
             batch = []
             for data in dataset:
-                audio = load_audio(data["path"], data.get("start"), data.get("end"), return_torch = True)
+                audio = load_audio(data["path"], data.get("start"), data.get("end"), sampling_rate = sampling_rate, mono = mono, return_format = return_format)
                 if batch_size == 0:
                     yield audio
                 else:
@@ -535,9 +563,9 @@ def to_audio_batches(
     elif isinstance(input, list):
         batch = []
         for data in input:
-            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch, sort_by_len = sort_by_len)
+            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_format = return_format, sort_by_len = sort_by_len)
             for b in batches:
-                if batch_size > 0 and len(b) == batch_size:
+                if batch_size == 0 or len(b) == batch_size:
                     yield b
                     continue
                 for sample in b:

@@ -64,7 +64,8 @@ RUN pip3 install \
     soxbindings \
     ipython \
     psutil \
-    py3nvml
+    py3nvml \
+    vosk
 
 # Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
 COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
