@@ -535,15 +535,19 @@ def to_audio_batches(
     elif isinstance(input, list):
         batch = []
         for data in input:
-            audios = to_audio_batches(input, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch, sort_by_len = sort_by_len)
-            for audio in audios:
-                if batch_size == 0:
-                    yield audio
-                else:
-                    batch.append(audio)
-                    if len(batch) == batch_size:
-                        yield batch
-                        batch = []
+            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_torch = return_torch, sort_by_len = sort_by_len)
+            for b in batches:
+                if batch_size > 0 and len(b) == batch_size:
+                    yield b
+                    continue
+                for sample in b:
+                    if batch_size == 0:
+                        yield sample
+                    else:
+                        batch.append(sample)
+                        if len(batch) == batch_size:
+                            yield batch
+                            batch = []
         if len(batch) > 0:
             yield batch
 
