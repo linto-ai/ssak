@@ -22,13 +22,9 @@ RUN apt-get update && \
         ipython3 \
         less \
         htop \
-        locales
-
-# Locale
-RUN sed -i '/fr_FR.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-ENV LANG fr_FR.UTF-8  
-ENV LANGUAGE fr_FR:en  
-ENV LC_ALL fr_FR.UTF-8
+        locales \
+        tmux \
+        time
 
 # Audio specific
 RUN apt-get install -y --no-install-recommends \
@@ -36,8 +32,13 @@ RUN apt-get install -y --no-install-recommends \
         libsox-fmt-mp3 \
         libsox-dev \
         ffmpeg \
-        libsndfile1 \
-        tmux
+        libsndfile1
+
+# Locale
+RUN sed -i '/fr_FR.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG fr_FR.UTF-8  
+ENV LANGUAGE fr_FR:en  
+ENV LC_ALL fr_FR.UTF-8
 
 RUN python -m pip install --upgrade pip
 
@@ -48,6 +49,7 @@ RUN pip3 install \
     torch \
     torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html \
     torchvision \
+    tensorboard \
     audiomentations \
     huggingface_hub \
     accelerate \
@@ -57,12 +59,15 @@ RUN pip3 install \
     pypi-kenlm \
     num2words \
     datasets \
+    datasets[audio] \
     soundfile \
     soxbindings \
-    datasets[audio] \
     ipython \
     psutil \
     py3nvml
+
+# Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
+COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
 
 # Speechbrain
 RUN git clone https://github.com/speechbrain/speechbrain /opt/speechbrain \
@@ -73,11 +78,7 @@ RUN git clone https://github.com/speechbrain/speechbrain /opt/speechbrain \
 # whisper
 # RUN pip3 install git+https://github.com/openai/whisper.git 
 
-# Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
-COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
-
 RUN pip3 install \
-    tensorboard \
     git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd7fb01e1e6e063be492fddeab # Fix for hyperpyyaml
 
 ENTRYPOINT ["/bin/bash"]
