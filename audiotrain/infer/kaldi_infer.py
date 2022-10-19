@@ -1,6 +1,7 @@
 from audiotrain.utils.env import auto_device
 from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
+from audiotrain.utils.misc import get_cache_dir
 
 import vosk
 vosk.SetLogLevel(-1)
@@ -21,7 +22,7 @@ def kaldi_infer(
     device = None,
     sort_by_len = False,
     log_memtime = False,
-    cache_dir = os.path.join(os.environ["HOME"], ".cache", "vosk"),
+    cache_dir = get_cache_dir("vosk"),
     max_bytes_for_gpu = 8000,
     ):
     """
@@ -322,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=1)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--disable_logs', help="Disable logs (on stderr)", default=False, action="store_true")
-    parser.add_argument('--cache_dir', help="Path to cache models", default = os.path.join(os.environ["HOME"], ".cache", "vosk"))
+    parser.add_argument('--cache_dir', help="Path to cache models", default = get_cache_dir("vosk"))
     args = parser.parse_args()
 
 

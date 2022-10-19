@@ -1,8 +1,9 @@
 from audiotrain.utils.env import auto_device
 from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.misc import flatten
+from audiotrain.utils.misc import flatten, get_cache_dir
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 
+import huggingface_hub
 import speechbrain as sb
 import torch
 import torch.nn.utils.rnn as rnn_utils
@@ -50,7 +51,7 @@ def speechbrain_infer(
     if isinstance(model, str):
         model = speechbrain_load_model(model, device = device)
 
-    assert isinstance(model, sb.pretrained.interfaces.EncoderASR), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
+    assert isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
 
     sampling_rate = model.audio_normalizer.sample_rate
 
@@ -105,13 +106,6 @@ def pack_sequences(tensors, device = "cpu"):
     wav_lens = torch.Tensor([l/maxwav_lens for l in wav_lens])
     return tensor.to(device), wav_lens.to(device)
 
-def speechbrain_load_model(path, device = None):
-    if device is None:
-        device = auto_device()
-    model = sb.pretrained.EncoderASR.from_hparams(source = path, run_opts= {"device": device})
-    model.train(False)
-    model.requires_grad_(False)
-    return model
 
 def speechbrain_transcribe_batch(model, audios):
     batch, wav_lens = pack_sequences(audios, device = model.device)
@@ -158,6 +152,45 @@ def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
     )
     return processor
 
+def speechbrain_load_model(source, device = None, cache_dir = None):
+    if device is None:
+        device = auto_device()
+    if cache_dir is None:
+        cache_dir = get_cache_dir("speechbrain")
+        cache_dir = os.path.join(cache_dir, os.path.basename(source))
+    yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+    overrides = make_yaml_overrides(yaml_file, {"save_path": None})
+    try:
+        model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+    except ValueError:
+        model = sb.pretrained.EncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+    model.train(False)
+    model.requires_grad_(False)
+    return model
+
+def make_yaml_overrides(yaml_file, key_values):
+    """
+    return a dictionary of overrides to be used with speechbrain
+    yaml_file: path to yaml file
+    key_values: dict of key values to override
+    """
+    override = {}
+    with open(yaml_file, "r") as f:
+        parent = None
+        for line in f:
+            if line.strip() == "":
+                parent = None
+            elif line == line.lstrip():
+                if ":" in line:
+                    parent = line.split(":")[0].strip()
+                    if parent in key_values:
+                        override[parent] = key_values[parent]
+            elif ":" in line:
+                child = line.strip().split(":")[0].strip()
+                if child in key_values:
+                    override[parent] = override.get(parent, {}) | {child: key_values[child]}
+    return override
+
 if __name__ == "__main__":
 
     import sys
@@ -167,7 +200,9 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (file(s) or kaldi folder(s))", nargs='+')
-    parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model", default = "speechbrain/asr-wav2vec2-commonvoice-fr")
+    parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model",
+        default = "speechbrain/asr-wav2vec2-commonvoice-fr"
+    )
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
