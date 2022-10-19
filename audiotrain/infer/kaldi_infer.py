@@ -1,17 +1,18 @@
 from audiotrain.utils.env import auto_device
 from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.misc import flatten
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 
 import vosk
+vosk.SetLogLevel(-1)
+
 import urllib
+import zipfile
 import pickle, hashlib
 
 import os
 import tempfile
 import shutil
 import json
-
 
 def kaldi_infer(
     modelname,
@@ -20,7 +21,8 @@ def kaldi_infer(
     device = None,
     sort_by_len = False,
     log_memtime = False,
-    cache_dir = os.path.join(os.environ["HOME"], ".cache", "vosk")
+    cache_dir = os.path.join(os.environ["HOME"], ".cache", "vosk"),
+    max_bytes_for_gpu = 8000,
     ):
     """
     Infer a single audio file.
@@ -32,86 +34,218 @@ def kaldi_infer(
         log_memtime: If True, print timing and memory usage information
     """
     modeldir = os.path.join(cache_dir, modelname)
+    files_to_move = []
 
-    if "," in modelname:
-        amdir, lmdir = modelname.split(",")
-        modeldir = linagora2vosk(amdir, lmdir)
+    try:
 
-    elif modelname == "linSTT_fr-FR_v2.2.0":
-        amdir, lmdir = "/home/jlouradour/models/RecoFR/linSTT_AM_fr-FR_v2.2.0", "/home/jlouradour/models/RecoFR/decoding_graph_fr-FR_Big_v2.2.0" # NOCOMMIT
-        modeldir = linagora2vosk(amdir, lmdir)
+        if "," in modelname:
+            amdir, lmdir = modelname.split(",")
+            modeldir = linagora2vosk(amdir, lmdir)
+            files_to_move.append((modeldir, None))
 
-    elif not os.path.isdir(modeldir):
-        zipname = modelname + ".zip"
-        urlfile = "https://alphacephei.com/vosk/models/" + zipname
-        localfile = os.path.join(cache_dir, zipname)
-        print("Downloading {}".format(urlfile))
-        os.makedirs(cache_dir, exist_ok=True)
-        urllib.request.urlretrieve(urlfile, localfile)
-        with zipfile.ZipFile(localfile, 'r') as zip_ref:
-            zip_ref.extractall(cache_dir)
-        os.remove(localfile)
+        elif modelname == "linSTT_fr-FR_v2.2.0":
 
-    conf_file = os.path.join(modeldir, "conf", "mfcc.conf")
-    if not os.path.isfile(conf_file):
-        conf_file = os.path.join(modeldir, "mfcc.conf")
+            urlpath = "https://dl.linto.ai/downloads/model-distribution/"
+            amdir = download_zipped_folder(urlpath + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.0.0.zip", cache_dir)
+            lmdir = download_zipped_folder(urlpath + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
+            modeldir = linagora2vosk(amdir, lmdir)
+            files_to_move.append((modeldir, None))
+
+        elif not os.path.isdir(modeldir):
+            urlpath = "https://alphacephei.com/vosk/models/"
+            modeldir = download_zipped_folder(urlpath + modelname + ".zip", cache_dir)
+
+        conf_file = os.path.join(modeldir, "conf", "mfcc.conf")
         if not os.path.isfile(conf_file):
-            raise ValueError("Cannot find mfcc.conf in {}".format(modeldir))
-    sampling_rate = read_param_value(conf_file, "sample-frequency", int)
-    if sampling_rate is None:
-        print("WARNING: Cannot find sample-frequency in mfcc.conf, assuming 16000")
-        sampling_rate = 16000
+            conf_file = os.path.join(modeldir, "mfcc.conf")
+            if not os.path.isfile(conf_file):
+                raise ValueError("Cannot find mfcc.conf in {}".format(modeldir))
+        sampling_rate = read_param_value(conf_file, "sample-frequency", int)
+        if sampling_rate is None:
+            print("WARNING: Cannot find sample-frequency in mfcc.conf, assuming 16000")
+            sampling_rate = 16000
 
-    if device is None:
-        device = auto_device()
+        if device is None:
+            device = auto_device()
 
-    if device != "cpu":
-        print("NOCOMMIT INIT GPU")
-        vosk.GpuInit()
-        vosk.GpuThreadInit()
+        use_gpu = device not in ["cpu"]
+        if use_gpu:
+            vosk.GpuInit()
+            vosk.GpuThreadInit()
 
-    if batch_size > 1:
-        os.symlink(modeldir, "model")
-        model = vosk.BatchModel()
-        recognizer = vosk.BatchRecognizer(model, sampling_rate)
-    else:
-        batch_size = 0
-        model = vosk.Model(modeldir)
-        recognizer = vosk.KaldiRecognizer(model, sampling_rate)
+        use_batched_model = batch_size > 1 or use_gpu
 
-    if device != "cpu":
-        print("NOCOMMIT INIT GPU")
-        vosk.GpuInit()
-        vosk.GpuThreadInit()
+        if use_batched_model:
+
+            if not use_gpu:
+                raise NotImplementedError("Batched model only works with GPU")
+
+            # Link to a model sub-folder (WTF class BatchModel needs it)
+            if os.path.exists("model"):
+                tmp_file = "model_"+myhash("model")
+                shutil.move("model", tmp_file)
+                files_to_move.append((tmp_file, "model"))
+            os.symlink(modeldir, "model")
+            files_to_move.append(("model", None))
+            modeldir = "model"
+
+            # Also needs a conf/ivector.conf file
+            ivector_file1 = os.path.join(modeldir, "am", "conf", "ivector_extractor.conf")
+            ivector_file = os.path.join(modeldir, "conf", "ivector.conf")
+            if not os.path.isfile(ivector_file):
+                with open(ivector_file, "w") as f:
+                    if os.path.exists(ivector_file1):
+                        with open(ivector_file1, "r") as f1:
+                            for line in f1:
+                                f.write(line)
+                    f.write(f"""
+                    --lda-matrix={modeldir}/ivector/final.mat
+                    --global-cmvn-stats={modeldir}/ivector/global_cmvn.stats
+                    --diag-ubm={modeldir}/ivector/final.dubm
+                    --ivector-extractor={modeldir}/ivector/final.ie
+                    --splice-config={modeldir}/ivector/splice.conf
+                    --cmvn-config={modeldir}/ivector/online_cmvn.conf
+                    """)
+                files_to_move.append((ivector_file, None))
+            conf_file = os.path.join(modeldir, "conf", "model.conf")
+            if os.path.isfile(conf_file):
+                tmp_file = conf_file+"_"+myhash(conf_file)
+                shutil.move(conf_file, tmp_file)
+                files_to_move.append((tmp_file, conf_file))
+                with open(tmp_file, "r") as f, open(conf_file, "w") as g:
+                    for line in f:
+                        if "--min-active" in line:
+                            continue
+                        g.write(line)
+                files_to_move.append((conf_file, None))
+
+            model = vosk.BatchModel()
+            recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
+        else:
+            batch_size = 0
+            model = vosk.Model(modeldir)
+            recognizer = vosk.KaldiRecognizer(model, sampling_rate)
+
+    finally:
+    
+        # (Re)move temporary files, starting from the most recent one
+        files_to_move.reverse()
+        for tmp_file, dest_file in files_to_move:                
+            if dest_file:
+                # Move file / symbolic link / folder
+                if os.path.exists(dest_file):
+                    try:
+                        os.remove(dest_file)
+                    except IsADirectoryError:
+                        shutil.rmtree(dest_file) 
+                shutil.move(tmp_file, dest_file)
+            else:
+                # Remove file / symbolic link / folder
+                try:
+                    os.remove(tmp_file)
+                except IsADirectoryError:
+                    shutil.rmtree(tmp_file) 
+            
+            # Why a try / except?
+            # /!\ To be careful with symbolic links:
+            #       os.path.isdir returns True on them,
+            #       and shutil.rmtree delete their content.
 
     batches = to_audio_batches(audios, return_format = 'bytes',
         sampling_rate = sampling_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
-    )
+    ) 
+
+    # Note: the pipeline is so different depending on whether BatchModel (for GPU) is used or not
 
     # Compute best predictions
     tic()
     predictions = []
     for batch in batches:
-        recognizer.AcceptWaveform(batch)
-        pred = recognizer.FinalResult()
-        pred = json.loads(pred)["text"]
-        if batch_size > 0:
-            predictions.extend(pred)
+        if use_batched_model:
+
+            results = ["" for _ in batch]                
+
+            ended = [False for _ in batch]
+
+            while not min(ended):
+
+                for i, (audio, recognizer) in enumerate(zip(batch, recognizers)):
+                    if len(audio) > max_bytes_for_gpu:
+                        audio = audio[:max_bytes_for_gpu]
+                        batch[i] = batch[i][max_bytes_for_gpu:]
+                    elif len(audio) == 0:
+                        if not ended[i]:
+                            recognizer.FinishStream()
+                            ended[i] = True
+                        continue
+                    else:
+                        batch[i] = b""
+                    recognizer.AcceptWaveform(audio)
+
+                # Wait for results from CUDA
+                model.Wait()
+
+                for i, recognizer in enumerate(recognizers):
+                    pred = recognizer.Result()
+                    if len(pred):
+                        pred = json.loads(pred)["text"]
+                        if results[i]:
+                            results[i] += " " + json.loads(pred)['text']
+                        else:
+                            results[i] = json.loads(pred)['text']
+
+            predictions.extend(results)
+
         else:
+            recognizer.AcceptWaveform(batch)
+            pred = recognizer.FinalResult()
+            if len(pred):
+                pred = json.loads(pred)["text"]
             predictions.append(pred)
+
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
 
+    if use_gpu:
+        os.remove("model")
+        # TODO: put original model here if any
+    
     return predictions
+
+def download_zipped_folder(url, cache_dir):
+    dname = url.split("/")[-1]
+    assert dname.endswith(".zip")
+    dname = dname[:-4]
+    destdir = os.path.join(cache_dir, dname)
+    if not os.path.exists(destdir):
+        destzip = destdir+".zip"
+        if not os.path.exists(destzip):
+            print("Downloading", url, "into", destdir)
+            os.makedirs(cache_dir, exist_ok=True)
+            urllib.request.urlretrieve(url, destzip)
+        with zipfile.ZipFile(destzip, 'r') as z:
+            has_folder_inside = min([f.filename.startswith(dname) for f in z.filelist])
+            if has_folder_inside:
+                z.extractall(cache_dir)
+            else:
+                os.makedirs(destdir, exist_ok=True)
+                z.extractall(destdir)
+        assert os.path.isdir(destdir)
+        os.remove(destzip)
+    return destdir
+
+def myhash(x):
+    return hashlib.md5(pickle.dumps(x)).hexdigest()
 
 def linagora2vosk(am_path, lm_path):
     conf_path = am_path + "/conf"
     ivector_path = am_path + "/ivector_extractor"
 
-    vosk_path = os.path.join(tempfile.gettempdir(),
-        hashlib.md5(pickle.dumps([am_path, lm_path, conf_path, ivector_path])).hexdigest()
+    vosk_path = os.path.join(
+        tempfile.gettempdir(),
+        myhash([am_path, lm_path, conf_path, ivector_path])
     )
     if os.path.isdir(vosk_path):
         shutil.rmtree(vosk_path)
@@ -180,11 +314,12 @@ if __name__ == "__main__":
     )
     parser.add_argument('data', help="Path to data (file(s) or kaldi folder(s))", nargs='+')
     parser.add_argument('--model', help="Name of vosk, Path to trained folder, or Paths to acoustic and language model (separated by a coma)",
-        default = "vosk-model-fr-0.6-linto-2.2.0",
-        #default = "/home/jlouradour/models/RecoFR/linSTT_AM_fr-FR_v2.2.0,/home/jlouradour/models/RecoFR/decoding_graph_fr-FR_Big_v2.2.0",
+        #default = ".../linSTT_AM_fr-FR_v2.2.0,.../decoding_graph_fr-FR_Big_v2.2.0",
+        #default = "vosk-model-fr-0.6-linto-2.2.0",
+        default = "linSTT_fr-FR_v2.2.0",
     )
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
-    parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
+    parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=1)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--disable_logs', help="Disable logs (on stderr)", default=False, action="store_true")
     parser.add_argument('--cache_dir', help="Path to cache models", default = os.path.join(os.environ["HOME"], ".cache", "vosk"))
