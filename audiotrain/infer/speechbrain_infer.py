@@ -31,7 +31,7 @@ def speechbrain_infer(
     Args:
         model: SpeechBrain model or a path to the model
         audios:
-            Audio file path(s) or Audio waveform(s) or Audio tensor(s)
+            Audio file path(s), or Kaldi folder(s), or Audio waveform(s)
         batch_size: int
             Batch size (default 1).
         device: str
@@ -74,6 +74,8 @@ def speechbrain_infer(
 
     else:
         assert os.path.isfile(arpa_path), f"Arpa file {arpa_path} not found"
+        if isinstance(model, sb.pretrained.interfaces.EncoderDecoderASR):
+            raise NotImplementedError("Language model decoding is not implemented for EncoderDecoderASR models (which do not provide an interface to access log-probabilities")
 
         # Compute framewise log probas
         tic()
@@ -90,21 +92,11 @@ def speechbrain_infer(
         # Apply language model
         tic()
         num_outputs = tokenizer.get_piece_size() + 2
-        predictions = [processor.batch_decode(l.numpy()[:,:,:num_outputs]).text for l in logits]
+        predictions = [processor.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text for l in logits]
         predictions = flatten(predictions)
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
     return predictions
-
-
-def pack_sequences(tensors, device = "cpu"):
-    if len(tensors) == 1:
-        return tensors[0].unsqueeze(0), torch.Tensor([1.])
-    tensor = rnn_utils.pad_sequence(tensors, batch_first=True)
-    wav_lens = [len(x) for x in tensors]
-    maxwav_lens = max(wav_lens)
-    wav_lens = torch.Tensor([l/maxwav_lens for l in wav_lens])
-    return tensor.to(device), wav_lens.to(device)
 
 
 def speechbrain_transcribe_batch(model, audios):
@@ -115,7 +107,9 @@ def speechbrain_transcribe_batch(model, audios):
 
 def speechbrain_compute_logits(model, audios):
     batch, wav_lens = pack_sequences(audios, device = model.device)
-    log_probas = model.forward(batch, wav_lens)
+    import pickle
+    pickle.dump((batch, wav_lens), open("/tmp/batch.pkl", "wb"))
+    log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
     indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = 0)
     reco = model.tokenizer.decode(indices)
     reco = [s.lower() for s in reco]
@@ -151,6 +145,23 @@ def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
         decoder = decoder
     )
     return processor
+
+def pack_sequences(tensors, device = "cpu"):
+    if len(tensors) == 1:
+        return tensors[0].unsqueeze(0), torch.Tensor([1.])
+    tensor = rnn_utils.pad_sequence(tensors, batch_first=True)
+    wav_lens = [len(x) for x in tensors]
+    maxwav_lens = max(wav_lens)
+    wav_lens = torch.Tensor([l/maxwav_lens for l in wav_lens])
+    return tensor.to(device), wav_lens.to(device)
+
+def conform_torch_logit(x, num_outputs):
+    n = x.shape[-1]
+    if n < num_outputs:
+        return F.pad(input = x, pad=(0,num_outputs - n), mode = "constant", value=-1000)
+    if n > num_outputs:
+        return x[:,:,:num_outputs]
+    return x
 
 def speechbrain_load_model(source, device = None, cache_dir = None):
     if device is None:

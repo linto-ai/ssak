@@ -26,13 +26,21 @@ def kaldi_infer(
     max_bytes_for_gpu = 8000,
     ):
     """
-    Infer a single audio file.
+    Compute transcription on audio(s) using a Kaldi/Vosk model.
 
     Args:
         model: Name of vosk model, or path to a vosk model, or paths to acoustic model and language model (separated by a comma)
         audios:
-            Audio file path(s) or Audio waveform(s) or Audio tensor(s)
-        log_memtime: If True, print timing and memory usage information
+            Audio file path(s), or Kaldi folder(s), or Audio waveform(s)
+        batch_size: int
+            Number of audio files to process in parallel
+        device: str
+            Device to use for inference ("cpu", "cuda:0").
+            If None, will use "cuda:x" if GPU is available ("cpu" otherwise).
+        sort_by_len: bool
+            Sort audio by length before batching (longest audio first).
+        log_memtime: bool
+            If True, print timing and memory usage information.
     """
     modeldir = os.path.join(cache_dir, modelname)
     files_to_move = []
