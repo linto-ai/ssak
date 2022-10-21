@@ -1,7 +1,7 @@
 from audiotrain.utils.env import auto_device
 from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
-from audiotrain.utils.misc import get_cache_dir
+from audiotrain.utils.misc import get_cache_dir, hashmd5
 
 import vosk
 vosk.SetLogLevel(-1)
@@ -91,7 +91,7 @@ def kaldi_infer(
 
             # Link to a model sub-folder (WTF class BatchModel needs it)
             if os.path.exists("model"):
-                tmp_file = "model_"+myhash("model")
+                tmp_file = "model_"+hashmd5("model")
                 shutil.move("model", tmp_file)
                 files_to_move.append((tmp_file, "model"))
             os.symlink(modeldir, "model")
@@ -118,7 +118,7 @@ def kaldi_infer(
                 files_to_move.append((ivector_file, None))
             conf_file = os.path.join(modeldir, "conf", "model.conf")
             if os.path.isfile(conf_file):
-                tmp_file = conf_file+"_"+myhash(conf_file)
+                tmp_file = conf_file+"_"+hashmd5(conf_file)
                 shutil.move(conf_file, tmp_file)
                 files_to_move.append((tmp_file, conf_file))
                 with open(tmp_file, "r") as f, open(conf_file, "w") as g:
@@ -245,16 +245,13 @@ def download_zipped_folder(url, cache_dir):
         os.remove(destzip)
     return destdir
 
-def myhash(x):
-    return hashlib.md5(pickle.dumps(x)).hexdigest()
-
 def linagora2vosk(am_path, lm_path):
     conf_path = am_path + "/conf"
     ivector_path = am_path + "/ivector_extractor"
 
     vosk_path = os.path.join(
         tempfile.gettempdir(),
-        myhash([am_path, lm_path, conf_path, ivector_path])
+        hashmd5([am_path, lm_path, conf_path, ivector_path])
     )
     if os.path.isdir(vosk_path):
         shutil.rmtree(vosk_path)
