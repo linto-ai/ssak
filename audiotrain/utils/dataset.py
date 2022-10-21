@@ -14,8 +14,10 @@ import transformers
 import numpy as np
 np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) # VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
 
+from envsubst import envsubst
 
-def kaldi_folder_to_dataset(kaldi_path,
+def kaldi_folder_to_dataset(
+    kaldi_path,
     online = False,
     shuffle = False,
     max_data = None,
@@ -94,7 +96,8 @@ def kaldi_folder_to_dataset(kaldi_path,
     if not isinstance(kaldi_path, str):
         if not isinstance(weights, list):
             weights = [weights] * len(kaldi_path)
-        ds = [kaldi_folder_to_dataset(p, split = split,
+        ds = [kaldi_folder_to_dataset(
+            p,
             online = False, shuffle = False,
             max_data = max_data,
             min_len = min_len,
@@ -103,6 +106,7 @@ def kaldi_folder_to_dataset(kaldi_path,
             sort_by_len = sort_by_len,
             weights = w,
             include_duration = include_duration,
+            split = split,
             verbose = verbose,
             logstream = logstream,
             do_cache = False) for p,w in zip(kaldi_path, weights)]
@@ -120,8 +124,53 @@ def kaldi_folder_to_dataset(kaldi_path,
 
         return meta, dataset
 
-    if not os.path.isdir(kaldi_path):
+    if os.path.isfile(kaldi_path):
+        # Parse a file listing folders
+
+        new_kaldi_path = []
+        new_weights = []
+        assert isinstance(weights, (int, float))
+
+        with open(kaldi_path) as f:
+            for line in f:
+                words = line.strip().split()
+                for w in words:
+                    # Look for environment variables in the path
+                    if "$" in w:
+                        w = envsubst(w)
+
+                    if os.path.isdir(w):
+                        new_kaldi_path.append(w)
+                        new_weights.append(weights)
+                    else:
+                        try:
+                            w = float(w)
+                        except ValueError:
+                            raise RuntimeError("Could not find folder %s" % w)
+                        assert len(new_weights) > 0, "File cannot start with a weight (first a folder name, then a weight)"
+                        new_weights[-1] *= w
+        
+        return kaldi_folder_to_dataset(
+            new_kaldi_path,
+            online = online,
+            shuffle = shuffle,
+            max_data = max_data,
+            min_len = min_len,
+            max_len = max_len,
+            choose_data_with_max_len = choose_data_with_max_len,
+            sort_by_len = sort_by_len,
+            weights = new_weights,
+            split = split,
+            return_csv = return_csv,
+            include_duration = include_duration,
+            verbose = verbose,
+            logstream = logstream,
+            do_cache = do_cache,
+        )
+
+    elif not os.path.isdir(kaldi_path):
         raise RuntimeError("Could not find folder %s" % kaldi_path)
+
     for fname in "text", "wav.scp":
         if not os.path.isfile(kaldi_path +"/" + fname):
             raise RuntimeError("Could not find file %s in folder %s" % (fname, kaldi_path))
@@ -164,8 +213,7 @@ def kaldi_folder_to_dataset(kaldi_path,
                 path = fields[1]
             # Look for environment variables in the path
             if "$" in path:
-                for var in sorted(os.environ, key = len):
-                    path = path.replace("$" + var, os.environ[var])
+                path = envsubst(path)
             wav[wavid] = path
 
 

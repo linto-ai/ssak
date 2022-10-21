@@ -54,3 +54,21 @@ def save_source_dir(parentdir):
             shutil.copy(what, dest)
         else:
             shutil.copytree(what, dest, dirs_exist_ok=True)
+
+# Return the longest prefix of all list elements.
+def commonprefix(m, end = None):
+    "Given a list of pathnames, returns the longest common leading component"
+    if not m: return ''
+    s1 = min(m)
+    s2 = max(m)
+    for i, c in enumerate(s1):
+        if c != s2[i]:
+            return s1[:i]
+    if end:
+        while len(s1) and not s1.endswith(end):
+            s1 = s1[:-1]
+    return s1
+
+def remove_commonprefix(l, end = None):
+    cp = commonprefix(l, end)
+    return [s[len(cp):] for s in l]

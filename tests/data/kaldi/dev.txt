@@ -1,0 +1,1 @@
+$DATAPATH/kaldi/no_segments

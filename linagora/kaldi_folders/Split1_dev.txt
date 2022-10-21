@@ -1,0 +1,14 @@
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/ACSYNT_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/BREF_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/CFPP2000_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/CommonVoice_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/EPAC_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/ESTER_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/ETAPE_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/LIBRIVOX_1_Ilyes_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/LIBRIVOX_2_Sami_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/LIBRIVOX_3_MAILABS_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/LINAGORA_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/TCOF_Adultes_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/TCOF_Enfants_eval
+/media/nas/CORPUS_PENDING/kaldi/Corpus_FR_split1/VOXFORGE_eval

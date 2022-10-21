@@ -5,7 +5,7 @@ import time
 import transformers
 import numpy as np
 
-from . import Test
+from .utils import Test
 
 class TestAudioDataset(Test):
 
@@ -22,6 +22,8 @@ class TestAudioDataset(Test):
         self.assertTrue(hasattr(dataset, "__len__"))
         self.assertEqual(len(dataset), 63)
         self.assertEqual(self.hash(list(dataset)), EXPECTED)
+        self.assertEqual(meta["samples"], 63)
+        self.assertTrue(meta["h duration"] > 0.056 and meta["h duration"] < 0.057)
 
         tic = time.time()
         meta_online, dataset_online = kaldi_folder_to_dataset(kaldir, online = True, verbose = False)
@@ -30,6 +32,8 @@ class TestAudioDataset(Test):
         self.check_dataset(dataset_online)
         self.assertFalse(hasattr(dataset_online, "__len__"))
         self.assertEqual(self.hash(list(dataset_online)), self.hash(list(dataset)))
+        self.assertEqual(meta_online["samples"], 63)
+        self.assertTrue(meta_online["h duration"] > 0.056 and meta["h duration"] < 0.057)
         #self.assertGreater(t, t_online) # Not necessarily true
 
         processor = transformers.Wav2Vec2Processor.from_pretrained("Ilyes/wav2vec2-large-xlsr-53-french")
@@ -72,3 +76,4 @@ class TestAudioDataset(Test):
             self.assertTrue(isinstance(data.get("labels"), list))
             self.assertGreater(len(data.get("labels")), 0)
             self.assertTrue(isinstance(data.get("labels")[0], int))
+
