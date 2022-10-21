@@ -330,7 +330,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=1)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
-    parser.add_argument('--disable_logs', help="Disable logs (on stderr)", default=False, action="store_true")
+    parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
     parser.add_argument('--cache_dir', help="Path to cache models", default = get_cache_dir("vosk"))
     args = parser.parse_args()
 
@@ -347,7 +347,7 @@ if __name__ == "__main__":
         args.model, args.data,
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
-        log_memtime = not args.disable_logs,
+        log_memtime = args.enable_logs,
         cache_dir = args.cache_dir,
     ):
         print(reco, file = args.output)

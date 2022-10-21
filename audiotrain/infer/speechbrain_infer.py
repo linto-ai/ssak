@@ -75,7 +75,7 @@ def speechbrain_infer(
     else:
         assert os.path.isfile(arpa_path), f"Arpa file {arpa_path} not found"
         if isinstance(model, sb.pretrained.interfaces.EncoderDecoderASR):
-            raise NotImplementedError("Language model decoding is not implemented for EncoderDecoderASR models (which do not provide an interface to access log-probabilities")
+            raise NotImplementedError("Language model decoding is not implemented for EncoderDecoderASR models (which do not provide an interface to access log-probabilities)")
 
         # Compute framewise log probas
         tic()
@@ -218,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
-    parser.add_argument('--disable_logs', help="Disable logs (on stderr)", default=False, action="store_true")
+    parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
     args = parser.parse_args()
 
 
@@ -235,6 +235,6 @@ if __name__ == "__main__":
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
         arpa_path = args.arpa,
-        log_memtime = not args.disable_logs,
+        log_memtime = args.enable_logs,
     ):
         print(reco, file = args.output)
