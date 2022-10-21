@@ -5,7 +5,11 @@ import logging
 
 import py3nvml.py3nvml as pynvml # GPU management
 
-logging.basicConfig()
+logging.basicConfig(
+    # format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    # datefmt="%m/%d/%Y %H:%M:%S",
+    # handlers=[logging.StreamHandler(sys.stdout)],
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -22,7 +26,7 @@ def tic(name = ""):
     TIC[name] = time.time()
     GPUMEMPEAK[name] = gpu_usage()
 
-def toc(name = "", log_mem_usage = False):
+def toc(name = "", stream = None, log_mem_usage = False):
     """ end clock and print time elapsed since the last tic 
     Args:
         name: name of the clock
@@ -30,7 +34,10 @@ def toc(name = "", log_mem_usage = False):
     """
     global TIC
     t = time.time() - TIC.get(name, TIC[""])
-    logger.info(f"TIMING {name}: took {t} sec")
+    s = f"TIMING {name}: took {t} sec"
+    logger.info(s)
+    if stream:
+        print(s, file = stream)
     if log_mem_usage:
         gpu_usage(name)
         log_gpu_gpu_mempeak(name)
@@ -55,12 +62,13 @@ def log_gpu_gpu_mempeak(name = ""):
     if has_gpu():
         logger.info(f"GPU MEMORY PEAK {name}: {gpu_mempeak(name)} MB")
 
-def gpu_usage(name = "", index = None, verbose = True, stream = None):
+def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 10):
     """
     Args:
         name: name of the clock
         index: GPU index
         stream: stream to log to
+        minimum: Minimum memory usage to report the mem usage (per GPU)
     """
     if verbose is None:
         verbose = (stream == None)
@@ -82,7 +90,7 @@ def gpu_usage(name = "", index = None, verbose = True, stream = None):
         # use = pynvml.nvmlDeviceGetUtilizationRates(handle) # This info does not seem to be reliable
         memused = info.used // 1024**2
         memtotal = info.total // 1024**2
-        if memused >= 10: # There is always a residual GPU memory used (1 or a few MB). Less than 10 MB usually means nothing.
+        if memused >= minimum: # There is always a residual GPU memory used (1 or a few MB). Less than 10 MB usually means nothing.
             summemused+= memused
             s = f"GPU MEMORY {name} : {igpu+1}/{len(indices)} {gpuname}: mem {memused} / {memtotal} MB"
             if verbose:
