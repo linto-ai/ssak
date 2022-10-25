@@ -24,6 +24,7 @@ def kaldi_infer(
     log_memtime = False,
     cache_dir = get_cache_dir("vosk"),
     max_bytes_for_gpu = 8000,
+    clean_temp_file = True,
     ):
     """
     Compute transcription on audio(s) using a Kaldi/Vosk model.
@@ -94,6 +95,9 @@ def kaldi_infer(
                 tmp_file = "model_"+hashmd5("model")
                 shutil.move("model", tmp_file)
                 files_to_move.append((tmp_file, "model"))
+            # Broken symlink
+            elif os.path.islink("model"):
+                os.remove("model")
             os.symlink(modeldir, "model")
             files_to_move.append(("model", None))
             modeldir = "model"
@@ -137,28 +141,30 @@ def kaldi_infer(
 
     finally:
     
-        # (Re)move temporary files, starting from the most recent one
-        files_to_move.reverse()
-        for tmp_file, dest_file in files_to_move:                
-            if dest_file:
-                # Move file / symbolic link / folder
-                if os.path.exists(dest_file):
+        if clean_temp_file:
+
+            # (Re)move temporary files, starting from the most recent one
+            files_to_move.reverse()
+            for tmp_file, dest_file in files_to_move:                
+                if dest_file:
+                    # Move file / symbolic link / folder
+                    if os.path.exists(dest_file):
+                        try:
+                            os.remove(dest_file)
+                        except IsADirectoryError:
+                            shutil.rmtree(dest_file) 
+                    shutil.move(tmp_file, dest_file)
+                else:
+                    # Remove file / symbolic link / folder
                     try:
-                        os.remove(dest_file)
+                        os.remove(tmp_file)
                     except IsADirectoryError:
-                        shutil.rmtree(dest_file) 
-                shutil.move(tmp_file, dest_file)
-            else:
-                # Remove file / symbolic link / folder
-                try:
-                    os.remove(tmp_file)
-                except IsADirectoryError:
-                    shutil.rmtree(tmp_file) 
-            
-            # Why a try / except?
-            # /!\ To be careful with symbolic links:
-            #       os.path.isdir returns True on them,
-            #       and shutil.rmtree delete their content.
+                        shutil.rmtree(tmp_file) 
+                
+                # Why a try / except?
+                # /!\ To be careful with symbolic links:
+                #       os.path.isdir returns True on them,
+                #       and shutil.rmtree delete their content.
 
     batches = to_audio_batches(audios, return_format = 'bytes',
         sampling_rate = sampling_rate,
@@ -201,9 +207,9 @@ def kaldi_infer(
                     if len(pred):
                         pred = json.loads(pred)["text"]
                         if results[i]:
-                            results[i] += " " + json.loads(pred)['text']
+                            results[i] += " " + pred
                         else:
-                            results[i] = json.loads(pred)['text']
+                            results[i] = pred
 
             predictions.extend(results)
 
@@ -216,10 +222,6 @@ def kaldi_infer(
 
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
-
-    if use_gpu:
-        os.remove("model")
-        # TODO: put original model here if any
     
     return predictions
 
@@ -329,6 +331,7 @@ if __name__ == "__main__":
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
     parser.add_argument('--cache_dir', help="Path to cache models", default = get_cache_dir("vosk"))
+    parser.add_argument('--disable_clean', help="To avoid removing temporary files", action='store_true', default=False)
     args = parser.parse_args()
 
 
@@ -346,5 +349,6 @@ if __name__ == "__main__":
         sort_by_len = args.sort_by_len,
         log_memtime = args.enable_logs,
         cache_dir = args.cache_dir,
+        clean_temp_file = not args.disable_clean,
     ):
         print(reco, file = args.output)

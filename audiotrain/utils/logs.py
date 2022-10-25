@@ -24,7 +24,7 @@ def tic(name = ""):
     """
     global TIC, GPUMEMPEAK
     TIC[name] = time.time()
-    GPUMEMPEAK[name] = gpu_usage()
+    GPUMEMPEAK[name] = gpu_usage(name, verbose = False)
 
 def toc(name = "", stream = None, log_mem_usage = False):
     """ end clock and print time elapsed since the last tic 
