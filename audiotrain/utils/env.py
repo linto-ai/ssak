@@ -25,6 +25,11 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 # See https://stackoverflow.com/questions/59290386/runtimeerror-at-cannot-cache-function-shear-dense-no-locator-available-fo
 os.environ["NUMBA_CACHE_DIR"] = "/tmp"
 
+if not os.environ.get("HOME"):
+    path = os.path.dirname(os.path.abspath(__file__))
+    if path.startswith("/home/"):
+        os.environ["HOME"] = "/".join(os.environ["HOME"].split("/")[:3])
+
 # Importing torch must be done after having set the CUDA-related environment variables
 import torch
 import multiprocessing
