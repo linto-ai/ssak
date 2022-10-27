@@ -11,7 +11,7 @@ import subprocess
 class Test(unittest.TestCase):
 
     def setUp(self):
-        print("Running", self.__class__.__name__)
+        #print("Running", self.__class__.__name__)
         os.environ["DATAPATH"] = self.get_data_path()
 
     def tearDown(self):
