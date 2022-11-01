@@ -44,29 +44,7 @@ RUN python -m pip install --upgrade pip
 
 # Python
 # intel_extension_for_pytorch \
-RUN pip3 install \  
-    transformers==4.21.0 \
-    torch \
-    torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html \
-    torchvision \
-    tensorboard \
-    audiomentations \
-    huggingface_hub \
-    accelerate \
-    librosa \
-    jiwer \
-    pyctcdecode \
-    pypi-kenlm \
-    num2words \
-    datasets \
-    datasets[audio] \
-    soundfile \
-    soxbindings \
-    ipython \
-    psutil \
-    py3nvml \
-    vosk \
-    envsubst
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
 COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/

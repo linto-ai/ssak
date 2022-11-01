@@ -1,0 +1,22 @@
+transformers==4.21.0
+torch
+torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
+torchvision
+tensorboard
+audiomentations
+huggingface_hub
+accelerate
+librosa
+jiwer
+pyctcdecode
+pypi-kenlm
+num2words
+datasets
+datasets[audio]
+soundfile
+soxbindings
+ipython
+psutil
+py3nvml
+vosk
+envsubst
