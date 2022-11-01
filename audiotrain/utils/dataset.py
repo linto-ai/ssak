@@ -323,6 +323,8 @@ def kaldi_folder_to_dataset(
             "ID": uttids,
             "path": paths,
             "text": annots,
+            "start": [None] * len(uttids),
+            "end": [None] * len(uttids),
         }
 
     total_duration = sum(durations)
@@ -337,6 +339,7 @@ def kaldi_folder_to_dataset(
         l = len(dataset["ID"])
         dataset = {k: list(v) * int(weights) + random.Random(45).sample(v, int(len(v) * (weights%1))) for k, v in dataset.items()}
         if weights > 1:
+            # Assign different identifiers, as speechbrain require all ids to be different
             for i in range(1, math.ceil(weights)+1):
                 a = i*l
                 b = min((i+1)*l, len(dataset["ID"]))
@@ -388,6 +391,17 @@ def kaldi_folder_to_dataset(
 def make_cachable(dataset, online = False, shuffle = False, return_csv = False, verbose = True, logstream = None):
     # - cachable
     # - online streaming
+    if len(set(dataset["ID"])) < len(dataset["ID"]):
+        all_ids = []
+        def make_id_unique(d):
+            id = d["ID"]
+            if id in all_ids:
+                j = 2
+                while f"{id}_{j}" in all_ids: j+= 1
+                d["ID"] = f"{id}_{j}"
+            all_ids.append(id)
+            return d
+        dataset = dataset.map(make_id_unique)
     if shuffle:
         if verbose:
             print("Shuffling dataset")

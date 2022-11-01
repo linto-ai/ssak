@@ -88,7 +88,6 @@ class SpeechAugment:
             self.transforms += [Reverberation(path_dir=rir_dir, rir_list_files=rir_lists, sampling_rate=sample_rate, p=1.0)]
         # Speed at the end
         self.transforms += [TimeStretch(min_rate=0.95, max_rate=1.05, leave_length_unchanged=False, p=1.0)]
-        self.proba_speed = 1
         
         self.num_trans = len(self.transforms)
         self.apply_speed_separately = apply_speed_separately

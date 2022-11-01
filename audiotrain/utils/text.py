@@ -137,6 +137,7 @@ def format_text_fr(text, keep_punc = False):
     text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
     text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
     text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
+    text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
     text = re.sub(r"(\d+)([^\d])",r" \1 \2", text) # add spaces before and after digits
 
     for reg, replacement in _corrections_abbreviations_fr:

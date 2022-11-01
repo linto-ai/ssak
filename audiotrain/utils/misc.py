@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import hashlib
 import pickle
@@ -47,6 +48,8 @@ def save_source_dir(parentdir):
     os.makedirs(src_dir) #, exist_ok=True)
     whattocopy = [
         os.path.dirname(os.path.dirname(__file__))
+    ] + [
+        arg for arg in sys.argv if os.path.exists(arg)
     ]
     for what in whattocopy:
         dest = src_dir+"/"+os.path.basename(what)
