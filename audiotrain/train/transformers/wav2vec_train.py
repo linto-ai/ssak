@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from audiotrain.utils.env import * # handle option --gpu (and set environment variables at the beginning)
 from audiotrain.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from audiotrain.utils.text import remove_special_words
@@ -139,8 +141,8 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders.")
-    parser.add_argument('dev', help="A kaldi folder, or a file containing a list of kaldi folders.")
+    parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
+    parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--gpu', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--online', help="load and process audio files on the fly", default=False, action="store_true")
@@ -218,7 +220,7 @@ if __name__ == "__main__":
             if k not in ["verbose", "disable_first_eval", "output_dir", "gpu", "eval_steps", # No influence on the results
                 "num_epochs", # We ignore this, to be able to continue training in the same folder
                 "data_augment_noise", "data_augment_rir", # We ignore this arbitrarily
-                "train", "dev", "debug", # Will be handled differently
+                "train", "valid", "debug", # Will be handled differently
                 "online", "no_freeze", "data_augment" # Will be handled differently
             ] 
         )
@@ -227,7 +229,7 @@ if __name__ == "__main__":
         if args.debug:
             s = "DEBUG_" + s
         else:
-            (_, train_path, dev_path) = remove_commonprefix([os.path.realpath(f) for f in [sys.argv[0], args.train, args.dev]], "/")
+            (_, train_path, dev_path) = remove_commonprefix([os.path.realpath(f) for f in [sys.argv[0], args.train, args.valid]], "/")
             s = hashmd5((train_path, dev_path)) + "_" + s
         while "__" in s:
             s = s.replace("__","_")
@@ -281,7 +283,7 @@ if __name__ == "__main__":
         logstream = readme,
     )
     testsetmeta, testset = kaldi_folder_to_dataset(
-        args.dev,
+        args.valid,
         shuffle = False,
         online = online_dev,
         max_data = (2 * args.batch_size) if args.debug else 480,
