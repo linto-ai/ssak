@@ -133,7 +133,6 @@ def kaldi_infer(
                 files_to_move.append((conf_file, None))
 
             model = vosk.BatchModel()
-            recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
         else:
             batch_size = 0
             model = vosk.Model(modeldir)
@@ -179,6 +178,7 @@ def kaldi_infer(
     predictions = []
     for batch in batches:
         if use_batched_model:
+            recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
 
             results = ["" for _ in batch]                
 
