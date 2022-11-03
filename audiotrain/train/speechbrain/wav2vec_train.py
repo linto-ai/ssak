@@ -1,6 +1,6 @@
 #!/usr/bin/python
  
-from audiotrain.utils.env import auto_device # handle option --gpu (and set environment variables at the beginning)
+from audiotrain.utils.env import auto_device # handle option --gpus (and set environment variables at the beginning)
 from audiotrain.utils.dataset import kaldi_folder_to_dataset
 from audiotrain.utils.audio import load_audio
 from audiotrain.utils.text import remove_special_words
@@ -28,8 +28,6 @@ from hyperpyyaml import load_hyperpyyaml
 USE_HF_METRIC = True
 if USE_HF_METRIC:
     import datasets # For metrics
-
-
 
 DATA_AUGMENTER = None
 

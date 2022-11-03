@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from audiotrain.utils.env import * # handle option --gpu (and set environment variables at the beginning)
+from audiotrain.utils.env import * # handle option --gpus (and set environment variables at the beginning)
 from audiotrain.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.dataset import kaldi_folder_to_dataset, process_dataset
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
     parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
-    parser.add_argument('--gpu', help="List of GPU index to use (starting from 0)", default= None)
+    parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--online', help="load and process audio files on the fly", default=False, action="store_true")
     parser.add_argument('--max_len', help="maximum signal length", default=15, type=int)
     parser.add_argument('--min_len', help="minimum signal length", default=1, type=int)
@@ -175,12 +175,12 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', help="output parent folder", default = ".", type=str)
     args = parser.parse_args()
 
-    if not args.gpu:
-        args.gpu = ",".join([str(i) for i in range(get_num_gpus())])
+    if not args.gpus:
+        args.gpus = ",".join([str(i) for i in range(get_num_gpus())])
 
     # GPU with the most of memory first
     gpus = list(reversed(sorted(
-        [int(i) for i in args.gpu.split(",") if i and int(i) >= 0],
+        [int(i) for i in args.gpus.split(",") if i and int(i) >= 0],
         key = gpu_free_memory
     )))
     print("Using gpus:", gpus)
@@ -217,7 +217,7 @@ if __name__ == "__main__":
                 {True: 1, False: 0}.get(v, str(v).replace("/","_"))
             )) # if v != 0 else ""
                 for k,v in d.items()
-            if k not in ["verbose", "disable_first_eval", "output_dir", "gpu", "eval_steps", # No influence on the results
+            if k not in ["verbose", "disable_first_eval", "output_dir", "gpus", "eval_steps", # No influence on the results
                 "num_epochs", # We ignore this, to be able to continue training in the same folder
                 "data_augment_noise", "data_augment_rir", # We ignore this arbitrarily
                 "train", "valid", "debug", # Will be handled differently
@@ -328,7 +328,7 @@ if __name__ == "__main__":
     model.train(True)
     model.gradient_checkpointing_enable()
 
-    gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpu else None
+    gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
 
     gpu_usage("START", stream = gpu_log)
     if use_gpu:

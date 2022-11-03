@@ -1,4 +1,4 @@
-from audiotrain.utils.env import auto_device
+from audiotrain.utils.env import auto_device # handles option --gpus
 from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.misc import flatten, get_cache_dir # TODO: cache folder management
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
@@ -49,9 +49,12 @@ def transformers_infer(
         device = auto_device()
 
     if isinstance(source, str):
-        processor = transformers.Wav2Vec2Processor.from_pretrained(source)
-        tokenizer = processor.tokenizer # transformers.Wav2Vec2CTCTokenizer.from_pretrained(source)
         model = transformers.Wav2Vec2ForCTC.from_pretrained(source).to(device)
+        processor = transformers.Wav2Vec2Processor.from_pretrained(source)
+    elif isinstance(source, (list, tuple)) and len(source) == 2:
+        model, processor = source
+        assert isinstance(model, transformers.Wav2Vec2ForCTC)
+        assert isinstance(processor, transformers.Wav2Vec2Processor)
     else:
         raise NotImplementedError("Only Wav2Vec2ForCTC from a model name or folder is supported for now")
     
@@ -78,6 +81,7 @@ def transformers_infer(
 
     else:
         assert os.path.isfile(arpa_path), f"Arpa file {arpa_path} not found"
+        tokenizer = processor.tokenizer
 
         # Compute framewise log probas
         tic()
@@ -177,6 +181,7 @@ if __name__ == "__main__":
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
+    parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
     args = parser.parse_args()

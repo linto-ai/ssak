@@ -1,17 +1,22 @@
 import os
 import sys
 
+DISABLE_GPU = False
+
 def _set_visible_gpus(s):
+    global DISABLE_GPU
     if isinstance(s, str):
         return _set_visible_gpus(s.split(","))
     if isinstance(s, list):
         s = ','.join([str(int(si)) for si in s])
+    if not s:
+        DISABLE_GPU = True
     os.environ["CUDA_VISIBLE_DEVICES"] = s
 
 for i, arg in enumerate(sys.argv[1:]):
-    if arg == "--gpu":
+    if arg == "--gpus":
         _set_visible_gpus(sys.argv[i+2])
-    elif arg.startswith("--gpu="):
+    elif arg.startswith("--gpus="):
         _set_visible_gpus(arg.split("=")[-1])
 
 # So that index of GPU is the same everywhere
@@ -35,7 +40,7 @@ import torch
 import multiprocessing
 
 def auto_device():
-    return torch.device('cuda:0') if torch.cuda.is_available() else "cpu"
+    return torch.device('cuda:0') if (torch.cuda.is_available() and not DISABLE_GPU) else torch.device("cpu")
 
 if not torch.cuda.is_available():
     # Use maximum number of threads
