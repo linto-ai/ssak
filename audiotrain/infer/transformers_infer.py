@@ -13,7 +13,7 @@ import tempfile
 import json
 
 
-def transformers_infers(
+def transformers_infer(
     source,
     audios,
     batch_size = 1,
@@ -70,8 +70,6 @@ def transformers_infers(
         tic()
         predictions = []
         for batch in batches:
-            import pickle
-            pickle.dump(batch, open("/tmp/batch.pkl", "wb"))
             log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
             pred = processor.batch_decode(torch.argmax(log_probas, dim=-1))
             predictions.extend(pred)
@@ -181,7 +179,7 @@ if __name__ == "__main__":
     else:
         args.output = open(args.output, "w")
 
-    for reco in transformers_infers(
+    for reco in transformers_infer(
         args.model, args.data,
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
