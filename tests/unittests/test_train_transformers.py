@@ -1,6 +1,5 @@
 import sys
 import os
-import subprocess
 import json
 import shutil
 
@@ -11,7 +10,6 @@ class TestTrainTransformers(Test):
     def test_train_transformers(self):
 
         self.assertRun([
-            sys.executable,
             self.get_lib_path("train/transformers/wav2vec_train.py"),
             self.get_data_path("kaldi/train_weighted.txt"),
             self.get_data_path("kaldi/no_segments"),
@@ -76,7 +74,6 @@ class TestTrainTransformersWithDataAugmentation(Test):
     def test_train_transformers(self):
 
         self.assertRun([
-            sys.executable,
             self.get_lib_path("train/transformers/wav2vec_train.py"),
             self.get_data_path("kaldi/train_weighted.txt"),
             self.get_data_path("kaldi/no_segments"),

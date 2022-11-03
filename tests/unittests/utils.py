@@ -7,17 +7,21 @@ import hashlib
 import numpy as np
 import torch
 import subprocess
+import tempfile
 
 class Test(unittest.TestCase):
 
     def setUp(self):
         #print("Running", self.__class__.__name__)
         os.environ["DATAPATH"] = self.get_data_path()
+        self.maxDiff = None
+        self.createdReferences = []
 
     def tearDown(self):
         cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
         if os.path.exists(cache_dir):
             shutil.rmtree(cache_dir)
+        self.assertEqual(self.createdReferences, [], "Created references: " + ", ".join(self.createdReferences).replace(self.get_data_path()+"/", ""))
     
     def get_data_path(self, fn = None, check = True):
         data_path = os.path.join(
@@ -39,6 +43,12 @@ class Test(unittest.TestCase):
             lib_path = os.path.join(lib_path, fn)
         self.assertTrue(os.path.exists(lib_path), f"Cannot find {lib_path}")
         return lib_path
+
+    def get_temp_path(self, fn = None):
+        tmpdir = tempfile.gettempdir()
+        if fn:
+            tmpdir = os.path.join(tmpdir, fn)
+        return tmpdir
 
     def loosehash(self, obj):
         # Hash the approximation of an object into a deterministic string
@@ -74,16 +84,27 @@ class Test(unittest.TestCase):
 
     def assertRun(self, cmd):
         if isinstance(cmd, str):
-            return self.assertRunCommand(cmd.split())
+            return self.assertRun(cmd.split())
+        if cmd[0].endswith(".py"):
+            cmd = [sys.executable] + cmd
         print("Running:", " ".join(cmd))
         p = subprocess.Popen(cmd, 
             env = dict(os.environ, PYTHONPATH = os.pathsep.join(sys.path)), # Otherwise ".local" path might be missing
+            stdout = subprocess.PIPE #, stderr = subprocess.PIPE
         )
-        p.communicate()
+        (stdout, stderr) = p.communicate()
         self.assertEqual(p.returncode, 0)
+        return stdout.decode("utf-8")
 
-
-    # def test_paths(self):
-    #     print("test_paths")
-    #     self.assertTrue(os.path.isdir(self.get_data_path("audio")))
-    #     self.assertTrue(os.path.isdir(self.get_data_path("kaldi")))
+    def assertEqualFile(self, file, reference):
+        reference = self.get_data_path("expected/" + reference, check = False)
+        if not os.path.isfile(reference):
+            dirname = os.path.dirname(reference)
+            if not os.path.isdir(dirname):
+                os.makedirs(dirname)
+            shutil.copyfile(file, reference)
+            self.createdReferences.append(reference)
+        self.assertTrue(os.path.isfile(file))
+        content = open(file, "r").read()
+        reference_content = open(reference, "r").read()
+        self.assertEqual(content, reference_content)
