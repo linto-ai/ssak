@@ -14,6 +14,7 @@ import pyctcdecode
 import os
 import tempfile
 import json
+import requests
 
 
 def speechbrain_infer(
@@ -99,15 +100,42 @@ def speechbrain_infer(
 
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
-def speechbrain_transcribe_batch(model, audios):
-    batch, wav_lens = pack_sequences(audios, device = model.device)
-    reco = model.transcribe_batch(batch, wav_lens)[0]
+MAX_LEN = 2240400
+
+def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN):
+    if max([len(a) for a in audios]) > max_len:
+        reco, _ = speechbrain_compute_logits(model, audios, max_len = max_len)
+    else:
+        batch, wav_lens = pack_sequences(audios, device = model.device)
+        reco = model.transcribe_batch(batch, wav_lens)[0]
     reco = [s.lower() for s in reco]
     return reco
 
-def speechbrain_compute_logits(model, audios):
-    batch, wav_lens = pack_sequences(audios, device = model.device)
-    log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
+def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
+    if max([len(a) for a in audios]) > max_len:
+        # Split audios into chunks of max_len
+        maxwav_lens = max([len(a) for a in audios])
+        wav_lens = torch.Tensor([len(x)/maxwav_lens for x in audios])
+        batch_size = len(audios)
+        chunks = []
+        i_audio = []
+        for a in audios:
+            chunks.extend([a[i:min(i+max_len, len(a))] for i in range(0, len(a), max_len)])
+            i_audio.append(len(chunks))
+        log_probas = [[] for i in range(len(audios))]
+        for i in range(0, len(chunks), batch_size):
+            chunk = chunks[i:min(i+batch_size, len(chunks))]
+            _, log_probas_tmp = speechbrain_compute_logits(model, chunk)
+            for j in range(i,i+len(chunk)):
+                k = 0
+                while j >= i_audio[k]:
+                    k += 1
+                log_probas[k].append(log_probas_tmp[j-i])
+        log_probas = [torch.cat(p, dim = 0) for p in log_probas]
+        log_probas, wav_lens = pack_sequences(log_probas, device = model.device)
+    else:
+        batch, wav_lens = pack_sequences(audios, device = model.device)
+        log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
     indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = 0)
     reco = model.tokenizer.decode(indices)
     reco = [s.lower() for s in reco]
@@ -173,7 +201,10 @@ def speechbrain_load_model(source, device = None, cache_dir = None):
     elif cache_dir is None:
         cache_dir = get_cache_dir("speechbrain")
         cache_dir = os.path.join(cache_dir, os.path.basename(source))
-        yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+        try:
+            yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+        except requests.exceptions.HTTPError:
+            yaml_file = None
 
     overrides = make_yaml_overrides(yaml_file, {"save_path": None})
         
@@ -191,6 +222,7 @@ def make_yaml_overrides(yaml_file, key_values):
     yaml_file: path to yaml file
     key_values: dict of key values to override
     """
+    if yaml_file is None: return None
     override = {}
     with open(yaml_file, "r") as f:
         parent = None
