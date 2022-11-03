@@ -108,7 +108,7 @@ def conform_torch_logit(x, num_outputs):
         return x[:,:,:num_outputs]
     return x
 
-def transformers_compute_logits(model, processor, batch, sampling_rate, device):
+def transformers_compute_logits(model, processor, batch, sampling_rate, device, max_len = 2240400):
 
     processed_batch = processor(batch, sampling_rate = sampling_rate)
 
@@ -120,9 +120,21 @@ def transformers_compute_logits(model, processor, batch, sampling_rate, device):
         return_tensors="pt",
     )
 
+    l = padded_batch.input_values.shape[1]
+
     with torch.no_grad():
-        logits = model(padded_batch.input_values.to(device), attention_mask = padded_batch.attention_mask.to(device)).logits
-    return logits.cpu()
+        if l > max_len:
+            # Split batch in smaller chunks
+            logits = []
+            for i in range(0, l, max_len):
+                j = min(i + max_len, l)
+                logits.append(model(padded_batch.input_values[:,i:j].to(device), attention_mask = padded_batch.attention_mask[:,i:j].to(device)).logits.cpu())
+            logits = torch.cat(logits, dim = 1)
+        else:
+            logits = model(padded_batch.input_values.to(device), attention_mask = padded_batch.attention_mask.to(device)).logits
+            logits = logits.cpu()
+
+    return logits
 
 
 def transformers_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
