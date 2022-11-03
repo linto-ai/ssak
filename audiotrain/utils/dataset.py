@@ -5,7 +5,7 @@ import logging
 import random
 import math
 
-from .audio import load_audio
+from .audio import load_audio, array_to_bytes
 from .text import remove_special_words
 
 import datasets
@@ -640,6 +640,16 @@ def to_audio_batches(
                             batch = []
         if len(batch) > 0:
             yield batch
+
+    elif isinstance(input, np.ndarray) and len(input.shape) == 1:
+        if return_format == 'torch':
+            input = torch.Tensor(input)
+        elif return_format == 'bytes':
+            input = array_to_bytes(input)
+        if batch_size == 0:
+            yield input
+        else:
+            yield [input]
 
     else:
         raise NotImplementedError("Unsupported type: %s" % type(input))

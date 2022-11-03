@@ -92,12 +92,15 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
         elif isinstance(audio, list):
             audio = np.array(audio, dtype=np.float32)
         if return_format == "bytes":
-            audio = (audio * 32768).astype(np.int16).tobytes()
+            audio = array_to_bytes(audio)
 
     if verbose:
         print("- Done", path, start, end)
 
     return audio
+
+def array_to_bytes(audio):
+    return (audio * 32768).astype(np.int16).tobytes()
 
 def save_audio(path, audio, sampling_rate = 16_000):
     """ 
