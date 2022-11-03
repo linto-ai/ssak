@@ -68,11 +68,11 @@ def transformers_infer(
 
         # Compute best predictions
         tic()
-        predictions = []
         for batch in batches:
             log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
             pred = processor.batch_decode(torch.argmax(log_probas, dim=-1))
-            predictions.extend(pred)
+            for p in pred:
+                yield p
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
@@ -93,12 +93,11 @@ def transformers_infer(
         # Apply language model
         tic()
         num_outputs = len(tokenizer.get_vocab())
-        predictions = [decoder.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text for l in logits]
-        predictions = flatten(predictions)
+        for l in logits:
+            predictions = decoder.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text
+            for p in predictions:
+                yield p
         if log_memtime: toc("apply language model", log_mem_usage = True)
-
-    return predictions
-
 
 def conform_torch_logit(x, num_outputs):
     n = x.shape[-1]
@@ -199,3 +198,4 @@ if __name__ == "__main__":
         log_memtime = args.enable_logs,
     ):
         print(reco, file = args.output)
+        args.output.flush()

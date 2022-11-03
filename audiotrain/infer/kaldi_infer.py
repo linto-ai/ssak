@@ -175,7 +175,6 @@ def kaldi_infer(
 
     # Compute best predictions
     tic()
-    predictions = []
     for batch in batches:
         if use_batched_model:
             recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
@@ -211,19 +210,18 @@ def kaldi_infer(
                         else:
                             results[i] = pred
 
-            predictions.extend(results)
+            for pred in results:
+                yield pred
 
         else:
             recognizer.AcceptWaveform(batch)
             pred = recognizer.FinalResult()
             if len(pred):
                 pred = json.loads(pred)["text"]
-            predictions.append(pred)
+            yield pred
 
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
-    
-    return predictions
 
 def download_zipped_folder(url, cache_dir):
     dname = url.split("/")[-1]
@@ -352,3 +350,4 @@ if __name__ == "__main__":
         clean_temp_file = not args.disable_clean,
     ):
         print(reco, file = args.output)
+        args.output.flush()
