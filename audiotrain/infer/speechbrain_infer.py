@@ -107,8 +107,6 @@ def speechbrain_transcribe_batch(model, audios):
 
 def speechbrain_compute_logits(model, audios):
     batch, wav_lens = pack_sequences(audios, device = model.device)
-    import pickle
-    pickle.dump((batch, wav_lens), open("/tmp/batch.pkl", "wb"))
     log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
     indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = 0)
     reco = model.tokenizer.decode(indices)
@@ -166,11 +164,19 @@ def conform_torch_logit(x, num_outputs):
 def speechbrain_load_model(source, device = None, cache_dir = None):
     if device is None:
         device = auto_device()
-    if cache_dir is None:
+    
+    if os.path.isdir(source):
+        cache_dir = None
+        yaml_file = os.path.join(source, "hyperparams.yaml")
+        assert os.path.isfile(yaml_file), f"Hyperparams file {yaml_file} not found"
+
+    elif cache_dir is None:
         cache_dir = get_cache_dir("speechbrain")
         cache_dir = os.path.join(cache_dir, os.path.basename(source))
-    yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+        yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+
     overrides = make_yaml_overrides(yaml_file, {"save_path": None})
+        
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError:
