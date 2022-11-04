@@ -14,8 +14,8 @@ class TestFormatText(Test):
             "elle pesait soixante-sept virgule cinq kilogrammes en mille neuf cent quatre-vingt-quinze et plus en mille neuf cent quatre-vingt-seize"
         )
         self.assertEqual(
-            format_text_fr("¾ et 3/4"),
-            "trois quarts et trois quarts"
+            format_text_fr("¾ et 3/4 et 3 m² et 3m³ et 3.7cm² et 3,7 cm³"),
+            "trois quarts et trois quarts et trois mètres carrés et trois mètres cubes et trois point sept centimètres carrés et trois virgule sept centimètres cubes"
         )
 
     def test_format_special_chars(self):

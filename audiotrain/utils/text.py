@@ -150,9 +150,6 @@ def format_text_fr(text, keep_punc = False):
     text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
     text = re.sub(r"(\d+)([^\d])",r" \1 \2", text) # add spaces before and after digits
 
-    for reg, replacement in _corrections_abbreviations_fr:
-        text = re.sub(reg, replacement, text)
-
     # Digits
     chiffres = re.findall(r"\b\d[ /\d]*\b",text)
     chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
@@ -178,6 +175,11 @@ def format_text_fr(text, keep_punc = False):
     text = re.sub(r"⅔", " deux tiers ", text)
     text = re.sub(r"¼", " un quart ", text)
     text = re.sub(r"¾", " trois quarts ", text)
+    # Exponents
+    text = re.sub(r"\bm²", " mètres carrés ", text)
+    text = re.sub(r"\bm³", " mètres cubes ", text)
+    text = re.sub(r"²", " carrés ", text)
+    text = re.sub(r"³", " cubes ", text)
 
     text = re.sub(r"°c\b", "degrés", text)
     text = re.sub("°", "degrés", text)
@@ -204,6 +206,9 @@ def format_text_fr(text, keep_punc = False):
 
     text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
     text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
+
+    for reg, replacement in _corrections_abbreviations_fr:
+        text = re.sub(reg, replacement, text)
 
     if not keep_punc:
         text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
