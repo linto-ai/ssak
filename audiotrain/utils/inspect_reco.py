@@ -1,5 +1,7 @@
 # Source: https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchaudio_tutorial.html
 
+from .text import transliterate
+
 import torch
 import transformers
 from dataclasses import dataclass
@@ -284,7 +286,7 @@ def compute_alignment(audio, transcript, model, processor, plot=False):
     blank_id = labels.index("<pad>")
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    tokens = [dictionary[c] for c in transcript]
+    tokens = [dictionary.get(c, dictionary[transliterate(c)]) for c in transcript] # transliterate is a last chance...
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
 

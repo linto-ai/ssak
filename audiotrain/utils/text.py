@@ -1,10 +1,19 @@
 import re
 from num2words import num2words
+import unicodedata
 
 _whitespace_re = re.compile(r'[^\S\r\n]+')
 
 def collapse_whitespace(text):
     return re.sub(_whitespace_re, ' ', text).strip()
+
+def transliterate(c):
+    # Transliterates a character to its closest ASCII equivalent.
+    # For example, "é" becomes "e".
+    # This is useful for converting Vietnamese text to ASCII.
+    # See https://stackoverflow.com/a/517974/446579
+    return unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("ascii")
+
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -67,7 +76,7 @@ def format_text_fr(text, keep_punc = False):
 
     # Replace "." by "point" and "/" by "slash" in internet websites
     # Find all the websites in the text
-    websites = re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text)
+    websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
     websites = sorted(set(websites), key = len, reverse = True)
     for w in websites:
         w2 = w
@@ -75,7 +84,8 @@ def format_text_fr(text, keep_punc = False):
         w2 = re.sub(":", " deux points ", w2)
         w2 = re.sub("/", " slash ", w2)
         w2 = re.sub("-", " tiret ", w2)
-        text = re.sub(w, w2, text)
+        #text = re.sub(w, w2, text)
+        text = text.replace(w, w2)
 
     # Abbréviations
     text = re.sub(" m\. "," monsieur ",text)
@@ -143,6 +153,7 @@ def format_text_fr(text, keep_punc = False):
     for reg, replacement in _corrections_abbreviations_fr:
         text = re.sub(reg, replacement, text)
 
+    # Digits
     chiffres = re.findall(r"\b\d[ /\d]*\b",text)
     chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
     chiffres = sorted(list(set(chiffres)), reverse=True, key=len)    
@@ -154,10 +165,19 @@ def format_text_fr(text, keep_punc = False):
             i = chiffre.index("/")
             first = undigit_fr(chiffre[:i])
             second = undigit_fr(chiffre[i+1:], to="denominator")
+            if float(chiffre[:i]) > 2. and second[-1] != "s":
+                second += "s"
             word = first + " " + second
         else:
             word = "/".join([undigit_fr(s) for s in chiffre.split('/')])
         text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
+
+    # Fractions
+    text = re.sub(r"½", " un demi ", text)
+    text = re.sub(r"⅓", " un tiers ", text)
+    text = re.sub(r"⅔", " deux tiers ", text)
+    text = re.sub(r"¼", " un quart ", text)
+    text = re.sub(r"¾", " trois quarts ", text)
 
     text = re.sub(r"°c\b", "degrés", text)
     text = re.sub("°", "degrés", text)

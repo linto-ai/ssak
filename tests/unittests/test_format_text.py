@@ -13,6 +13,10 @@ class TestFormatText(Test):
             format_text_fr("Elle pesait 67,5kg en 1995, et + en 1996."),
             "elle pesait soixante-sept virgule cinq kilogrammes en mille neuf cent quatre-vingt-quinze et plus en mille neuf cent quatre-vingt-seize"
         )
+        self.assertEqual(
+            format_text_fr("¾ et 3/4"),
+            "trois quarts et trois quarts"
+        )
 
     def test_format_special_chars(self):
         self.assertEqual(
@@ -24,6 +28,11 @@ class TestFormatText(Test):
         self.assertEqual(
             format_text_fr("http://www.linagora.blah.com/page.html est un site / www.linagora.com en est un autre"),
             "http deux points slash slash www point linagora point blah point com slash page point html est un site www point linagora point com en est un autre"
+        )
+
+        self.assertEqual(
+            format_text_fr("www.len.com len.. ralenti"),
+            "www point len point com len ralenti"
         )
 
     def test_abbr(self):
