@@ -54,6 +54,8 @@ def kaldi_infer(
     modeldir = os.path.join(cache_dir, modelname)
     files_to_move = []
 
+    urlpath_linto = "https://dl.linto.ai/downloads/model-distribution/"
+
     try:
 
         if "," in modelname:
@@ -63,19 +65,24 @@ def kaldi_infer(
 
         elif modelname == "linSTT_fr-FR_v2.2.0":
 
-            urlpath = "https://dl.linto.ai/downloads/model-distribution/"
-            amdir = download_zipped_folder(urlpath + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.2.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
+            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.2.0.zip", cache_dir)
+            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
             modeldir = linagora2vosk(amdir, lmdir)
             files_to_move.append((modeldir, None))
 
-        elif modelname.startswith("linSTT_ar-AR_v1"):
+        elif modelname == "linSTT_ar-AR_v1.1.0":
 
-            urlpath = "https://dl.linto.ai/downloads/model-distribution/"
-            amdir = download_zipped_folder(urlpath + "acoustic-models/ar-AR/LinSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.2.0.zip", cache_dir)
+            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/ar-AR/LinSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
+            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.1.0.zip", cache_dir, remove_prefix = "decoding_graph_ar-AR_v1.0.0") # Caution with typo V1.1 / V1.0
             modeldir = linagora2vosk(amdir, lmdir)
             files_to_move.append((modeldir, None))
+
+        # elif modelname == "linSTT_ar-AR_v1.2.0": # This one is too bad!
+
+        #     amdir = download_zipped_folder(urlpath_linto + "acoustic-models/ar-AR/LinSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
+        #     lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.2.0.zip", cache_dir)
+        #     modeldir = linagora2vosk(amdir, lmdir)
+        #     files_to_move.append((modeldir, None))
 
         elif not os.path.isdir(modeldir):
             urlpath = "https://alphacephei.com/vosk/models/"
@@ -249,7 +256,7 @@ def kaldi_infer(
     if log_memtime: toc("apply network", log_mem_usage = True)
 
 
-def download_zipped_folder(url, cache_dir):
+def download_zipped_folder(url, cache_dir, remove_prefix = None):
     dname = url.split("/")[-1]
     assert dname.endswith(".zip")
     dname = dname[:-4]
@@ -267,6 +274,13 @@ def download_zipped_folder(url, cache_dir):
             else:
                 os.makedirs(destdir, exist_ok=True)
                 z.extractall(destdir)
+            if remove_prefix:
+                remove_prefix = remove_prefix.rstrip("/")
+                for f in z.filelist:
+                    if f.filename.startswith(remove_prefix+"/") and f.filename != remove_prefix+"/":
+                        os.rename(os.path.join(destdir, f.filename), os.path.join(destdir, f.filename[len(remove_prefix)+1:]))
+                if os.path.isdir(os.path.join(destdir, remove_prefix)):
+                    shutil.rmtree(os.path.join(destdir, remove_prefix))
         assert os.path.isdir(destdir)
         os.remove(destzip)
     return destdir
