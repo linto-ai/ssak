@@ -100,6 +100,15 @@ class TestInferenceKaldi(Test):
             *opts,
         ])
         self.assertEqualFile(output_file, "kaldi_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertRun([
+            self.get_lib_path("infer/kaldi_infer.py"),
+            self.get_data_path("kaldi/mini"),
+            "--output", output_file,
+            "--batch_size", "8",
+            "--use_ids",
+            *opts,
+        ])
+        self.assertEqualFile(output_file, "kaldi_mini_output.txt")
         os.remove(output_file)
 
 class TestInferenceTransformers(Test):

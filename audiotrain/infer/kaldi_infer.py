@@ -8,7 +8,7 @@ vosk.SetLogLevel(-1)
 
 import urllib
 import zipfile
-import pickle, hashlib
+import multiprocessing
 
 import os
 import tempfile
@@ -49,6 +49,8 @@ def kaldi_infer(
         clean_temp_file: bool
             If True, delete temporary files after inference. It's NOT recommended to put False here, as some files may be modified.
     """
+    global RECOGNIZER
+
     modeldir = os.path.join(cache_dir, modelname)
     files_to_move = []
 
@@ -62,8 +64,16 @@ def kaldi_infer(
         elif modelname == "linSTT_fr-FR_v2.2.0":
 
             urlpath = "https://dl.linto.ai/downloads/model-distribution/"
-            amdir = download_zipped_folder(urlpath + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.0.0.zip", cache_dir)
+            amdir = download_zipped_folder(urlpath + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.2.0.zip", cache_dir)
             lmdir = download_zipped_folder(urlpath + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
+            modeldir = linagora2vosk(amdir, lmdir)
+            files_to_move.append((modeldir, None))
+
+        elif modelname.startswith("linSTT_ar-AR_v1"):
+
+            urlpath = "https://dl.linto.ai/downloads/model-distribution/"
+            amdir = download_zipped_folder(urlpath + "acoustic-models/ar-AR/LinSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
+            lmdir = download_zipped_folder(urlpath + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.2.0.zip", cache_dir)
             modeldir = linagora2vosk(amdir, lmdir)
             files_to_move.append((modeldir, None))
 
@@ -89,12 +99,7 @@ def kaldi_infer(
             vosk.GpuInit()
             vosk.GpuThreadInit()
 
-        use_batched_model = batch_size > 1 or use_gpu
-
-        if use_batched_model:
-
-            if not use_gpu:
-                raise NotImplementedError("Batched model only works with GPU")
+        if use_gpu:
 
             # Link to a model sub-folder (WTF class BatchModel needs it)
             if os.path.exists("model"):
@@ -140,9 +145,12 @@ def kaldi_infer(
 
             model = vosk.BatchModel()
         else:
-            batch_size = 0
+
             model = vosk.Model(modeldir)
             recognizer = vosk.KaldiRecognizer(model, sampling_rate)
+            if batch_size > 1:
+                RECOGNIZER = recognizer
+                pool = multiprocessing.Pool(batch_size)
 
     finally:
     
@@ -185,13 +193,10 @@ def kaldi_infer(
     for batch in batches:
 
         if output_ids:
-            if use_batched_model:
-                ids = [b[1] for b in batch]
-                batch = [b[0] for b in batch]
-            else:
-                batch, id = batch
+            ids = [b[1] for b in batch]
+            batch = [b[0] for b in batch]
 
-        if use_batched_model:
+        if use_gpu:
             recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
 
             results = ["" for _ in batch]
@@ -225,25 +230,24 @@ def kaldi_infer(
                         else:
                             results[i] = pred
 
-            if output_ids:
-                for id, pred in zip(ids, results):
-                    yield (id, pred)
-            else:
-                for pred in results:
-                    yield pred
-
         else:
-            recognizer.AcceptWaveform(batch)
-            pred = recognizer.FinalResult()
-            if len(pred):
-                pred = json.loads(pred)["text"]
-            if output_ids:
-                yield (id, pred)
+
+            if batch_size > 1:
+                processes = [pool.apply_async(apply_recognizer_global, args=(audio,)) for audio in batch]
+                results = [p.get() for p in processes]
             else:
+                results = [apply_recognizer(recognizer, audio) for audio in batch]
+
+        if output_ids:
+            for (id, pred) in zip(ids, results):
+                yield (id, pred)
+        else:
+            for pred in results:
                 yield pred
 
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
+
 
 def download_zipped_folder(url, cache_dir):
     dname = url.split("/")[-1]
@@ -324,6 +328,24 @@ def linagora2vosk(am_path, lm_path):
 #--endpoint.silence-phones=1:2:3:4:5:6:7:8:9:10
 
     return vosk_path
+
+def apply_recognizer(recognizer, audio):
+    recognizer.AcceptWaveform(audio)
+    pred = recognizer.FinalResult()
+    if len(pred):
+        pred = json.loads(pred)["text"]
+    return pred
+
+
+def apply_recognizer_global(audio):
+    global RECOGNIZER
+    return apply_recognizer(RECOGNIZER, audio)
+    # RECOGNIZER.AcceptWaveform(audio)
+    # pred = RECOGNIZER.FinalResult()
+    # if len(pred):
+    #     pred = json.loads(pred)["text"]
+    # return pred
+
 
 def read_param_value(filename, paramname, t = lambda x: x):
     with open(filename, "r") as f:
