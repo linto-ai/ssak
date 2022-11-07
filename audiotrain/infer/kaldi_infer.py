@@ -14,6 +14,7 @@ import os
 import tempfile
 import shutil
 import json
+import torch
 
 def kaldi_infer(
     modelname,
@@ -21,6 +22,7 @@ def kaldi_infer(
     batch_size = 1,
     device = None,
     sort_by_len = False,
+    output_ids = False,
     log_memtime = False,
     cache_dir = get_cache_dir("vosk"),
     max_bytes_for_gpu = 8000,
@@ -40,8 +42,12 @@ def kaldi_infer(
             If None, will use "cuda:x" if GPU is available ("cpu" otherwise).
         sort_by_len: bool
             Sort audio by length before batching (longest audio first).
+        output_ids: bool
+            Output ids in front of the transcription.
         log_memtime: bool
             If True, print timing and memory usage information.
+        clean_temp_file: bool
+            If True, delete temporary files after inference. It's NOT recommended to put False here, as some files may be modified.
     """
     modeldir = os.path.join(cache_dir, modelname)
     files_to_move = []
@@ -78,7 +84,7 @@ def kaldi_infer(
         if device is None:
             device = auto_device()
 
-        use_gpu = device not in ["cpu"]
+        use_gpu = device not in ["cpu", torch.device("cpu")]
         if use_gpu:
             vosk.GpuInit()
             vosk.GpuThreadInit()
@@ -169,6 +175,7 @@ def kaldi_infer(
         sampling_rate = sampling_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
+        output_ids = output_ids,
     ) 
 
     # Note: the pipeline is so different depending on whether BatchModel (for GPU) is used or not
@@ -176,10 +183,18 @@ def kaldi_infer(
     # Compute best predictions
     tic()
     for batch in batches:
+
+        if output_ids:
+            if use_batched_model:
+                ids = [b[1] for b in batch]
+                batch = [b[0] for b in batch]
+            else:
+                batch, id = batch
+
         if use_batched_model:
             recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
 
-            results = ["" for _ in batch]                
+            results = ["" for _ in batch]
 
             ended = [False for _ in batch]
 
@@ -210,15 +225,22 @@ def kaldi_infer(
                         else:
                             results[i] = pred
 
-            for pred in results:
-                yield pred
+            if output_ids:
+                for id, pred in zip(ids, results):
+                    yield (id, pred)
+            else:
+                for pred in results:
+                    yield pred
 
         else:
             recognizer.AcceptWaveform(batch)
             pred = recognizer.FinalResult()
             if len(pred):
                 pred = json.loads(pred)["text"]
-            yield pred
+            if output_ids:
+                yield (id, pred)
+            else:
+                yield pred
 
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
@@ -325,6 +347,7 @@ if __name__ == "__main__":
         default = "linSTT_fr-FR_v2.2.0",
     )
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
+    parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=1)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
@@ -332,7 +355,6 @@ if __name__ == "__main__":
     parser.add_argument('--cache_dir', help="Path to cache models", default = get_cache_dir("vosk"))
     parser.add_argument('--disable_clean', help="To avoid removing temporary files", action='store_true', default=False)
     args = parser.parse_args()
-
 
     if not args.output:
         args.output = sys.stdout
@@ -345,10 +367,14 @@ if __name__ == "__main__":
     for reco in kaldi_infer(
         args.model, args.data,
         batch_size = args.batch_size,
+        output_ids = args.use_ids,
         sort_by_len = args.sort_by_len,
         log_memtime = args.enable_logs,
         cache_dir = args.cache_dir,
         clean_temp_file = not args.disable_clean,
     ):
-        print(reco, file = args.output)
+        if isinstance(reco, str):
+            print(reco, file = args.output)
+        else:
+            print(*reco, file = args.output)
         args.output.flush()

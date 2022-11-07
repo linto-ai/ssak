@@ -286,7 +286,18 @@ def compute_alignment(audio, transcript, model, processor, plot=False):
     blank_id = labels.index("<pad>")
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    tokens = [dictionary.get(c, dictionary[transliterate(c)]) for c in transcript] # transliterate is a last chance...
+    def get_index(c):
+        i = dictionary.get(c, None)
+        if i is None:
+            print("WARNING: cannot find label", c)
+            c = transliterate(c)
+            i = dictionary.get(c, None)
+            if i is None:
+                print("WARNING: cannot find transliterated label", c)
+        return i
+
+    tokens = [get_index(c) for c in transcript]
+    tokens = [i for i in tokens if i is not None]
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
 

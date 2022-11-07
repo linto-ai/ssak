@@ -7,6 +7,7 @@ import math
 
 from .audio import load_audio, array_to_bytes
 from .text import remove_special_words
+from .misc import hashmd5
 
 import datasets
 import transformers
@@ -592,14 +593,20 @@ def to_audio_batches(
     mono = True,
     return_format = 'array',
     sort_by_len = False,
+    output_ids = False,
     ):
     """ 
     Convert a filename, a kaldi folder, or a list of those into batches of audio
+
+    return_format : str
+        Output format. Possible values: 'array', 'torch' or 'bytes'
     """
     if isinstance(input, str):
         
         if os.path.isfile(input):
             audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+            if output_ids:
+                audio = (audio, os.path.basename(input))
             if batch_size == 0:
                 yield audio
             else:
@@ -610,6 +617,8 @@ def to_audio_batches(
             batch = []
             for data in dataset:
                 audio = load_audio(data["path"], data.get("start"), data.get("end"), sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+                if output_ids:
+                    audio = (audio, data["ID"])
                 if batch_size == 0:
                     yield audio
                 else:
@@ -626,7 +635,7 @@ def to_audio_batches(
     elif isinstance(input, list):
         batch = []
         for data in input:
-            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_format = return_format, sort_by_len = sort_by_len)
+            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_format = return_format, sort_by_len = sort_by_len, output_ids = output_ids)
             for b in batches:
                 if batch_size == 0 or len(b) == batch_size:
                     yield b
@@ -647,6 +656,8 @@ def to_audio_batches(
             input = torch.Tensor(input)
         elif return_format == 'bytes':
             input = array_to_bytes(input)
+        if output_ids:
+            input = (input, hashmd5(input))
         if batch_size == 0:
             yield input
         else:

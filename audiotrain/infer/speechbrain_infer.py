@@ -24,6 +24,7 @@ def speechbrain_infer(
     device = None,
     arpa_path = None, alpha = 0.5, beta = 1.0,
     sort_by_len = False,
+    output_ids = False,
     log_memtime = False,
     ):
     """
@@ -60,6 +61,7 @@ def speechbrain_infer(
         sampling_rate = sampling_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
+        output_ids = output_ids,
     )
 
     if arpa_path is None:
@@ -67,9 +69,16 @@ def speechbrain_infer(
         # Compute best predictions
         tic()
         for batch in batches:
+            if output_ids:
+                ids = [b[1] for b in batch]
+                batch = [b[0] for b in batch]
             pred = speechbrain_transcribe_batch(model, batch)
-            for p in pred:
-                yield p
+            if output_ids:
+                for id, p in zip(ids, pred):
+                    yield (id, p)
+            else:
+                for p in pred:
+                    yield p
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
@@ -82,8 +91,14 @@ def speechbrain_infer(
         tic()
         logits = []
         for batch in batches:
+            if output_ids:
+                ids = [b[1] for b in batch]
+                batch = [b[0] for b in batch]
             pred, log_probas = speechbrain_compute_logits(model, batch)
-            logits.append(log_probas)
+            if output_ids:
+                logits.append((ids, log_probas))
+            else:
+                logits.append(log_probas)
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
    
@@ -94,9 +109,15 @@ def speechbrain_infer(
         tic()
         num_outputs = tokenizer.get_piece_size() + 2
         for l in logits:
+            if output_ids:
+                ids, l = l
             predictions = processor.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text
-            for p in predictions:
-                yield p
+            if output_ids:
+                for id, p in zip(ids, predictions):
+                    yield (id, p)
+            else:
+                for p in predictions:
+                    yield p
 
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
@@ -254,6 +275,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
+    parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
@@ -273,8 +295,12 @@ if __name__ == "__main__":
         args.model, args.data,
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
+        output_ids = args.use_ids,
         arpa_path = args.arpa,
         log_memtime = args.enable_logs,
     ):
-        print(reco, file = args.output)
+        if isinstance(reco, str):
+            print(reco, file = args.output)
+        else:
+            print(*reco, file = args.output)
         args.output.flush()

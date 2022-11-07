@@ -96,15 +96,18 @@ class Test(unittest.TestCase):
         self.assertEqual(p.returncode, 0)
         return stdout.decode("utf-8")
 
-    def assertEqualFile(self, file, reference):
+    def assertEqualFile(self, file, reference, process_reference_lines = None):
         reference = self.get_data_path("expected/" + reference, check = False)
         if not os.path.isfile(reference):
+            self.assertTrue(not process_reference_lines)
             dirname = os.path.dirname(reference)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
             shutil.copyfile(file, reference)
             self.createdReferences.append(reference)
         self.assertTrue(os.path.isfile(file))
-        content = open(file, "r").read()
-        reference_content = open(reference, "r").read()
+        content = open(file, "r").readlines()
+        reference_content = open(reference, "r").readlines()
+        if process_reference_lines:
+            reference_content = [process_reference_lines(l) for l in reference_content]
         self.assertEqual(content, reference_content)

@@ -20,6 +20,7 @@ def transformers_infer(
     device = None,
     arpa_path = None, alpha = 0.5, beta = 1.0,
     sort_by_len = False,
+    output_ids = False,
     log_memtime = False,
     ):
     """
@@ -65,6 +66,7 @@ def transformers_infer(
         sampling_rate = sampling_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
+        output_ids = output_ids,
     )
 
     if arpa_path is None:
@@ -72,10 +74,17 @@ def transformers_infer(
         # Compute best predictions
         tic()
         for batch in batches:
+            if output_ids:
+                ids = [x[1] for x in batch]
+                batch = [x[0] for x in batch]
             log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
             pred = processor.batch_decode(torch.argmax(log_probas, dim=-1))
-            for p in pred:
-                yield p
+            if output_ids:
+                for id, p in zip(ids, pred):
+                    yield (id, p)
+            else:
+                for p in pred:
+                    yield p
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
@@ -87,8 +96,14 @@ def transformers_infer(
         tic()
         logits = []
         for batch in batches:
+            if output_ids:
+                ids = [x[1] for x in batch]
+                batch = [x[0] for x in batch]
             log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
-            logits.append(log_probas)
+            if output_ids:
+                logits.append((ids, log_probas))
+            else:
+                logits.append(log_probas)
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
    
@@ -98,9 +113,15 @@ def transformers_infer(
         tic()
         num_outputs = len(tokenizer.get_vocab())
         for l in logits:
+            if output_ids:
+                ids, l = l
             predictions = decoder.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text
-            for p in predictions:
-                yield p
+            if output_ids:
+                for id, p in zip(ids, predictions):
+                    yield (id, p)
+            else:
+                for p in predictions:
+                    yield p
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
 def conform_torch_logit(x, num_outputs):
@@ -180,6 +201,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
+    parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
     parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
@@ -199,8 +221,12 @@ if __name__ == "__main__":
         args.model, args.data,
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
+        output_ids = args.use_ids,
         arpa_path = args.arpa,
         log_memtime = args.enable_logs,
     ):
-        print(reco, file = args.output)
+        if isinstance(reco, str):
+            print(reco, file = args.output)
+        else:
+            print(*reco, file = args.output)
         args.output.flush()

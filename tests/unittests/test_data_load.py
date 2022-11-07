@@ -1,9 +1,11 @@
-from audiotrain.utils.dataset import kaldi_folder_to_dataset, process_dataset
+from audiotrain.utils.dataset import kaldi_folder_to_dataset, process_dataset, to_audio_batches
+from audiotrain.utils.misc import flatten
 
 import os
 import time
 import transformers
 import numpy as np
+import torch
 
 from .utils import Test
 
@@ -34,7 +36,7 @@ class TestAudioDataset(Test):
         self.assertEqual(self.hash(list(dataset_online)), self.hash(list(dataset)))
         self.assertEqual(meta_online["samples"], 63)
         self.assertTrue(meta_online["h duration"] > 0.056 and meta["h duration"] < 0.057)
-        #self.assertGreater(t, t_online) # Not necessarily true
+        # self.assertGreater(t, t_online) # Not necessarily true
 
         processor = transformers.Wav2Vec2Processor.from_pretrained("Ilyes/wav2vec2-large-xlsr-53-french")
 
@@ -55,7 +57,7 @@ class TestAudioDataset(Test):
         self.check_audio_dataset(processed_online)
         self.assertFalse(hasattr(processed_online, "__len__"))
         self.assertEqual(self.loosehash(list(processed_online)), EXPECTED)
-        self.assertGreater(t, t_online)
+        # self.assertGreater(t, t_online) # Not necessarily true
 
     def check_dataset(self, dataset):
         ids = []
@@ -76,4 +78,50 @@ class TestAudioDataset(Test):
             self.assertTrue(isinstance(data.get("labels"), list))
             self.assertGreater(len(data.get("labels")), 0)
             self.assertTrue(isinstance(data.get("labels")[0], int))
+
+class TestAudioBatches(Test):
+
+    def test_audio_bathes(self):
+
+        kaldir = self.get_data_path("kaldi/complete")
+        with open(kaldir + "/text") as f:
+            kaldir_ids = [l.split()[0] for l in f.readlines()]
+        files = [self.get_data_path(f) for f in ["audio/bonjour.wav", "audio/cfpp2channels.mp3", "audio/bonjour.wav"]]
+
+        format_to_type = {
+            "torch": torch.Tensor,
+            "array": np.ndarray,
+            "bytes": bytes,
+        }
+
+        for (source, num_segments, expected_ids) in [
+            (kaldir, len(kaldir_ids), kaldir_ids),
+            (files, len(files), [os.path.basename(f) for f in files]),
+            (np.array([0,0,0]), 1, None),
+            ]:
+            for format in "torch", "array", "bytes":
+                for batch_size in 0, 1, 2,:
+                    for output_ids in False, True:
+            
+                        res = list(to_audio_batches(
+                            source,
+                            batch_size = batch_size,
+                            return_format = format,
+                            output_ids = output_ids,
+                        ))
+
+                        if batch_size != 0:
+                            if len(res) > 1:
+                                self.assertTrue(min([len(b) == batch_size for b in res[:-1]]))
+                            else:
+                                self.assertGreater(len(res[0]), 0)
+                            res = flatten(res)
+                        self.assertEqual(len(res), num_segments)
+                        if output_ids:
+                            self.assertTrue(all([isinstance(r, tuple) and len(r) == 2 and isinstance(r[1], str) for r in res]))
+                            if expected_ids:
+                                ids = [r[1] for r in res]
+                                self.assertEqual(ids, expected_ids)
+                            res = [r[0] for r in res]
+                        self.assertTrue(all([isinstance(r, format_to_type[format]) for r in res]))
 
