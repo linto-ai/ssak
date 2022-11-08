@@ -42,8 +42,14 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
     if not os.path.isfile(path):
         # Because soxbindings does not indicate the filename if the file does not exist
         raise RuntimeError("File not found: %s" % path)
+    # Test if we have read permission on the file
+    elif not os.access(path, os.R_OK):
+        # os.system("chmod a+r %s" % path)
+        raise RuntimeError("Missing reading permission for: %s" % path)
+    
     if verbose:
         print("Loading audio", path, start, end)
+    
     with suppress_stderr():
         # stderr could print these harmless warnings:
         # 1/ Could occur with sox.read
