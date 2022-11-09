@@ -43,14 +43,14 @@ class TestInferenceSpeechbrain(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertEqualFile(output_file, "speechbrain_mini_output.txt")
+        self.assertNonRegression(output_file, "speechbrain_mini_output.txt")
         self.assertRun([
             self.get_lib_path("infer/speechbrain_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertEqualFile(output_file, "speechbrain_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "speechbrain_mini_output.txt", lambda line: line.split(" ", 1)[1])
         os.remove(output_file)
 
 class TestInferenceKaldi(Test):
@@ -92,14 +92,14 @@ class TestInferenceKaldi(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertEqualFile(output_file, "kaldi_mini_output.txt")
+        self.assertNonRegression(output_file, "kaldi_mini_output.txt")
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertEqualFile(output_file, "kaldi_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "kaldi_mini_output.txt", lambda line: line.split(" ", 1)[1])
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
             self.get_data_path("kaldi/mini"),
@@ -108,7 +108,7 @@ class TestInferenceKaldi(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertEqualFile(output_file, "kaldi_mini_output.txt")
+        self.assertNonRegression(output_file, "kaldi_mini_output.txt")
         os.remove(output_file)
 
 class TestInferenceTransformers(Test):
@@ -150,12 +150,12 @@ class TestInferenceTransformers(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertEqualFile(output_file, "transformers_mini_output.txt")
+        self.assertNonRegression(output_file, "transformers_mini_output.txt")
         self.assertRun([
             self.get_lib_path("infer/transformers_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertEqualFile(output_file, "transformers_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "transformers_mini_output.txt", lambda line: line.split(" ", 1)[1])
         os.remove(output_file)

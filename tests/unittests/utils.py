@@ -96,7 +96,7 @@ class Test(unittest.TestCase):
         self.assertEqual(p.returncode, 0)
         return stdout.decode("utf-8")
 
-    def assertEqualFile(self, file, reference, process_reference_lines = None):
+    def assertNonRegression(self, file, reference, process_reference_lines = None, process = None):
         reference = self.get_data_path("expected/" + reference, check = False)
         if not os.path.isfile(reference):
             self.assertTrue(not process_reference_lines)
@@ -110,4 +110,7 @@ class Test(unittest.TestCase):
         reference_content = open(reference, "r").readlines()
         if process_reference_lines:
             reference_content = [process_reference_lines(l) for l in reference_content]
+        if process:
+            reference_content = [process(l) for l in reference_content]
+            content = [process(l) for l in content]
         self.assertEqual(content, reference_content)
