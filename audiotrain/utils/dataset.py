@@ -665,3 +665,30 @@ def to_audio_batches(
 
     else:
         raise NotImplementedError("Unsupported type: %s" % type(input))
+
+def to_annotation_text(input):
+    """ 
+    Convert a filename, a kaldi folder, or a list of those into batches of audio
+
+    return_format : str
+        Output format. Possible values: 'array', 'torch' or 'bytes'
+    """
+    if isinstance(input, str):
+        
+        if os.path.isdir(input) or os.path.isfile(input):
+            _, dataset = kaldi_folder_to_dataset(input)
+            batch = []
+            for data in dataset:
+                yield data["text"]
+
+        else:
+            raise ValueError(f"Cannot interpret {input} as a file or a directory")
+
+    elif isinstance(input, list):
+        batch = []
+        for data in input:
+            for text in to_annotation_text(data):
+                yield text
+
+    else:
+        raise NotImplementedError("Unsupported type: %s" % type(input))

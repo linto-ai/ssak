@@ -1,6 +1,6 @@
 from audiotrain.utils.env import auto_device # handles option --gpus
 from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.misc import flatten, get_cache_dir
+from audiotrain.utils.misc import flatten, get_cache_dir, hashmd5
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 
 import huggingface_hub
@@ -125,14 +125,15 @@ MAX_LEN = 2240400
 
 def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN):
     if max([len(a) for a in audios]) > max_len:
-        reco, _ = speechbrain_compute_logits(model, audios, max_len = max_len)
+        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len)
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         reco = model.transcribe_batch(batch, wav_lens)[0]
-    reco = [s.lower() for s in reco]
+    #reco = [s.lower() for s in reco]
     return reco
 
 def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
+    blank_id = model.decoding_function.keywords.get("blank_id", 0)
     if max([len(a) for a in audios]) > max_len:
         # Split audios into chunks of max_len
         maxwav_lens = max([len(a) for a in audios])
@@ -157,9 +158,9 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
-    indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = 0)
+    indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = blank_id)
     reco = model.tokenizer.decode(indices)
-    reco = [s.lower() for s in reco]
+    #reco = [s.lower() for s in reco]
     return reco, log_probas
 
 def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
@@ -210,25 +211,32 @@ def conform_torch_logit(x, num_outputs):
         return x[:,:,:num_outputs]
     return x
 
-def speechbrain_load_model(source, device = None, cache_dir = None):
-    if device is None:
-        device = auto_device()
-    
+def speechbrain_cachedir(source):
     if os.path.isdir(source):
-        cache_dir = None
-        yaml_file = os.path.join(source, "hyperparams.yaml")
-        assert os.path.isfile(yaml_file), f"Hyperparams file {yaml_file} not found"
+        return get_cache_dir("speechbrain/"+hashmd5(os.path.realpath(source)))
 
-    elif cache_dir is None:
+    else:
         cache_dir = get_cache_dir("speechbrain")
         cache_dir = os.path.join(cache_dir, os.path.basename(source))
+        return cache_dir
+
+
+def speechbrain_load_model(source, device = None):
+    if device is None:
+        device = auto_device()
+
+    cache_dir = speechbrain_cachedir(source)
+    
+    if os.path.isdir(source):
+        yaml_file = os.path.join(source, "hyperparams.yaml")
+        assert os.path.isfile(yaml_file), f"Hyperparams file {yaml_file} not found"
+    else:
         try:
             yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
         except requests.exceptions.HTTPError:
             yaml_file = None
 
     overrides = make_yaml_overrides(yaml_file, {"save_path": None})
-        
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError:

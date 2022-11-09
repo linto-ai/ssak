@@ -4,6 +4,7 @@ import tempfile
 import hashlib
 import pickle
 import shutil
+import types
 
 def flatten(l):
     """
@@ -39,7 +40,7 @@ def hashmd5(obj):
     """
     return hashlib.md5(pickle.dumps(obj)).hexdigest()
 
-def save_source_dir(parentdir):
+def save_source_dir(parentdir, add_packages = None):
     src_dir = parentdir+"/src"
     i = 0
     while os.path.isdir(src_dir):
@@ -49,14 +50,22 @@ def save_source_dir(parentdir):
     whattocopy = [
         os.path.dirname(os.path.dirname(__file__))
     ] + [
-        arg for arg in sys.argv if os.path.exists(arg)
+        arg for arg in sys.argv if os.path.isfile(arg)
     ]
+    if add_packages:
+        if not isinstance(add_packages, list):
+            add_packages = [add_packages]
+        for package in add_packages:
+            if isinstance(package, types.ModuleType):
+                package = os.path.dirname(package.__file__)
+            assert isinstance(package, str)
+            whattocopy.append(package)
     for what in whattocopy:
         dest = src_dir+"/"+os.path.basename(what)
         if os.path.isfile(what):
             shutil.copy(what, dest)
         else:
-            shutil.copytree(what, dest, dirs_exist_ok=True)
+            shutil.copytree(what, dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 
 # Return the longest prefix of all list elements.
 def commonprefix(m, end = None):

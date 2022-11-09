@@ -1,13 +1,14 @@
 #!/usr/bin/python
  
 from audiotrain.utils.env import auto_device # handle option --gpus (and set environment variables at the beginning)
-from audiotrain.utils.dataset import kaldi_folder_to_dataset
+from audiotrain.utils.dataset import kaldi_folder_to_dataset, to_annotation_text
 from audiotrain.utils.audio import load_audio
 from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.logs import get_num_gpus
 from audiotrain.utils.augment import SpeechAugment
-from audiotrain.utils.misc import save_source_dir
-from audiotrain.infer.speechbrain_infer import speechbrain_load_model
+from audiotrain.utils.misc import save_source_dir, get_cache_dir, hashmd5
+from audiotrain.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
+from audiotrain.train.speechbrain.wav2vec_finalize import finalize_folder
 
 import sys
 import os
@@ -22,7 +23,7 @@ from speechbrain.utils.data_utils import undo_padding
 import torch
 from torch.utils.data import DataLoader
 from speechbrain.dataio.dataloader import LoopedLoader
-from hyperpyyaml import load_hyperpyyaml
+import hyperpyyaml
 
 
 USE_HF_METRIC = True
@@ -508,7 +509,7 @@ if __name__ == "__main__":
         
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
 
-    hparams = load_hyperpyyaml(open(hparams_file),
+    hparams = hyperpyyaml.load_hyperpyyaml(open(hparams_file),
         overrides + "\ndebug: " + str(run_opts["debug"])
     )
 
@@ -530,7 +531,7 @@ if __name__ == "__main__":
     # Make output folder
     output_folder = hparams["output_folder"]
     print("Training in", output_folder)
-    save_source_dir(output_folder)
+    save_source_dir(output_folder, [sb, hyperpyyaml])
 
     freeze = hparams["freeze_wav2vec"]
 
@@ -555,7 +556,6 @@ if __name__ == "__main__":
 
     print("- " + "\n- ".join([f"{k}: {v}" for k,v in hparams.items() if isinstance(v, (int, float, str, bool))]))
 
-
     # Set seed for reproducibility
     seed = hparams["seed"]
     import random
@@ -565,19 +565,17 @@ if __name__ == "__main__":
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+    tokenizer_dir = hparams["save_folder"]
     if "token_type" in hparams:
-        txt_corpus = "text/text.txt"
+        # "Train" the tokenizer
+        cdir = get_cache_dir("huggingface/datasets/mydataset/" + hashmd5(hparams["train"]))
+        txt_corpus = cdir + "/text.txt"
         if not os.path.isfile(txt_corpus):
-            os.makedirs("text", exist_ok=True)
-            data_folder = hparams["data_folder"]
-            for root, dirs, files, in os.walk(data_folder):
-                for file in files:
-                    if file == "text":
-                        with open(os.path.join(root, file), "r") as fin, open(txt_corpus, "a") as fout:
-                            for line in fin:
-                                line = remove_special_words(line.split(" ", 2)[-1])
-                                fout.write(line+"\n")
-        tokenizer_dir = hparams["save_folder"]
+            os.makedirs(cdir, exist_ok=True)
+            with open(txt_corpus, "a") as fout:
+                for text in to_annotation_text(hparams["train"]):
+                    text = remove_special_words(text)
+                    fout.write(text+"\n")
         if not os.path.exists(tokenizer_dir+"/text.txt"):
             os.symlink(os.path.realpath(txt_corpus), tokenizer_dir+"/text.txt")
         tokenizer = SentencePiece(
@@ -591,6 +589,11 @@ if __name__ == "__main__":
         tokenizer = tokenizer.sp
     else:
         tokenizer = model.tokenizer
+
+        # This is an ugly copy, but I could not find out how to properly serialize the tokenizer (SentencePieceProcessor object, it has a load method, but no save method)
+        cachedir = speechbrain_cachedir(model_name)
+        shutil.copyfile(cachedir + "/tokenizer.ckpt", tokenizer_dir+ "/tokenizer.ckpt")
+
 
     train_data, valid_data = dataio_prepare(hparams, tokenizer)
     
@@ -627,4 +630,6 @@ if __name__ == "__main__":
         train_loader_kwargs=hparams["dataloader_options"],
         valid_loader_kwargs=hparams["test_dataloader_options"],
     )
+
+    finalize_folder(output_folder)
 

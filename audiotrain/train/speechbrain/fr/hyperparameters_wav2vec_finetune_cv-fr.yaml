@@ -5,7 +5,7 @@
 # ################################
 
 # Training parameters
-number_of_epochs: 10
+num_epochs: 10
 lr: 1.0
 lr_wav2vec: 0.0001
 sorting: random
@@ -41,7 +41,7 @@ valid: !PLACEHOLDER
 output_folder_prefix: ''
 
 base_model: speechbrain/asr-wav2vec2-commonvoice-fr
-output_folder: !ref <output_folder_prefix>speechbrain_Split1-Eval480_asr-wav2vec2-commonvoice-fr_len-<min_len>-<max_len>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
+output_folder: !ref <output_folder_prefix>speechbrain_asr-wav2vec2-commonvoice-fr_len-<min_len>-<max_len>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
 
 save_folder: !ref <output_folder>/save
 wer_file: !ref <output_folder>/wer.txt
@@ -72,10 +72,10 @@ blank_index: 0
 # Functions and classes
 #
 # epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
-#     limit: !ref <number_of_epochs>
+#     limit: !ref <num_epochs>
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounterWithStopper
-    limit: !ref <number_of_epochs>
+    limit: !ref <num_epochs>
     limit_to_stop: 10
     limit_warmup: 5
     direction: min
