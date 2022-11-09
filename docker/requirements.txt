@@ -20,3 +20,5 @@ psutil
 py3nvml
 vosk
 envsubst
+lang-trans
+pyarabic
