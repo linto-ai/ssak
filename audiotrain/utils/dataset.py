@@ -4,6 +4,7 @@ from operator import itemgetter
 import logging
 import random
 import math
+from audiotrain.utils.logs import logger
 
 from .audio import load_audio, array_to_bytes
 from .text import remove_special_words
@@ -603,16 +604,7 @@ def to_audio_batches(
     """
     if isinstance(input, str):
         
-        if os.path.isfile(input):
-            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
-            if output_ids:
-                audio = (audio, os.path.basename(input))
-            if batch_size == 0:
-                yield audio
-            else:
-                yield [audio]
-        
-        elif os.path.isdir(input):
+        if os.path.isdir(input):
             _, dataset = kaldi_folder_to_dataset(input, sort_by_len = -1 if sort_by_len else 0)
             batch = []
             for data in dataset:
@@ -629,8 +621,27 @@ def to_audio_batches(
             if len(batch) > 0:
                 yield batch
 
+        elif os.path.isfile(input):
+            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+            if output_ids:
+                audio = (audio, os.path.basename(input))
+            if batch_size == 0:
+                yield audio
+            else:
+                yield [audio]
+
+        elif parse_input_file_with_start_end(input):
+            input, start, end = parse_input_file_with_start_end(input)
+            audio = load_audio(input, start = start, end = end, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+            if output_ids:
+                audio = (audio, os.path.basename(input))
+            if batch_size == 0:
+                yield audio
+            else:
+                yield [audio]
+
         else:
-            raise ValueError(f"Cannot interpret {input} as a file or a directory")
+            raise ValueError(f"Cannot interpret {input} as an existing audio file, kaldi folder (or audiofile.wav:start-end)")
 
     elif isinstance(input, list):
         batch = []
@@ -665,6 +676,28 @@ def to_audio_batches(
 
     else:
         raise NotImplementedError("Unsupported type: %s" % type(input))
+
+def parse_input_file_with_start_end(input_file):
+    """ 
+    Parse an input that is XXX.wav:start-end
+    Return None if it fails
+    """
+    if ":" in input_file:
+        f = input_file.split(":")
+        input_file = ":".join(f[:-1])
+        if not os.path.isfile(input_file):
+            logger.warning(f"Cannot find file {input_file}")
+            return None
+        start_end = f[-1].split("-")
+        if len(start_end) == 2:
+            start, end = start_end
+            try:
+                start = float(start)
+                end = float(end)
+            except ValueError:
+                return None
+            return (input_file, start, end)
+    return None
 
 def to_annotation_text(input):
     """ 
