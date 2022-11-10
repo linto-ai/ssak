@@ -290,7 +290,8 @@ def kaldi_folder_to_dataset(
         with open(kaldi_path + "/utt2dur") as f:
             durations = dict([parse_line(line) for line in f if line.strip()])
 
-        uttids, annots = zip(*sorted(zip(uttids, annots), key= lambda i:(durations[i[0]], len(i[1]))))
+        if max_len or min_len or (choose_data_with_max_len and max_data) or sort_by_len:
+            uttids, annots = zip(*sorted(zip(uttids, annots), key= lambda i:(durations[i[0]], len(i[1]))))
         durations = list(itemgetter(*uttids)(durations))
         if max_len or min_len:
             a = 0
@@ -313,7 +314,7 @@ def kaldi_folder_to_dataset(
             durations = durations[-max_data:]
 
         # Longest utterances first
-        if sort_by_len != None and sort_by_len < 0:
+        if sort_by_len and sort_by_len < 0:
             uttids = list(uttids)
             annots = list(annots)
             durations = list(durations)
