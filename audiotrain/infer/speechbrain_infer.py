@@ -7,6 +7,7 @@ import huggingface_hub
 import speechbrain as sb
 import torch
 import torch.nn.utils.rnn as rnn_utils
+import torch.nn.functional as F
 
 import transformers
 import pyctcdecode
@@ -111,7 +112,7 @@ def speechbrain_infer(
         for l in logits:
             if output_ids:
                 ids, l = l
-            predictions = processor.batch_decode(conform_torch_logit(l, num_outputs).numpy()).text
+            predictions = processor.batch_decode(conform_torch_logit(l, num_outputs).cpu().numpy()).text
             if output_ids:
                 for id, p in zip(ids, predictions):
                     yield (id, p)
@@ -126,18 +127,18 @@ MAX_LEN = 2240400
 def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN):
     if max([len(a) for a in audios]) > max_len:
         reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len)
+        # for debug
+        # from audiotrain.utils.debug import plot_logits
+        # plot_logits(logits, model)
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         reco = model.transcribe_batch(batch, wav_lens)[0]
-    #reco = [s.lower() for s in reco]
     return reco
 
 def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
     blank_id = model.decoding_function.keywords.get("blank_id", 0)
     if max([len(a) for a in audios]) > max_len:
         # Split audios into chunks of max_len
-        maxwav_lens = max([len(a) for a in audios])
-        wav_lens = torch.Tensor([len(x)/maxwav_lens for x in audios])
         batch_size = len(audios)
         chunks = []
         i_audio = []
@@ -160,7 +161,6 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
     indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = blank_id)
     reco = model.tokenizer.decode(indices)
-    #reco = [s.lower() for s in reco]
     return reco, log_probas
 
 def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
