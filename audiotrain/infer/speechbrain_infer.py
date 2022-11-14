@@ -1,7 +1,8 @@
 from audiotrain.utils.env import auto_device # handles option --gpus
 from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.misc import flatten, get_cache_dir, hashmd5
+from audiotrain.utils.misc import get_cache_dir, hashmd5
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
+from audiotrain.utils.debug import plot_logits
 
 import huggingface_hub
 import speechbrain as sb
@@ -27,6 +28,7 @@ def speechbrain_infer(
     sort_by_len = False,
     output_ids = False,
     log_memtime = False,
+    plot_logprobas = False,
     ):
     """
     Transcribe audio(s) with speechbrain model
@@ -73,7 +75,7 @@ def speechbrain_infer(
             if output_ids:
                 ids = [b[1] for b in batch]
                 batch = [b[0] for b in batch]
-            pred = speechbrain_transcribe_batch(model, batch)
+            pred = speechbrain_transcribe_batch(model, batch, plot_logprobas = plot_logprobas)
             if output_ids:
                 for id, p in zip(ids, pred):
                     yield (id, p)
@@ -95,7 +97,7 @@ def speechbrain_infer(
             if output_ids:
                 ids = [b[1] for b in batch]
                 batch = [b[0] for b in batch]
-            pred, log_probas = speechbrain_compute_logits(model, batch)
+            pred, log_probas = speechbrain_compute_logits(model, batch, plot_logprobas = plot_logprobas)
             if output_ids:
                 logits.append((ids, log_probas))
             else:
@@ -124,18 +126,15 @@ def speechbrain_infer(
 
 MAX_LEN = 2240400
 
-def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN):
-    if max([len(a) for a in audios]) > max_len:
-        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len)
-        # for debug
-        # from audiotrain.utils.debug import plot_logits
-        # plot_logits(logits, model)
+def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logprobas = False):
+    if plot_logprobas or max([len(a) for a in audios]) > max_len:
+        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         reco = model.transcribe_batch(batch, wav_lens)[0]
     return reco
 
-def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
+def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False):
     blank_id = model.decoding_function.keywords.get("blank_id", 0)
     if max([len(a) for a in audios]) > max_len:
         # Split audios into chunks of max_len
@@ -159,6 +158,9 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN):
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
+    if plot_logprobas:
+        # for debug
+        plot_logits(log_probas, model)
     indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = blank_id)
     reco = model.tokenizer.decode(indices)
     return reco, log_probas
@@ -201,6 +203,8 @@ def pack_sequences(tensors, device = "cpu"):
     wav_lens = [len(x) for x in tensors]
     maxwav_lens = max(wav_lens)
     wav_lens = torch.Tensor([l/maxwav_lens for l in wav_lens])
+    # TODO: clarify what's going on with wav_lens
+    # wav_lens = torch.Tensor([1. for l in wav_lens])
     return tensor.to(device), wav_lens.to(device)
 
 def conform_torch_logit(x, num_outputs):
@@ -288,6 +292,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
+    parser.add_argument('--plot_logprobas', help="Plot logits", default=False, action="store_true")
     args = parser.parse_args()
 
 
@@ -306,6 +311,7 @@ if __name__ == "__main__":
         output_ids = args.use_ids,
         arpa_path = args.arpa,
         log_memtime = args.enable_logs,
+        plot_logprobas = args.plot_logprobas,
     ):
         if isinstance(reco, str):
             print(reco, file = args.output)

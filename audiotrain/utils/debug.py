@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import torch
 import numpy as np
 import speechbrain as sb
@@ -6,7 +5,9 @@ import speechbrain as sb
 COLORS = "bgrcmyk"
 
 def plot_logits(logit, labels_or_model = None, blank_id = None):
-    
+
+    import matplotlib.pyplot as plt
+
     # Get the labels
     if labels_or_model:
         if isinstance(labels_or_model, (sb.pretrained.interfaces.EncoderASR, )):
