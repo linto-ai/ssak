@@ -30,8 +30,6 @@ USE_HF_METRIC = True
 if USE_HF_METRIC:
     import datasets # For metrics
 
-DATA_AUGMENTER = None
-
 ######################################################################
 
 # Define training procedure
@@ -42,19 +40,8 @@ class Trainer(sb.core.Brain):
         #batch = batch.to(self.device)
         wavs, wav_lens = batch.sig
 
-        if stage == sb.Stage.TRAIN:
-            if hasattr(self.hparams, "augmentation"):
+        if stage == sb.Stage.TRAIN and hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
-            else:
-                if DATA_AUGMENTER is None:
-                    DATA_AUGMENTER = SpeechAugment(
-                        noise_dir= "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises",
-                        rir_dir= "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise",
-                        rir_lists= ['simulated_rirs_16k/smallroom/rir_list', 'simulated_rirs_16k/mediumroom/rir_list', 'simulated_rirs_16k/largeroom/rir_list'],
-                        apply_prob=1,
-                        sample_rate=16000,
-                    )
-                wavs = DATA_AUGMENTER(wavs)
 
         wavs, wav_lens = wavs.to(self.device), wav_lens.to(self.device)
 
@@ -507,7 +494,16 @@ def find_sub_obj_of_type(obj, t):
 
 if __name__ == "__main__":
         
-    hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
+    args = []
+    skip = False
+    for arg in sys.argv[1:]:
+        if arg.startswith("--gpus") or skip:
+            skip = False
+            if not arg.startswith("--gpus="):
+                skip = True
+            continue
+        args.append(arg)
+    hparams_file, run_opts, overrides = sb.parse_arguments(args)
 
     hparams = hyperpyyaml.load_hyperpyyaml(open(hparams_file),
         overrides + "\ndebug: " + str(run_opts["debug"])

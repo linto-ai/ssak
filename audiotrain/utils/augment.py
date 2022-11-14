@@ -63,53 +63,73 @@ def transform2str(transform, short = False):
 
 class SpeechAugment:
     def __init__(self,
-        noise_dir=None, # "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises"
-        rir_dir=None, # "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise"
-        rir_lists=None, # ["simulated_rirs_16k/smallroom/rir_list", "simulated_rirs_16k/mediumroom/rir_list", "simulated_rirs_16k/largeroom/rir_list"]
-        apply_prob=0.5,
-        sample_rate=16000,
+        sample_rate = 16000,
+        apply_prob = 0.5,
+        speed = True,
+        gain = True,
+        pitch = False,
+        distortion = False,
+        bandstop = False,
+        gaussian_noise = False,
+        noise_dir = None, # "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises"
+        rir_dir = None, # "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise"
+        rir_lists = None, # ["simulated_rirs_16k/smallroom/rir_list", "simulated_rirs_16k/mediumroom/rir_list", "simulated_rirs_16k/largeroom/rir_list"]
         verbose = False,
         save_audio_dir = None,
         apply_speed_separately = True,
     ):
         self.sample_rate = sample_rate
         self.apply_prob = apply_prob
-        self.transforms = [
-            AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.01, p=1.0),
-            ClippingDistortion(min_percentile_threshold=10, max_percentile_threshold=30, p=1.0),
-            BandStopFilter(p=1.0), # FrequencyMask(min_frequency_band=0.2, max_frequency_band=0.4, p=1.0),
-            Gain(min_gain_in_db=-6, max_gain_in_db=6, p=1.0),
-            PitchShift(min_semitones=-2, max_semitones=2, p=1.0),
-            #Trim(p=1.0),
-        ]
+        self.transforms = []
+        if gaussian_noise:
+            self.transforms += [AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.01, p=1.0)]
+        if distortion:
+            self.transforms += [ClippingDistortion(min_percentile_threshold=10, max_percentile_threshold=30, p=1.0)]
+        if bandstop:
+            self.transforms += [BandStopFilter(p=1.0)] # FrequencyMask(min_frequency_band=0.2, max_frequency_band=0.4, p=1.0)
+        if gain:
+            self.transforms += [Gain(min_gain_in_db=-6, max_gain_in_db=6, p=1.0)]
+        if pitch:
+            self.transforms += [PitchShift(min_semitones=-2, max_semitones=2, p=1.0)]
         if noise_dir is not None:
             self.transforms += [AddBackgroundNoise(sounds_path=noise_dir, min_snr_in_db=5, max_snr_in_db=50, p=1.0)]        
-        if rir_dir is not None and rir_lists is not None:
+        if rir_dir is not None:
+            assert rir_lists, "rir_lists must be provided iff rir_dir is provided"
             self.transforms += [Reverberation(path_dir=rir_dir, rir_list_files=rir_lists, sampling_rate=sample_rate, p=1.0)]
+        else:
+            assert not rir_dir, "rir_dir must be provided iff rir_lists is provided"
         # Speed at the end
-        self.transforms += [TimeStretch(min_rate=0.95, max_rate=1.05, leave_length_unchanged=False, p=1.0)]
+        if speed:
+            self.transforms += [TimeStretch(min_rate=0.95, max_rate=1.05, leave_length_unchanged=False, p=1.0)]
         
         self.num_trans = len(self.transforms)
-        self.apply_speed_separately = apply_speed_separately
+        self.apply_speed_separately = apply_speed_separately and speed
         self.verbose = verbose
         self.save_audio_dir = save_audio_dir
         self.save_audio_idx = 0
 
     def call_single(self, input_values):
         """apply a random data augmentation technique from a list of transformations"""
-        if random.random() < self.apply_prob:
-            # Note: we could use some weights / probabilities here. See random.choices([1,2,3], weights=[0.2, 0.2, 0.7], k=10)
-            if self.apply_speed_separately:
-                i_transform = random.randint(0, self.num_trans - 2)
-            else:
-                i_transform = random.randint(0, self.num_trans - 1)
-            transform = self.transforms[i_transform]
 
+        coin = random.random() < self.apply_prob
+
+        if coin or self.apply_speed_separately:
+            
             is_torch = isinstance(input_values, torch.Tensor)
             if is_torch:
                 input_values = input_values.numpy()
             elif isinstance(input_values, list):
                 input_values = np.array(input_values)
+
+            if coin:
+                # Note: we could use some weights / probabilities here. See random.choices([1,2,3], weights=[0.2, 0.2, 0.7], k=10)
+                if self.apply_speed_separately:
+                    i_transform = random.randint(0, self.num_trans - 2)
+                else:
+                    i_transform = random.randint(0, self.num_trans - 1)
+                transform = self.transforms[i_transform]
+            else:
+                transform = None
             
             if self.save_audio_dir:
                 self.save_audio_idx  += 1
@@ -120,14 +140,18 @@ class SpeechAugment:
                     self.sample_rate
                 )
 
-            input_values = np.array(transform(samples=input_values, sample_rate=self.sample_rate))
+            if transform is not None:
+                input_values = np.array(transform(samples=input_values, sample_rate=self.sample_rate))
+                if self.verbose:
+                    print(transform2str(transform))
+
             if self.apply_speed_separately:
                 input_values = self.transforms[-1](samples=input_values, sample_rate=self.sample_rate)
+                if self.verbose:
+                    print(transform2str(self.transforms[-1]))
 
-            if self.verbose:
-                print(transform2str(transform))
             if self.save_audio_dir:
-                trstr = transform2str(transform,short=True)
+                trstr = transform2str(transform, short=True) if transform is not None else ""
                 if self.apply_speed_separately:
                     trstr += "_" + transform2str(self.transforms[-1],short=True)
                 sox.write(
@@ -141,7 +165,7 @@ class SpeechAugment:
 
         return input_values
 
-    def __call__(self, input_values):
+    def __call__(self, input_values, wav_len = None): # TODO: use len information when it is a batch
         if self.is_batch(input_values):
             out = [self.call_single(input_values[0])]
             self.transforms[-1].freeze_parameters()
