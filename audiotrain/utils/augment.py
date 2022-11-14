@@ -76,6 +76,7 @@ class SpeechAugment:
         rir_lists = None, # ["simulated_rirs_16k/smallroom/rir_list", "simulated_rirs_16k/mediumroom/rir_list", "simulated_rirs_16k/largeroom/rir_list"]
         verbose = False,
         save_audio_dir = None,
+        max_saved_audio = 100,
         apply_speed_separately = True,
     ):
         self.sample_rate = sample_rate
@@ -106,12 +107,25 @@ class SpeechAugment:
         self.apply_speed_separately = apply_speed_separately and speed
         self.verbose = verbose
         self.save_audio_dir = save_audio_dir
+        if save_audio_dir:
+            os.makedirs(save_audio_dir, exist_ok= True)
         self.save_audio_idx = 0
+        self.num_saved_audio = 0
+        self.max_saved_audio = max_saved_audio
+
+
+    def save_audio(self):
+        if not self.save_audio_dir:
+            return False
+        self.num_saved_audio += 1
+        return self.num_saved_audio <= self.max_saved_audio
 
     def call_single(self, input_values):
         """apply a random data augmentation technique from a list of transformations"""
 
         coin = random.random() < self.apply_prob
+
+        do_save_audio = self.save_audio()
 
         if coin or self.apply_speed_separately:
             
@@ -131,7 +145,7 @@ class SpeechAugment:
             else:
                 transform = None
             
-            if self.save_audio_dir:
+            if do_save_audio:
                 self.save_audio_idx  += 1
                 os.makedirs(self.save_audio_dir, exist_ok=True)
                 sox.write(
@@ -150,7 +164,7 @@ class SpeechAugment:
                 if self.verbose:
                     print(transform2str(self.transforms[-1]))
 
-            if self.save_audio_dir:
+            if do_save_audio:
                 trstr = transform2str(transform, short=True) if transform is not None else ""
                 if self.apply_speed_separately:
                     trstr += "_" + transform2str(self.transforms[-1],short=True)
