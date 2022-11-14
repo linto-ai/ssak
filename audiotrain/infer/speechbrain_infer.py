@@ -218,7 +218,6 @@ def conform_torch_logit(x, num_outputs):
 def speechbrain_cachedir(source):
     if os.path.isdir(source):
         return get_cache_dir("speechbrain/"+hashmd5(os.path.realpath(source)))
-
     else:
         cache_dir = get_cache_dir("speechbrain")
         cache_dir = os.path.join(cache_dir, os.path.basename(source))
@@ -236,7 +235,7 @@ def speechbrain_load_model(source, device = None):
         assert os.path.isfile(yaml_file), f"Hyperparams file {yaml_file} not found"
     else:
         try:
-            yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml")
+            yaml_file = huggingface_hub.hf_hub_download(repo_id=source, filename="hyperparams.yaml", cache_dir = get_cache_dir("huggingface/hub"))
         except requests.exceptions.HTTPError:
             yaml_file = None
 

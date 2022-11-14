@@ -1,5 +1,6 @@
 import os
 import sys
+from .misc import get_cache_dir
 
 DISABLE_GPU = False
 
@@ -34,6 +35,15 @@ if not os.environ.get("HOME"):
     path = os.path.dirname(os.path.abspath(__file__))
     if path.startswith("/home/"):
         os.environ["HOME"] = "/".join(os.environ["HOME"].split("/")[:3])
+
+# Set cache directory
+os.environ["HUGGINGFACE_HUB_CACHE"] = get_cache_dir("huggingface/hub")
+os.environ["TRANSFORMERS_CACHE"] = get_cache_dir("huggingface/transformers")
+import datasets
+datasets.config.HF_MODULES_CACHE = get_cache_dir("huggingface/modules")
+datasets.config.HF_DATASETS_CACHE = get_cache_dir("huggingface/datasets")
+datasets.config.HF_METRICS_CACHE = get_cache_dir("huggingface/metrics")
+datasets.config.DOWNLOADED_DATASETS_PATH = get_cache_dir("huggingface/datasets/downloads")
 
 # Importing torch must be done after having set the CUDA-related environment variables
 import torch

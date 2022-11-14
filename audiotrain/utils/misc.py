@@ -18,8 +18,10 @@ def get_cache_dir(name = None):
     """
     cache_dir = tempfile.gettempdir()
     # TODO (if nessary): consider environment variables related to name
-    if os.environ.get("HOME"):
+    if os.environ.get("HOME") and os.access(os.environ["HOME"], os.W_OK):
         cache_dir = os.path.join(os.environ["HOME"], ".cache") # os.path.expanduser("~/.cache")
+    elif __file__.startswith("/home/") and os.access("/".join(__file__.split("/")[:3]), os.W_OK):
+        cache_dir = os.path.join("/".join(__file__.split("/")[:3]), ".cache")
     else:
         for folder in [
             "/usr/share",

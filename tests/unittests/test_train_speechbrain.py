@@ -6,6 +6,11 @@ from .utils import Test
 
 class TestTrainSpeechbrain(Test):
 
+    def setUp(self):
+        super().setUp()
+        # Set HOME environment to root
+        os.environ["HOME"] = "/"
+
     def get_sb_path(self, fname):
         return self.get_lib_path("train/speechbrain/" + fname)
 

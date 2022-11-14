@@ -7,6 +7,11 @@ from .utils import Test
 
 class TestTrainTransformers(Test):
 
+    def setUp(self):
+        super().setUp()
+        # Set HOME environment to root
+        os.environ["HOME"] = "/"
+
     def test_train_transformers(self):
 
         self.assertRun([
