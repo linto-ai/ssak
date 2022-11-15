@@ -53,15 +53,18 @@ def speechbrain_infer(
         log_memtime: bool
             If True, print timing and memory usage information.
     """
+    if batch_size == 0:
+        batch_size = 1
+
     if isinstance(model, str):
         model = speechbrain_load_model(model, device = device)
 
     assert isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
 
-    sampling_rate = model.audio_normalizer.sample_rate
+    sample_rate = model.audio_normalizer.sample_rate
 
     batches = to_audio_batches(audios, return_format = 'torch',
-        sampling_rate = sampling_rate,
+        sample_rate = sample_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
         output_ids = output_ids,
@@ -135,6 +138,13 @@ def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logproba
     return reco
 
 def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False):
+    if not isinstance(audios, list):
+        audios = [audios]
+        reco, log_probas = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
+        return reco[0], log_probas[0]
+    assert len(audios) > 0, "audios must be a non-empty list"
+    if not isinstance(audios[0], torch.Tensor):
+        audios = [torch.from_numpy(a) for a in audios]
     blank_id = model.decoding_function.keywords.get("blank_id", 0)
     if max([len(a) for a in audios]) > max_len:
         # Split audios into chunks of max_len
@@ -158,6 +168,7 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas 
     else:
         batch, wav_lens = pack_sequences(audios, device = model.device)
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
+    #log_probas = torch.log_softmax(log_probas, dim=-1)
     if plot_logprobas:
         # for debug
         plot_logits(log_probas, model)

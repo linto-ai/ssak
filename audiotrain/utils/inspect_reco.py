@@ -7,8 +7,8 @@ import transformers
 from dataclasses import dataclass
 
 def compute_emission_transformers(audio, model, processor, max_len = 2240400):
-    sampling_rate = processor.feature_extractor.sampling_rate
-    inputs = processor(audio, sampling_rate=sampling_rate, return_tensors="pt").input_values.to(model.device)
+    sample_rate = processor.feature_extractor.sampling_rate
+    inputs = processor(audio, sampling_rate = sample_rate, return_tensors="pt").input_values.to(model.device)
     with torch.no_grad():
         l = inputs.shape[-1]
         if l > max_len:
@@ -193,7 +193,7 @@ def plot_trellis_with_segments(trellis, segments, transcript, path):
     ax2.set_xlim(ax1.get_xlim())
     ax2.set_ylim(-0.1, 1.1)
 
-def plot_alignments(trellis, segments, word_segments, waveform, sampling_rate = 16000, wav_file = None, emission = None, labels = None):
+def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16000, wav_file = None, emission = None, labels = None):
 
     trellis_with_path = trellis.clone()
     for i, seg in enumerate(segments):
@@ -252,7 +252,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sampling_rate = 
         if seg.label != "|":
             ax2.annotate(seg.label, (seg.start * ratio, 0.9))
     xticks = ax2.get_xticks()
-    ax2.set_xticks(xticks, xticks / sampling_rate)
+    ax2.set_xticks(xticks, xticks / sample_rate)
     ax2.set_xlabel("time [second]")
     ax2.set_yticks([])
     ax2.set_ylim(-1.0, 1.0)
@@ -331,9 +331,8 @@ if __name__ == "__main__":
     import sys
     import json
     import matplotlib.pyplot as plt
-    from viewer import PlayWav
-    from wav2vec_train import quick_format_text
-    from kaldi_to_huggingface import load_audio
+    from .viewer import PlayWav
+    from .audio import load_audio
 
     WORD2VEC_PATH = "best_model"#_ESTER"
     BASE_MODEL = WORD2VEC_PATH # "Ilyes/wav2vec2-large-xlsr-53-french"
@@ -351,14 +350,14 @@ if __name__ == "__main__":
     if not os.path.isfile(meta): meta = os.path.splitext(PATH)[0] + ".txt"
     if os.path.isfile(meta):
         with open(meta, "r") as f:
-            transcript = quick_format_text(json.load(f)["text"])
+            transcript = json.load(f)["text"]
     # transcript = None
 
     processor = transformers.Wav2Vec2Processor.from_pretrained(BASE_MODEL)
     model = transformers.Wav2Vec2ForCTC.from_pretrained(WORD2VEC_PATH).to(DEVICE)
 
-    sampling_rate = processor.feature_extractor.sampling_rate
-    audio = load_audio(PATH, sampling_rate = sampling_rate)
+    sample_rate = processor.feature_extractor.sampling_rate
+    audio = load_audio(PATH, sample_rate = sample_rate)
     
     ########################################################
 
@@ -366,5 +365,5 @@ if __name__ == "__main__":
 
     del model, processor, transcript
 
-    plot_alignments(trellis, segments, word_segments, audio, sampling_rate = sampling_rate, wav_file = PATH, emission = emission, labels = labels)
+    plot_alignments(trellis, segments, word_segments, audio, sample_rate = sample_rate, wav_file = PATH, emission = emission, labels = labels)
     plt.show()

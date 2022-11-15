@@ -14,7 +14,7 @@ import torchaudio
 import numpy as np
 import torch
 
-def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = True, return_format = 'array', verbose = False):
+def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True, return_format = 'array', verbose = False):
     """ 
     Load an audio file and return the data.
 
@@ -26,7 +26,7 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
         start time in seconds. If None, the file will be loaded from the beginning.
     end: float
         end time in seconds. If None the file will be loaded until the end.
-    sampling_rate: int
+    sample_rate: int
         destination sampling rate in Hz
     mono: bool
         if True, convert to mono
@@ -76,15 +76,15 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
             audio = audio.reshape(audio.shape[0])
         else:
             audio = librosa.to_mono(audio.transpose())
-    if sampling_rate is not None and sr != sampling_rate:
+    if sample_rate is not None and sr != sample_rate:
         if verbose:
             print("- Convert to Torch")
         audio = torch.Tensor(audio)
         if verbose:
-            print("- Resample from", sr, "to", sampling_rate)
+            print("- Resample from", sr, "to", sample_rate)
         # We don't use librosa here because there is a problem with multi-threading
-        #audio = librosa.resample(audio, orig_sr = sr, target_sr = sampling_rate)
-        audio = torchaudio.transforms.Resample(sr, sampling_rate)(torch.Tensor(audio))
+        #audio = librosa.resample(audio, orig_sr = sr, target_sr = sample_rate)
+        audio = torchaudio.transforms.Resample(sr, sample_rate)(torch.Tensor(audio))
     
     if return_format == "torch" and not isinstance(audio, torch.Tensor):
         if verbose:
@@ -108,11 +108,11 @@ def load_audio(path, start = None, end = None, sampling_rate = 16_000, mono = Tr
 def array_to_bytes(audio):
     return (audio * 32768).astype(np.int16).tobytes()
 
-def save_audio(path, audio, sampling_rate = 16_000):
+def save_audio(path, audio, sample_rate = 16_000):
     """ 
     Save an audio signal into a wav file.
     """
-    sox.write(path, audio, sampling_rate)
+    sox.write(path, audio, sample_rate)
 
 class suppress_stderr(object):
     def __enter__(self):

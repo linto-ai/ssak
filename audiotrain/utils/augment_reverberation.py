@@ -17,14 +17,14 @@ class Reverberation(BaseWaveformTransform):
         self,
         path_dir : str,
         rir_list_files : List[str],
-        sampling_rate : int,
+        sample_rate : int,
         p : Optional[float] = 0.5,
         rir_scale_factor : Optional[float] = 1.0,
     ):
         """
         :param path_dir: directory including the rir directory
         :param rir_lists: list of rir files
-        :param sampling_rate: target sample rate
+        :param sample_rate: target sample rate
         :param p: The probability of applying this transform
         :param rir_scale_factor: It compresses or dilates the given impulse response. 
                                  If 0 < scale_factor < 1, the impulse response is compressed
@@ -32,7 +32,7 @@ class Reverberation(BaseWaveformTransform):
         """
         super().__init__(p)
         self.path = path_dir
-        self.sampling_rate = sampling_rate
+        self.sample_rate = sample_rate
         self.rir_scale_factor = rir_scale_factor
         self.wavs = []
         for rir_file in rir_list_files:
@@ -88,9 +88,9 @@ class Reverberation(BaseWaveformTransform):
             # check if the rspecifier is a pipe or not
             filepath = self.path+'/'+rir.rir_rspecifier
             if len(rir.rir_rspecifier.split()) == 1 and os.path.exists(filepath):
-                speech_array, sampling_rate = torchaudio.load(filepath)
-                if sampling_rate != self.sampling_rate:
-                    resampler = torchaudio.transforms.Resample(sampling_rate, self.sampling_rate)
+                speech_array, sample_rate = torchaudio.load(filepath)
+                if sample_rate != self.sample_rate:
+                    resampler = torchaudio.transforms.Resample(sample_rate, self.sample_rate)
                     speech_array = resampler(speech_array).squeeze().numpy()
 
                 rir_list.append({

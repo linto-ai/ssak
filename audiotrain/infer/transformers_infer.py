@@ -3,15 +3,11 @@ from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.misc import flatten, get_cache_dir # TODO: cache folder management
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 
+import os
 import transformers
 import pyctcdecode
 import torch
 import torch.nn.functional as F
-
-import os
-import tempfile
-import json
-
 
 def transformers_infer(
     source,
@@ -46,24 +42,14 @@ def transformers_infer(
         log_memtime: bool
             If True, print timing and memory usage information.
     """
-    if device is None:
-        device = auto_device()
 
-    if isinstance(source, str):
-        model = transformers.Wav2Vec2ForCTC.from_pretrained(source).to(device)
-        processor = transformers.Wav2Vec2Processor.from_pretrained(source)
-    elif isinstance(source, (list, tuple)) and len(source) == 2:
-        model, processor = source
-        assert isinstance(model, transformers.Wav2Vec2ForCTC)
-        assert isinstance(processor, transformers.Wav2Vec2Processor)
-    else:
-        raise NotImplementedError("Only Wav2Vec2ForCTC from a model name or folder is supported for now")
+    model, processor = transformers_load_model(source, device)
     
-    sampling_rate = processor.feature_extractor.sampling_rate
+    sample_rate = processor.feature_extractor.sampling_rate
     device = model.device
 
     batches = to_audio_batches(audios, return_format = 'array',
-        sampling_rate = sampling_rate,
+        sample_rate = sample_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
         output_ids = output_ids,
@@ -77,7 +63,7 @@ def transformers_infer(
             if output_ids:
                 ids = [x[1] for x in batch]
                 batch = [x[0] for x in batch]
-            log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
+            log_probas = transformers_compute_logits(model, processor, batch, device = device, sample_rate = sample_rate)
             pred = processor.batch_decode(torch.argmax(log_probas, dim=-1))
             if output_ids:
                 for id, p in zip(ids, pred):
@@ -99,7 +85,7 @@ def transformers_infer(
             if output_ids:
                 ids = [x[1] for x in batch]
                 batch = [x[0] for x in batch]
-            log_probas = transformers_compute_logits(model, processor, batch, sampling_rate, device)
+            log_probas = transformers_compute_logits(model, processor, batch, device = device, sample_rate = sample_rate)
             if output_ids:
                 logits.append((ids, log_probas))
             else:
@@ -124,6 +110,23 @@ def transformers_infer(
                     yield p
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
+def transformers_load_model(source, device = None):
+    if device is None:
+        device = auto_device()
+
+    if isinstance(source, str):
+        model = transformers.Wav2Vec2ForCTC.from_pretrained(source).to(device)
+        processor = transformers.Wav2Vec2Processor.from_pretrained(source)
+    elif isinstance(source, (list, tuple)) and len(source) == 2:
+        model, processor = source
+        assert isinstance(model, transformers.Wav2Vec2ForCTC)
+        assert isinstance(processor, transformers.Wav2Vec2Processor)
+        model = model.to(device)
+    else:
+        raise NotImplementedError("Only Wav2Vec2ForCTC from a model name or folder is supported for now")
+
+    return model, processor
+
 def conform_torch_logit(x, num_outputs):
     n = x.shape[-1]
     if n < num_outputs:
@@ -132,9 +135,14 @@ def conform_torch_logit(x, num_outputs):
         return x[:,:,:num_outputs]
     return x
 
-def transformers_compute_logits(model, processor, batch, sampling_rate, device, max_len = 2240400):
+def transformers_compute_logits(model, processor, batch, device = None, sample_rate = None, max_len = 2240400):
 
-    processed_batch = processor(batch, sampling_rate = sampling_rate)
+    if sample_rate == None:
+        sample_rate = processor.feature_extractor.sampling_rate
+    if device == None:
+        device = model.device
+
+    processed_batch = processor(batch, sampling_rate = sample_rate)
 
     padded_batch = processor.pad(
         processed_batch,

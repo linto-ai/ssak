@@ -96,7 +96,7 @@ class SpeechAugment:
             self.transforms += [AddBackgroundNoise(sounds_path=noise_dir, min_snr_in_db=5, max_snr_in_db=50, p=1.0)]        
         if rir_dir is not None:
             assert rir_lists, "rir_lists must be provided iff rir_dir is provided"
-            self.transforms += [Reverberation(path_dir=rir_dir, rir_list_files=rir_lists, sampling_rate=sample_rate, p=1.0)]
+            self.transforms += [Reverberation(path_dir=rir_dir, rir_list_files=rir_lists, sample_rate=sample_rate, p=1.0)]
         else:
             assert not rir_dir, "rir_dir must be provided iff rir_lists is provided"
         # Speed at the end

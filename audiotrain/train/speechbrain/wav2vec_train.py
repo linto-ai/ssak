@@ -421,7 +421,7 @@ def dataio_prepare(hparams, tokenizer):
     @sb.utils.data_pipeline.takes("path", "start", "end")
     @sb.utils.data_pipeline.provides("sig")
     def audio_pipeline(path, start, end):
-        audio = load_audio(path, start, end, sampling_rate = hparams["sample_rate"], return_format = 'torch')
+        audio = load_audio(path, start, end, sample_rate = hparams["sample_rate"], return_format = 'torch')
         return audio
 
     sb.dataio.dataset.add_dynamic_item(datasets, audio_pipeline)
@@ -527,7 +527,7 @@ if __name__ == "__main__":
     # Make output folder
     output_folder = hparams["output_folder"]
     print("Training in", output_folder)
-    save_source_dir(output_folder, [sb, hyperpyyaml])
+    save_source_dir(output_folder) #, [sb, hyperpyyaml])
 
     freeze = hparams["freeze_wav2vec"]
 

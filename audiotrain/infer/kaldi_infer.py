@@ -93,10 +93,10 @@ def kaldi_infer(
             conf_file = os.path.join(modeldir, "mfcc.conf")
             if not os.path.isfile(conf_file):
                 raise ValueError("Cannot find mfcc.conf in {}".format(modeldir))
-        sampling_rate = read_param_value(conf_file, "sample-frequency", int)
-        if sampling_rate is None:
+        sample_rate = read_param_value(conf_file, "sample-frequency", int)
+        if sample_rate is None:
             print("WARNING: Cannot find sample-frequency in mfcc.conf, assuming 16000")
-            sampling_rate = 16000
+            sample_rate = 16000
 
         if device is None:
             device = auto_device()
@@ -154,7 +154,7 @@ def kaldi_infer(
         else:
 
             model = vosk.Model(modeldir)
-            recognizer = vosk.KaldiRecognizer(model, sampling_rate)
+            recognizer = vosk.KaldiRecognizer(model, sample_rate)
             if batch_size > 1:
                 RECOGNIZER = recognizer
                 pool = multiprocessing.Pool(batch_size)
@@ -187,7 +187,7 @@ def kaldi_infer(
                 #       and shutil.rmtree delete their content.
 
     batches = to_audio_batches(audios, return_format = 'bytes',
-        sampling_rate = sampling_rate,
+        sample_rate = sample_rate,
         batch_size = batch_size,
         sort_by_len = sort_by_len,
         output_ids = output_ids,
@@ -204,7 +204,7 @@ def kaldi_infer(
             batch = [b[0] for b in batch]
 
         if use_gpu:
-            recognizers = [vosk.BatchRecognizer(model, sampling_rate) for _ in range(batch_size)]
+            recognizers = [vosk.BatchRecognizer(model, sample_rate) for _ in range(batch_size)]
 
             results = ["" for _ in batch]
 

@@ -490,7 +490,7 @@ def process_dataset(processor, dataset,
         Stream to print some logs to
     """
 
-    sampling_rate = processor.feature_extractor.sampling_rate
+    sample_rate = processor.feature_extractor.sampling_rate
     is_iterable = isinstance(dataset, datasets.IterableDataset) # or not hasattr(dataset, "_fingerprint")
     force_cache = force_cache and not is_iterable
     if force_cache:
@@ -520,7 +520,7 @@ def process_dataset(processor, dataset,
     if data_augmenter:
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
-                "input_values" : data_augmenter(load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sampling_rate = sampling_rate)),
+                "input_values" : data_augmenter(load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate)),
                 "labels": remove_special_words(row["text"])
             },
             remove_columns = column_names,
@@ -529,7 +529,7 @@ def process_dataset(processor, dataset,
     else:
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
-                "input_values" : load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sampling_rate = sampling_rate),
+                "input_values" : load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate),
                 "labels": remove_special_words(row["text"])
             },
             remove_columns = column_names,
@@ -569,7 +569,7 @@ def process_dataset(processor, dataset,
         map_kwargs.update({"num_proc": num_proc}) # Batch size is used
     if verbose and hasattr(dataset, "_fingerprint"):
         print("Processing audios", processed._fingerprint)
-    processed = processed.map(lambda batch: apply_processor(processor, batch, sampling_rate),
+    processed = processed.map(lambda batch: apply_processor(processor, batch, sample_rate),
         batch_size = batch_size, batched=True,
         **map_kwargs
     )
@@ -581,8 +581,8 @@ def process_dataset(processor, dataset,
 
     return processed
 
-def apply_processor(processor, batch, sampling_rate):
-    processed = processor(batch["input_values"], sampling_rate= sampling_rate)
+def apply_processor(processor, batch, sample_rate):
+    processed = processor(batch["input_values"], sampling_rate = sample_rate)
     batch["input_values"] = processed.input_values
     with processor.as_target_processor():
         batch["labels"] = processor(batch["labels"]).input_ids
@@ -591,7 +591,7 @@ def apply_processor(processor, batch, sampling_rate):
 def to_audio_batches(
     input,
     batch_size = 0,
-    sampling_rate = 16_000,
+    sample_rate = 16_000,
     mono = True,
     return_format = 'array',
     sort_by_len = False,
@@ -609,7 +609,7 @@ def to_audio_batches(
             _, dataset = kaldi_folder_to_dataset(input, sort_by_len = -1 if sort_by_len else 0)
             batch = []
             for data in dataset:
-                audio = load_audio(data["path"], data.get("start"), data.get("end"), sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+                audio = load_audio(data["path"], data.get("start"), data.get("end"), sample_rate = sample_rate, mono = mono, return_format = return_format)
                 if output_ids:
                     audio = (audio, data["ID"])
                 if batch_size == 0:
@@ -623,7 +623,7 @@ def to_audio_batches(
                 yield batch
 
         elif os.path.isfile(input):
-            audio = load_audio(input, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+            audio = load_audio(input, sample_rate = sample_rate, mono = mono, return_format = return_format)
             if output_ids:
                 audio = (audio, os.path.basename(input))
             if batch_size == 0:
@@ -633,7 +633,7 @@ def to_audio_batches(
 
         elif parse_input_file_with_start_end(input):
             input, start, end = parse_input_file_with_start_end(input)
-            audio = load_audio(input, start = start, end = end, sampling_rate = sampling_rate, mono = mono, return_format = return_format)
+            audio = load_audio(input, start = start, end = end, sample_rate = sample_rate, mono = mono, return_format = return_format)
             if output_ids:
                 audio = (audio, os.path.basename(input))
             if batch_size == 0:
@@ -647,7 +647,7 @@ def to_audio_batches(
     elif isinstance(input, list):
         batch = []
         for data in input:
-            batches = to_audio_batches(data, batch_size = batch_size, sampling_rate = sampling_rate, mono = mono, return_format = return_format, sort_by_len = sort_by_len, output_ids = output_ids)
+            batches = to_audio_batches(data, batch_size = batch_size, sample_rate = sample_rate, mono = mono, return_format = return_format, sort_by_len = sort_by_len, output_ids = output_ids)
             for b in batches:
                 if batch_size == 0 or len(b) == batch_size:
                     yield b
