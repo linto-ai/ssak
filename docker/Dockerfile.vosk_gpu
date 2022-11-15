@@ -101,13 +101,17 @@ COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/tra
 # Fix for hyperpyyaml
 RUN pip3 install git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd7fb01e1e6e063be492fddeab
 
+# Used to display audio
+RUN apt-get install -y --no-install-recommends portaudio19-dev
+RUN pip3 install PyAudio
+
 # Clean
 RUN rm -rf /var/lib/apt/lists/*
 
 # Locale
-RUN sed -i '/fr_FR.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
-ENV LANG fr_FR.UTF-8  
-ENV LANGUAGE fr_FR:en  
-ENV LC_ALL fr_FR.UTF-8
+# RUN sed -i '/fr_FR.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+# ENV LANG fr_FR.UTF-8  
+# ENV LANGUAGE fr_FR:en  
+# ENV LC_ALL fr_FR.UTF-8
 
 ENTRYPOINT ["/bin/bash"]
