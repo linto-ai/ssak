@@ -202,6 +202,13 @@ def format_text_fr(text, keep_punc = False):
         text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
 
     text = re.sub(' - | -$|^- ','', text)
+
+    # Non printable characters
+    if '\x81' in text:
+        #i = text.index('\x81')
+        #print("WARNING: weird character in text: ", text[:i], "\\x81", text[i+1:])
+        text = text.replace('\x81', ' ')
+
     text = collapse_whitespace(text)
 
     return text

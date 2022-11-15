@@ -15,6 +15,7 @@ py3nvml
 pyarabic
 pyctcdecode
 pypi-kenlm
+python-slugify
 soundfile
 soxbindings
 tensorboard
