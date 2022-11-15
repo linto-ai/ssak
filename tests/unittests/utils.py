@@ -90,13 +90,14 @@ class Test(unittest.TestCase):
         print("Running:", " ".join(cmd))
         p = subprocess.Popen(cmd, 
             env = dict(os.environ, PYTHONPATH = os.pathsep.join(sys.path)), # Otherwise ".local" path might be missing
-            stdout = subprocess.PIPE #, stderr = subprocess.PIPE
+            stdout = subprocess.PIPE, stderr = subprocess.PIPE
         )
         (stdout, stderr) = p.communicate()
-        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.returncode, 0, msg = stderr.decode("utf-8"))
         return stdout.decode("utf-8")
 
-    def assertNonRegression(self, file, reference, process_reference_lines = None, process = None):
+    def assertNonRegression(self, file, reference, process = None, process_reference_lines = None):
+        # TODO: handle numeric difference (by correctly loading json files...)
         reference = self.get_data_path("expected/" + reference, check = False)
         if not os.path.isfile(reference):
             self.assertTrue(not process_reference_lines)
@@ -113,4 +114,4 @@ class Test(unittest.TestCase):
         if process:
             reference_content = [process(l) for l in reference_content]
             content = [process(l) for l in content]
-        self.assertEqual(content, reference_content)
+        self.assertEqual(content, reference_content, msg = f"File {file} does not match reference {reference}")

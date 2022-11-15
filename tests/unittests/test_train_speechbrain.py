@@ -26,7 +26,7 @@ class TestTrainSpeechbrain(Test):
     def test_train_speechbrain_fromscratch(self):
 
         hparams_file = "hyperparameters_wav2vec_fromscratch.yaml"
-        dir = "speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-0.5-10_frTrue_lr1.0-0.0001_bs4_s1234_ascending"
+        dir = "speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-1-10_frTrue_lr1.0-0.0001_bs4_s1234_ascending"
         shutil.rmtree(dir, ignore_errors = True)
 
         self.assertRun([
@@ -61,7 +61,7 @@ class TestTrainSpeechbrain(Test):
         self.assertTrue(not os.path.exists(dir + "/no_segments"))
         self.assertTrue(os.path.isdir(dir + "/train_log"))
 
-        self.assertNonRegression(dir + "/train_log.txt", f"speechbrain_train_log_{name}.txt", process = lambda line: re.sub(r"_time_h: [0-9e\.\-\+]+", "train_time_h: XXX", line))
+        self.assertNonRegression(dir + "/train_log.txt", f"speechbrain_train_log_{name}.txt", lambda line: re.sub(r"_time_h: [0-9e\.\-\+]+", "train_time_h: XXX", line))
 
         # Check finalization
         final_dir = dir + "/final"

@@ -15,7 +15,7 @@ class TestInferenceSpeechbrain(Test):
             self.get_data_path("audio/bonjour.wav"),
             *opts,
         ])
-        self.assertEqual(stdout, "bonjour\n")
+        self.assertEqual(stdout, "BONJOUR\n")
 
         # expected  = "cest pas plus mae  n tagi bonjour si dono note que les pintines y sontbri trop belles en binjamedin rosavê trop jolie avec uncratement du ce commucourbé à l auge en fait elle est passi betite que ça"
         # expectedb = "cest pas plus mae   tagi bonjour si dono note que les pintines y sontri trop belles en binjamedin osave trop jolie avec uncratement du ce commucourbé à l auge en fait elle est passi betite que ça"
@@ -50,7 +50,7 @@ class TestInferenceSpeechbrain(Test):
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "speechbrain_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "speechbrain_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)
 
 class TestInferenceKaldi(Test):
@@ -99,7 +99,7 @@ class TestInferenceKaldi(Test):
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "kaldi_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "kaldi_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
             self.get_data_path("kaldi/mini"),
@@ -157,5 +157,5 @@ class TestInferenceTransformers(Test):
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "transformers_mini_output.txt", lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "transformers_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)
