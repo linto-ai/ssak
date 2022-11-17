@@ -38,7 +38,7 @@ class TestInference(Test):
         output_file = self.get_temp_path("output.txt")
         self.assertRun([
             self.get_lib_path("infer/speechbrain_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             "--use_ids",
             *opts,
@@ -46,7 +46,7 @@ class TestInference(Test):
         self.assertNonRegression(output_file, "infer/speechbrain.txt")
         self.assertRun([
             self.get_lib_path("infer/speechbrain_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             *opts,
         ])
@@ -86,7 +86,7 @@ class TestInference(Test):
         output_file = self.get_temp_path("output.txt")
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             "--use_ids",
             *opts,
@@ -94,14 +94,14 @@ class TestInference(Test):
         self.assertNonRegression(output_file, "infer/kaldi.txt")
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             *opts,
         ])
         self.assertNonRegression(output_file, "infer/kaldi.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             "--batch_size", "8",
             "--use_ids",
@@ -143,7 +143,7 @@ class TestInference(Test):
         output_file = self.get_temp_path("output.txt")
         self.assertRun([
             self.get_lib_path("infer/transformers_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             "--use_ids",
             *opts,
@@ -151,7 +151,7 @@ class TestInference(Test):
         self.assertNonRegression(output_file, "infer/transformers.txt")
         self.assertRun([
             self.get_lib_path("infer/transformers_infer.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             "--output", output_file,
             *opts,
         ])

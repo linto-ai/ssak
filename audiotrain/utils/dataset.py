@@ -444,7 +444,7 @@ def make_cachable(dataset, online = False, shuffle = False, return_csv = False, 
         keep_default_na=False, # This is important to avoid pandas to convert "nan" to NaN
     )
     if not online and logstream:
-        logstream.write("- Huggingface cached CVS in {}\n".format(format_cache_files(res.cache_files)))
+        logstream.write("- Huggingface cached CSV in {}\n".format(format_cache_files(res.cache_files)))
     if isinstance(res, dict) and len(res) == 1:
         res = list(res.values())[0]
     return res

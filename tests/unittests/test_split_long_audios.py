@@ -12,7 +12,7 @@ class TestSplitLongAudios(Test):
         shutil.rmtree(output_folder, ignore_errors=True)
         self.assertRun([
             self.get_tool_path("split_long_audios.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             output_folder,
             "--model", "speechbrain/asr-wav2vec2-commonvoice-fr",
             "--max_len", "4",
@@ -26,7 +26,7 @@ class TestSplitLongAudios(Test):
         shutil.rmtree(output_folder, ignore_errors=True)
         self.assertRun([
             self.get_tool_path("split_long_audios.py"),
-            self.get_data_path("kaldi/mini"),
+            self.get_data_path("kaldi/small"),
             output_folder,
             "--model", "Ilyes/wav2vec2-large-xlsr-53-french",
             "--max_len", "4",

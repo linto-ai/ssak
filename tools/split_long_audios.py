@@ -2,7 +2,7 @@ from audiotrain.utils.env import *
 from audiotrain.utils.audio import load_audio
 from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.dataset import parse_kaldi_wavscp
-from audiotrain.infer.general import get_model_sample_rate
+from audiotrain.infer.general import load_model, get_model_sample_rate
 from audiotrain.utils.inspect_reco import compute_alignment
 from audiotrain.utils.kaldi import check_kaldi_dir
 
@@ -44,6 +44,7 @@ def split_long_audio_kaldifolder(
 
     dbname = os.path.basename(dirin)
 
+    model = load_model(model)
     sample_rate = get_model_sample_rate(model)
 
     # Parse input folder

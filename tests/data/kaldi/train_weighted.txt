@@ -1,2 +1,2 @@
-$DATAPATH/kaldi/mini    1
-$DATAPATH/kaldi/no_segments 2
+$DATAPATH/kaldi/small    1
+$DATAPATH/kaldi/minimal 2

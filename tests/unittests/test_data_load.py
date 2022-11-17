@@ -25,7 +25,7 @@ class TestAudioDataset(Test):
         self.assertEqual(len(dataset), 63)
         self.assertEqual(self.hash(list(dataset)), EXPECTED)
         self.assertEqual(meta["samples"], 63)
-        self.assertTrue(meta["h duration"] > 0.056 and meta["h duration"] < 0.057)
+        self.assertTrue(meta["h duration"] > 0.056 and meta["h duration"] < 0.057, f"Duration is {meta['h duration']}")
 
         tic = time.time()
         meta_online, dataset_online = kaldi_folder_to_dataset(kaldir, online = True, verbose = False)
@@ -35,7 +35,7 @@ class TestAudioDataset(Test):
         self.assertFalse(hasattr(dataset_online, "__len__"))
         self.assertEqual(self.hash(list(dataset_online)), self.hash(list(dataset)))
         self.assertEqual(meta_online["samples"], 63)
-        self.assertTrue(meta_online["h duration"] > 0.056 and meta["h duration"] < 0.057)
+        self.assertTrue(meta_online["h duration"] > 0.056 and meta["h duration"] < 0.057, f"Duration is {meta['h duration']}")
         # self.assertGreater(t, t_online) # Not necessarily true
 
         processor = transformers.Wav2Vec2Processor.from_pretrained("Ilyes/wav2vec2-large-xlsr-53-french")
@@ -59,12 +59,66 @@ class TestAudioDataset(Test):
         self.assertEqual(self.loosehash(list(processed_online)), EXPECTED)
         # self.assertGreater(t, t_online) # Not necessarily true
 
-    def check_dataset(self, dataset):
+    def test_kaldi_to_huggingface_dataset_min_files(self):
+
+        kaldir = self.get_data_path("kaldi/minimal")
+
+        tic = time.time()
+        meta, dataset = kaldi_folder_to_dataset(kaldir, verbose = False)
+        t = time.time() - tic
+        EXPECTED = "31e3bf735009b375abb2b7dbb944d5cc"
+
+        self.check_dataset(dataset, False)
+        self.assertTrue(hasattr(dataset, "__len__"))
+        self.assertEqual(len(dataset), 4)
+        self.assertEqual(self.hash(list(dataset)), EXPECTED)
+        self.assertEqual(meta["samples"], 4)
+        self.assertTrue(meta["h duration"] > 0.009 and meta["h duration"] < 0.0091, f"Duration is {meta['h duration']}")
+
+        tic = time.time()
+        meta_online, dataset_online = kaldi_folder_to_dataset(kaldir, online = True, verbose = False)
+        t_online = time.time() - tic
+
+        self.check_dataset(dataset_online, False)
+        self.assertFalse(hasattr(dataset_online, "__len__"))
+        self.assertEqual(self.hash(list(dataset_online)), self.hash(list(dataset)))
+        self.assertEqual(meta_online["samples"], 4)
+        self.assertTrue(meta_online["h duration"] > 0.009 and meta["h duration"] < 0.0091, f"Duration is {meta['h duration']}")
+        # self.assertGreater(t, t_online) # Not necessarily true
+
+        processor = transformers.Wav2Vec2Processor.from_pretrained("Ilyes/wav2vec2-large-xlsr-53-french")
+
+        tic = time.time()
+        processed = process_dataset(processor, dataset, verbose = False)
+        t = time.time() - tic
+        EXPECTED = "36a3070e27fda6716d67a6a7f90004c8"
+
+        self.check_audio_dataset(processed)
+        self.assertTrue(hasattr(dataset, "__len__"))
+        self.assertEqual(len(processed), 4)
+        self.assertEqual(self.loosehash(list(processed)), EXPECTED)
+
+        tic = time.time()
+        processed_online = process_dataset(processor, dataset_online, verbose = False)
+        t_online = time.time() - tic
+        
+        self.check_audio_dataset(processed_online)
+        self.assertFalse(hasattr(processed_online, "__len__"))
+        self.assertEqual(self.loosehash(list(processed_online)), EXPECTED)
+        # self.assertGreater(t, t_online) # Not necessarily true
+
+    def check_dataset(self, dataset, has_segment = True):
         ids = []
         for data in dataset:
             self.assertTrue(isinstance(data.get("ID"), str))
-            self.assertTrue(isinstance(data.get("start"), float))
-            self.assertTrue(isinstance(data.get("end"), float))
+            if has_segment:
+                self.assertTrue(isinstance(data.get("start"), float))
+                self.assertTrue(isinstance(data.get("end"), float))
+            else:
+                # self.assertTrue("start" not in data)
+                # self.assertTrue("end" not in data)
+                self.assertFalse(data["start"])
+                self.assertFalse(data["end"])
             self.assertTrue(isinstance(data.get("text"), str))
             self.assertTrue(isinstance(data.get("path"), str))
             self.assertTrue(os.path.isfile(data.get("path","")), f"Cannot find {data.get('path')}")

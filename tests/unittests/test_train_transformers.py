@@ -29,7 +29,7 @@ class TestTrainTransformers(Test):
         self.assertRun([
             self.get_lib_path("train/transformers/wav2vec_train.py"),
             self.get_data_path("kaldi/train_weighted.txt"),
-            self.get_data_path("kaldi/no_segments"),
+            self.get_data_path("kaldi/minimal"),
             "--batch_size", "4",
             "--num_epochs", "1",
             "--eval_steps", "1",
@@ -62,7 +62,7 @@ class TestTrainTransformers(Test):
         self.assertRun([
             self.get_lib_path("train/transformers/wav2vec_train.py"),
             self.get_data_path("kaldi/train_weighted.txt"),
-            self.get_data_path("kaldi/no_segments"),
+            self.get_data_path("kaldi/minimal"),
             "--batch_size", "4",
             "--num_epochs", "1",
             "--eval_steps", "1",

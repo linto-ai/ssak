@@ -17,7 +17,7 @@ class TestTrainSpeechbrain(Test):
     def opts(self):
         return [
             "--train", self.get_data_path("kaldi/train_weighted.txt"),
-            "--valid", self.get_data_path("kaldi/no_segments"),
+            "--valid", self.get_data_path("kaldi/minimal"),
             "--batch_size", "4",
             "--num_epochs", "2",
             "--max_len", "10",
@@ -58,7 +58,7 @@ class TestTrainSpeechbrain(Test):
         self.assertTrue(os.path.isdir(dir + "/src"))
         self.assertTrue(os.path.isfile(dir + "/src/" + hparams_file))
         self.assertTrue(os.path.isfile(dir + "/src/train_weighted.txt"))
-        self.assertTrue(not os.path.exists(dir + "/no_segments"))
+        self.assertTrue(not os.path.exists(dir + "/minimal"))
         self.assertTrue(os.path.isdir(dir + "/train_log"))
 
         self.assertNonRegression(dir + "/train_log.txt", f"train_speechrain/train_log_{name}.txt", lambda line: re.sub(r"_time_h: [0-9e\.\-\+]+", "train_time_h: XXX", line))
