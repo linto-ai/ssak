@@ -1,6 +1,8 @@
 import pyaudio
 import wave
 import numpy as np
+import os
+import tempfile
 
 
 if "disable asla messages":
@@ -42,6 +44,13 @@ class AudioPlayer:
         return (data, pyaudio.paContinue)
 
     def _open(self, wav):
+        # Convert wav to a wave file
+        if not wav.endswith(".wav"):
+            tmpwav = tempfile.mktemp(suffix=".wav")
+            cmd = "ffmpeg -i {} -acodec pcm_s16le -ac 1 -ar 16000 {}".format(wav, tmpwav)
+            os.system(cmd)
+            wav = tmpwav
+
         self.wf = wave.open(wav, 'rb')
         self.getWaveForm()
         self.stream = self.p.open(format=self.p.get_format_from_width(self.wf.getsampwidth()),

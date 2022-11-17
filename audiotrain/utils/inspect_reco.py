@@ -1,28 +1,15 @@
 # Source: https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchaudio_tutorial.html
 
-from .text import transliterate
+from audiotrain.utils.text import transliterate
+from audiotrain.utils.viewer import PlayWav
+from audiotrain.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
 
 import torch
 import transformers
 from dataclasses import dataclass
 
-def compute_emission_transformers(audio, model, processor, max_len = 2240400):
-    sample_rate = processor.feature_extractor.sampling_rate
-    inputs = processor(audio, sampling_rate = sample_rate, return_tensors="pt").input_values.to(model.device)
-    with torch.no_grad():
-        l = inputs.shape[-1]
-        if l > max_len:
-            splitted_inputs = [inputs[:, i:min(l,i+max_len)] for i in range(0,l,max_len)]
-            print("WARNING: splitting input into {} chunks of sizes {}".format(len(splitted_inputs), [s.shape[-1] for s in splitted_inputs]))
-            splitted_emissions = [model(input).logits[0,:,:] for input in splitted_inputs]
-            emission = splitted_emissions[0]
-            for e in splitted_emissions[1:]:
-                emission = torch.cat((emission,e),0)
-        else:
-            emission = model(inputs).logits[0,:,:]
-    emission = torch.log_softmax(emission, dim=-1)
-    return emission.cpu().detach()
-
+imshow_opts = dict(origin = "lower")
+imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25)
 
 def get_trellis(emission, tokens, blank_id=0, use_max = False):
     num_frame = emission.size(0)
@@ -153,7 +140,7 @@ def plot_trellis_with_path(trellis, path):
     trellis_with_path = trellis.clone()
     for _, p in enumerate(path):
         trellis_with_path[p.time_index, p.token_index] = float("nan")
-    plt.imshow(trellis_with_path[1:, 1:].T, origin="lower")
+    plt.imshow(trellis_with_path[1:, 1:].T, **imshow_opts)
 
 
 def plot_trellis_with_segments(trellis, segments, transcript, path):
@@ -165,7 +152,7 @@ def plot_trellis_with_segments(trellis, segments, transcript, path):
 
     fig, [ax1, ax2] = plt.subplots(2, 1, figsize=(16, 9.5))
     ax1.set_title("Path, label and probability for each label")
-    ax1.imshow(trellis_with_path.T, origin="lower")
+    ax1.imshow(trellis_with_path.T, **imshow_opts)
     ax1.set_xticks([])
 
     for i, seg in enumerate(segments):
@@ -206,7 +193,9 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
 
     if emission is not None:
         ax0 = axes[0]
-        ax0.imshow(emission.T, origin="lower", aspect="auto")
+        if labels is not None and len(labels) < emission.shape[-1]:
+            emission = emission[:, :len(labels)]
+        ax0.imshow(emission.T, aspect="auto", **imshow_logit_opts)
         #ax0.set_ylabel("Labels")
         #ax0.set_yticks([]) 
         if labels is not None:
@@ -221,7 +210,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
                 new_labels.append(l)
             ax0.set_yticks(range(len(labels)), labels = new_labels)
 
-    ax1.imshow(trellis_with_path[1:, 1:].T, origin="lower", aspect="auto")
+    ax1.imshow(trellis_with_path[1:, 1:].T, aspect="auto", **imshow_opts)
     ax1.set_xticks([])
     transcript = [s.label for s in segments]
     if transcript is not None:
@@ -249,8 +238,8 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
         ax2.annotate(f"{word.score:.2f}", (x0, 0.8))
 
     for seg in segments:
-        if seg.label != "|":
-            ax2.annotate(seg.label, (seg.start * ratio, 0.9))
+        label = seg.label if seg.label not in ["|"," "] else "\u2423" # space
+        ax2.annotate(label, (seg.start * ratio, 0.9))
     xticks = ax2.get_xticks()
     ax2.set_xticks(xticks, xticks / sample_rate)
     ax2.set_xlabel("time [second]")
@@ -263,27 +252,24 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
 
 # Main function
 
-def compute_alignment(audio, transcript, model, processor, plot=False):
+def compute_alignment(audio, transcript, model, plot = False):
 
-    emission = compute_emission_transformers(audio, model, processor)
+    emission = compute_log_probas(model, audio)
 
     if transcript is None:
-        transcript = processor.decode(torch.argmax(emission, dim=-1))
+        transcript = decode_log_probas(model, emission)
         print("Transcript:", transcript)
 
     if plot:
-        plt.imshow(emission.T)
+        plt.imshow(emission.T, **imshow_logit_opts)
         plt.colorbar()
         plt.title("Frame-wise class probability")
         plt.xlabel("Time")
         plt.ylabel("Labels")
         plt.show()
 
-    labels_dict = dict((v,k) for k,v in processor.tokenizer.get_vocab().items())
-    labels = [labels_dict[i] for i in range(len(labels_dict))]
-    labels = [l if l!="|" else " " for l in labels]
+    labels, blank_id = get_model_vocab(model)
     labels = labels[:emission.shape[1]]
-    blank_id = labels.index("<pad>")
     dictionary = {c: i for i, c in enumerate(labels)}
 
     def get_index(c):
@@ -294,6 +280,7 @@ def compute_alignment(audio, transcript, model, processor, plot=False):
             i = dictionary.get(c, None)
             if i is None:
                 print("WARNING: cannot find transliterated label", c)
+                i = blank_id
         return i
 
     tokens = [get_index(c) for c in transcript]
@@ -302,7 +289,7 @@ def compute_alignment(audio, transcript, model, processor, plot=False):
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
 
     if plot:
-        plt.imshow(trellis[1:, 1:].T, origin="lower")
+        plt.imshow(trellis[1:, 1:].T, **imshow_opts)
         plt.colorbar()
         plt.show()
 
@@ -324,46 +311,40 @@ def compute_alignment(audio, transcript, model, processor, plot=False):
 
     return labels, emission, trellis, segments, word_segments
 
-
 if __name__ == "__main__":
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Show the alignment of a given audio file and transcription',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('model', help='Input model folder or name (Transformers, Speechbrain)', type=str)
+    parser.add_argument('audio', help='Input audio files', type=str)
+    # optional arguments
+    parser.add_argument('transcription', help='Audio Transcription. If not provided, the automatic transcription from the model will be used.', type=str, default=[], nargs='*')
+    parser.add_argument('--intermediate_plots', help='To make intermediate plots.', default=False, action='store_true')
+    args = parser.parse_args()
+
 
     import os
     import sys
     import json
     import matplotlib.pyplot as plt
-    from .viewer import PlayWav
-    from .audio import load_audio
+    from audiotrain.utils.audio import load_audio
 
-    WORD2VEC_PATH = "best_model"#_ESTER"
-    BASE_MODEL = WORD2VEC_PATH # "Ilyes/wav2vec2-large-xlsr-53-french"
-    DEVICE = torch.device('cuda:1') if torch.cuda.is_available() else "cpu"
+    audio_path = args.audio
+    transcript = " ".join(args.transcription)
+    if not transcript:
+        transcript = None
 
-    if len(sys.argv) > 1:
-        PATH = sys.argv[1]
-    else:
-        PATH = 'check_audio/ESTER/pour_négocier_avec_le_commando.wav'
-        PATH = "check_audio/ESTER/aujourd'_hui_sur_rfi.wav"
-        PATH = "check_audio/ETAPE/etah_c_est_magnifique_nous_avons_une_superbe_cochonne.wav"
+    model = load_model(args.model)
+    sample_rate = get_model_sample_rate(model)
 
-    transcript = os.path.basename(PATH).split(".")[0].replace("_", " ")
-    meta = os.path.splitext(PATH)[0] + ".json"
-    if not os.path.isfile(meta): meta = os.path.splitext(PATH)[0] + ".txt"
-    if os.path.isfile(meta):
-        with open(meta, "r") as f:
-            transcript = json.load(f)["text"]
-    # transcript = None
+    audio = load_audio(audio_path, sample_rate = sample_rate)
 
-    processor = transformers.Wav2Vec2Processor.from_pretrained(BASE_MODEL)
-    model = transformers.Wav2Vec2ForCTC.from_pretrained(WORD2VEC_PATH).to(DEVICE)
+    labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = args.intermediate_plots)
 
-    sample_rate = processor.feature_extractor.sampling_rate
-    audio = load_audio(PATH, sample_rate = sample_rate)
-    
-    ########################################################
+    del model
 
-    labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, processor, plot = False)
-
-    del model, processor, transcript
-
-    plot_alignments(trellis, segments, word_segments, audio, sample_rate = sample_rate, wav_file = PATH, emission = emission, labels = labels)
+    plot_alignments(trellis, segments, word_segments, audio, sample_rate = sample_rate, wav_file = audio_path, emission = emission, labels = labels)
     plt.show()

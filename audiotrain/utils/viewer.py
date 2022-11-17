@@ -31,7 +31,7 @@ class PlayWav:
         self.timer.add_callback(self._update_timeline)
         self.timer.start()
 
-        self.timeline = self.ax.plt([0, 0], [0, 0], color='r')[-1]
+        self.timeline = self.ax.plot([0, 0], [0, 0], color='r')[-1]
 
         if draw:
             self.draw()

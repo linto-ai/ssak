@@ -200,34 +200,7 @@ def kaldi_folder_to_dataset(
         uttids = uttids[:max_data]
         annots = annots[:max_data]
 
-    # TODO: the reading of wav.scp is a bit crude...
-    wav = {}
-    with open(kaldi_path + "/wav.scp") as f:
-        for line in f:
-            fields = line.strip().split()
-            fields = [f for f in fields if f != "|"]
-            wavid = fields[0]
-            if line.find("'") >= 0:
-                i1 = line.find("'")
-                i2 = line.find("'", i1+1)
-                path = line[i1+1:i2]
-            elif len(fields) > 2:
-                # examples:
-                # sox file.wav -t wav -r 16000 -b 16 - |
-                # flac -c -d -s -f file.flac |
-                if fields[1] == "sox":
-                    path = fields[2]
-                elif fields[1] == "flac":
-                    path = fields[-1]
-                else:
-                    raise RuntimeError(f"Unknown wav.scp format with {fields[1]}")
-            else:
-                path = fields[1]
-            # Look for environment variables in the path
-            if "$" in path:
-                path = envsubst(path)
-            wav[wavid] = path
-
+    wav = parse_kaldi_wavscp(kaldi_path + "/wav.scp")
 
     total_duration = None
     if has_segment:
@@ -400,6 +373,37 @@ def kaldi_folder_to_dataset(
         l.setLevel(ll)
 
     return meta, dataset
+
+def parse_kaldi_wavscp(wavscp):
+    # TODO: the reading of wav.scp is a bit crude...
+    with open(wavscp) as f:
+        wav = {}
+        for line in f:
+            fields = line.strip().split()
+            fields = [f for f in fields if f != "|"]
+            wavid = fields[0]
+            if line.find("'") >= 0:
+                i1 = line.find("'")
+                i2 = line.find("'", i1+1)
+                path = line[i1+1:i2]
+            elif len(fields) > 2:
+                # examples:
+                # sox file.wav -t wav -r 16000 -b 16 - |
+                # flac -c -d -s -f file.flac |
+                if fields[1] == "sox":
+                    path = fields[2]
+                elif fields[1] == "flac":
+                    path = fields[-1]
+                else:
+                    raise RuntimeError(f"Unknown wav.scp format with {fields[1]}")
+            else:
+                path = fields[1]
+            # Look for environment variables in the path
+            if "$" in path:
+                path = envsubst(path)
+            wav[wavid] = path
+
+    return wav
 
 def make_cachable(dataset, online = False, shuffle = False, return_csv = False, verbose = True, logstream = None):
     # - cachable

@@ -24,25 +24,13 @@ class Test(unittest.TestCase):
         self.assertEqual(self.createdReferences, [], "Created references: " + ", ".join(self.createdReferences).replace(self.get_data_path()+"/", ""))
     
     def get_data_path(self, fn = None, check = True):
-        data_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "data"
-        )
-        if fn:
-            data_path = os.path.join(data_path, fn)
-        if check:
-            self.assertTrue(os.path.exists(data_path), f"Cannot find {data_path}")
-        return data_path
+        return self._get_path("tests/data", fn, check)
 
     def get_lib_path(self, fn = None):
-        lib_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "audiotrain"
-        )
-        if fn:
-            lib_path = os.path.join(lib_path, fn)
-        self.assertTrue(os.path.exists(lib_path), f"Cannot find {lib_path}")
-        return lib_path
+        return self._get_path("audiotrain", fn)
+
+    def get_tool_path(self, fn = None):
+        return self._get_path("tools", fn)
 
     def get_temp_path(self, fn = None):
         tmpdir = tempfile.gettempdir()
@@ -96,22 +84,60 @@ class Test(unittest.TestCase):
         self.assertEqual(p.returncode, 0, msg = stderr.decode("utf-8"))
         return stdout.decode("utf-8")
 
-    def assertNonRegression(self, file, reference, process = None, process_reference_lines = None):
-        # TODO: handle numeric difference (by correctly loading json files...)
+    def assertNonRegression(self, content, reference, process = None, process_reference_lines = None):
+        """
+        Check that a file/folder is the same as a reference file/folder.
+        """
+        self.assertTrue(os.path.exists(content))
+        is_file = os.path.isfile(reference) if os.path.exists(reference) else os.path.isfile(content)
+
         reference = self.get_data_path("expected/" + reference, check = False)
-        if not os.path.isfile(reference):
+        if not os.path.exists(reference):
             self.assertTrue(not process_reference_lines)
             dirname = os.path.dirname(reference)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
-            shutil.copyfile(file, reference)
+            if is_file:
+                shutil.copyfile(content, reference)
+            else:
+                shutil.copytree(content, reference)
             self.createdReferences.append(reference)
-        self.assertTrue(os.path.isfile(file))
-        content = open(file, "r").readlines()
-        reference_content = open(reference, "r").readlines()
+
+        if is_file:
+            self.assertTrue(os.path.isfile(content))
+            self._check_file_non_regression(content, reference, process = process, process_reference_lines = process_reference_lines)
+        else:
+            self.assertTrue(os.path.isdir(content))
+            for root, dirs, files in os.walk(content):
+                for f in files:
+                    f_ref = os.path.join(reference, f)
+                    self.assertTrue(os.path.isfile(f_ref), f"Additional file: {f}")
+                    self._check_file_non_regression(os.path.join(root, f), f_ref, process = process, process_reference_lines = process_reference_lines)
+            for root, dirs, files in os.walk(reference):
+                for f in files:
+                    f = os.path.join(content, f)
+                    self.assertTrue(os.path.isfile(f), f"Missing file: {f}")
+
+    def _check_file_non_regression(self, file, reference, process, process_reference_lines):
+        # TODO: handle numeric difference (by correctly loading json files...)
+        with open(file) as f:
+            content = f.readlines()
+        with open(reference) as f:
+            reference_content = f.readlines()
         if process_reference_lines:
             reference_content = [process_reference_lines(l) for l in reference_content]
         if process:
             reference_content = [process(l) for l in reference_content]
             content = [process(l) for l in content]
         self.assertEqual(content, reference_content, msg = f"File {file} does not match reference {reference}")
+
+    def _get_path(self, prefix, fn = None, check = True):
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            prefix
+        )
+        if fn:
+            path = os.path.join(path, fn)
+        if check:
+            self.assertTrue(os.path.exists(path), f"Cannot find {path}")
+        return path
