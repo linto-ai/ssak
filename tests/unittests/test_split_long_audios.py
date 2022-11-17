@@ -17,7 +17,7 @@ class TestSplitLongAudios(Test):
             "--model", "speechbrain/asr-wav2vec2-commonvoice-fr",
             "--max_len", "4",
         ])
-        self.assertNonRegression(output_folder, "split_long_audio_speechbrain")
+        self.assertNonRegression(output_folder, "split_long_audios/speechbrain")
         shutil.rmtree(output_folder)
 
     def test_split_long_audios_transformers(self):
@@ -31,5 +31,5 @@ class TestSplitLongAudios(Test):
             "--model", "Ilyes/wav2vec2-large-xlsr-53-french",
             "--max_len", "4",
         ])
-        self.assertNonRegression(output_folder, "split_long_audio_transformers")
+        self.assertNonRegression(output_folder, "split_long_audios/transformers")
         shutil.rmtree(output_folder)

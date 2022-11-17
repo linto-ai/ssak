@@ -8,7 +8,7 @@ class TestTrainSpeechbrain(Test):
 
     def setUp(self):
         super().setUp()
-        # Set HOME environment to root
+        # Set HOME environment to root, to check it even works in this setting
         os.environ["HOME"] = "/"
 
     def get_sb_path(self, fname):
@@ -61,7 +61,7 @@ class TestTrainSpeechbrain(Test):
         self.assertTrue(not os.path.exists(dir + "/no_segments"))
         self.assertTrue(os.path.isdir(dir + "/train_log"))
 
-        self.assertNonRegression(dir + "/train_log.txt", f"speechbrain_train_log_{name}.txt", lambda line: re.sub(r"_time_h: [0-9e\.\-\+]+", "train_time_h: XXX", line))
+        self.assertNonRegression(dir + "/train_log.txt", f"train_speechrain/train_log_{name}.txt", lambda line: re.sub(r"_time_h: [0-9e\.\-\+]+", "train_time_h: XXX", line))
 
         # Check finalization
         final_dir = dir + "/final"

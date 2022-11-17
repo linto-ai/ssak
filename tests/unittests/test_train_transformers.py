@@ -9,7 +9,7 @@ class TestTrainTransformers(Test):
 
     def setUp(self):
         super().setUp()
-        # Set HOME environment to root
+        # Set HOME environment to root, to check it even works in this setting
         os.environ["HOME"] = "/"
 
     def remove_times(self, line):
@@ -43,9 +43,9 @@ class TestTrainTransformers(Test):
         self.assertTrue(os.path.isdir(dir + "/checkpoint-2"))
         self.assertFalse(os.path.isdir(dir + "/checkpoint-3"))
         json_file = dir + "/init_eval.json"
-        self.assertNonRegression(json_file, "transformers_train_init_eval.json", self.remove_times)
+        self.assertNonRegression(json_file, "train_transformers/init_eval.json", self.remove_times)
         json_file = dir + "/checkpoint-2/trainer_state.json"
-        self.assertNonRegression(json_file, "transformers_train_log.json", self.remove_times)
+        self.assertNonRegression(json_file, "train_transformers/trainer_state.json", self.remove_times)
 
 
         shutil.rmtree(dir0)
@@ -79,9 +79,9 @@ class TestTrainTransformers(Test):
         self.assertTrue(os.path.isdir(dir + "/checkpoint-2"))
         self.assertFalse(os.path.isdir(dir + "/checkpoint-3"))
         json_file = dir + "/init_eval.json"
-        self.assertNonRegression(json_file, "transformers_train_init_eval.json", self.remove_times)
+        self.assertNonRegression(json_file, "train_transformers/init_eval.json", self.remove_times)
         json_file = dir + "/checkpoint-2/trainer_state.json"
-        self.assertNonRegression(json_file, "transformers_train_log_augment.json", self.remove_times)
+        self.assertNonRegression(json_file, "train_transformers/trainer_state_augment.json", self.remove_times)
 
         shutil.rmtree(dir0)
         shutil.rmtree(dir)

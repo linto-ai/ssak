@@ -4,7 +4,7 @@ import shutil
 
 from .utils import Test
 
-class TestInferenceSpeechbrain(Test):
+class TestInference(Test):
 
     def test_infer_speechbrain(self):
 
@@ -43,17 +43,16 @@ class TestInferenceSpeechbrain(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertNonRegression(output_file, "speechbrain_mini_output.txt")
+        self.assertNonRegression(output_file, "infer/speechbrain.txt")
         self.assertRun([
             self.get_lib_path("infer/speechbrain_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "speechbrain_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "infer/speechbrain.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)
 
-class TestInferenceKaldi(Test):
 
     def test_infer_kaldi(self):
 
@@ -92,14 +91,14 @@ class TestInferenceKaldi(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertNonRegression(output_file, "kaldi_mini_output.txt")
+        self.assertNonRegression(output_file, "infer/kaldi.txt")
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "kaldi_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "infer/kaldi.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         self.assertRun([
             self.get_lib_path("infer/kaldi_infer.py"),
             self.get_data_path("kaldi/mini"),
@@ -108,12 +107,11 @@ class TestInferenceKaldi(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertNonRegression(output_file, "kaldi_mini_output.txt")
+        self.assertNonRegression(output_file, "infer/kaldi.txt")
         os.remove(output_file)
 
-class TestInferenceTransformers(Test):
 
-    def test_infer_kaldi(self):
+    def test_infer_transformers(self):
 
         opts = []
 
@@ -150,12 +148,12 @@ class TestInferenceTransformers(Test):
             "--use_ids",
             *opts,
         ])
-        self.assertNonRegression(output_file, "transformers_mini_output.txt")
+        self.assertNonRegression(output_file, "infer/transformers.txt")
         self.assertRun([
             self.get_lib_path("infer/transformers_infer.py"),
             self.get_data_path("kaldi/mini"),
             "--output", output_file,
             *opts,
         ])
-        self.assertNonRegression(output_file, "transformers_mini_output.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
+        self.assertNonRegression(output_file, "infer/transformers.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)

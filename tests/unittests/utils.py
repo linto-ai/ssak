@@ -91,7 +91,7 @@ class Test(unittest.TestCase):
         self.assertTrue(os.path.exists(content))
         is_file = os.path.isfile(reference) if os.path.exists(reference) else os.path.isfile(content)
 
-        reference = self.get_data_path("expected/" + reference, check = False)
+        reference = self._get_path("tests/expected", reference, check = False)
         if not os.path.exists(reference):
             self.assertTrue(not process_reference_lines)
             dirname = os.path.dirname(reference)
