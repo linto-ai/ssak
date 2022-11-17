@@ -20,8 +20,7 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 batch_size: 4
 test_batch_size: 4
 
-data_weighting: True
-min_len: 0.5
+min_len: 1
 max_len: 15
 
 freeze_wav2vec: False
@@ -43,7 +42,6 @@ output_folder_prefix: ''
 output_folder: !ref <output_folder_prefix>speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-<min_len>-<max_len>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
 
 save_folder: !ref <output_folder>/save
-wer_file: !ref <output_folder>/wer.txt
 
 dataloader_options:
     batch_size: !ref <batch_size>
@@ -90,7 +88,8 @@ augmentation: !new:audiotrain.utils.augment.SpeechAugment
     rir_dir: /media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise
     rir_lists: [simulated_rirs_16k/smallroom/rir_list, simulated_rirs_16k/mediumroom/rir_list, simulated_rirs_16k/largeroom/rir_list]
     apply_prob: 0.5
-    verbose: True
+    verbose: False
+    #save_audio_dir: tmp_example_augmentation
         
 
 wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
