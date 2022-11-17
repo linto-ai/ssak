@@ -7,7 +7,7 @@ DISABLE_GPU = False
 def _set_visible_gpus(s):
     global DISABLE_GPU
     if isinstance(s, str):
-        return _set_visible_gpus(s.split(","))
+        return _set_visible_gpus(s.split(",") if s else [])
     if isinstance(s, list):
         s = ','.join([str(int(si)) for si in s])
     if not s:
