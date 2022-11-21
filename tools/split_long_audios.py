@@ -1,4 +1,4 @@
-from audiotrain.utils.env import *
+from audiotrain.utils.env import * # manage option --gpus
 from audiotrain.utils.audio import load_audio
 from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.dataset import parse_kaldi_wavscp
@@ -187,6 +187,7 @@ if __name__ == "__main__":
     parser.add_argument('dirout', help='Output folder', type=str)
     parser.add_argument('--model', help="Acoustic model", type=str, default = "speechbrain/asr-wav2vec2-commonvoice-fr")
     parser.add_argument('--max_len', help="Maximum length (in seconds)", default = 15, type = float)
+    parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     args = parser.parse_args()
 
