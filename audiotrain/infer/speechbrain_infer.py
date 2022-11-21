@@ -3,6 +3,7 @@ from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.misc import get_cache_dir, hashmd5
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 from audiotrain.utils.debug import plot_logits
+from audiotrain.utils.yaml import make_yaml_overrides
 
 import huggingface_hub
 import speechbrain as sb
@@ -258,30 +259,6 @@ def speechbrain_load_model(source, device = None):
     model.train(False)
     model.requires_grad_(False)
     return model
-
-def make_yaml_overrides(yaml_file, key_values):
-    """
-    return a dictionary of overrides to be used with speechbrain
-    yaml_file: path to yaml file
-    key_values: dict of key values to override
-    """
-    if yaml_file is None: return None
-    override = {}
-    with open(yaml_file, "r") as f:
-        parent = None
-        for line in f:
-            if line.strip() == "":
-                parent = None
-            elif line == line.lstrip():
-                if ":" in line:
-                    parent = line.split(":")[0].strip()
-                    if parent in key_values:
-                        override[parent] = key_values[parent]
-            elif ":" in line:
-                child = line.strip().split(":")[0].strip()
-                if child in key_values:
-                    override[parent] = override.get(parent, {}) | {child: key_values[child]}
-    return override
 
 if __name__ == "__main__":
 

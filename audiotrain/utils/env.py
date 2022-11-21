@@ -31,6 +31,9 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 # See https://stackoverflow.com/questions/59290386/runtimeerror-at-cannot-cache-function-shear-dense-no-locator-available-fo
 os.environ["NUMBA_CACHE_DIR"] = "/tmp"
 
+# Disable warnings of type "This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA"
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 if not os.environ.get("HOME"):
     path = os.path.dirname(os.path.abspath(__file__))
     if path.startswith("/home/"):
