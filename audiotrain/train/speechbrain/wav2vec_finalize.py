@@ -12,32 +12,40 @@ from audiotrain.utils.yaml import copy_yaml_fields, make_yaml_overrides
 def finalize_folder(
         folder,
         hparams_file = None,
+        delete_extra = False,
     ):
 
     # Create a symbolic link to the last checkpoint with validation
-    cpkt_folder = None
-    cpkt_WER = None
+    ckpt_can_be_deleted = []
+    ckpt_all = []
+    best_cpkt_folder = None
+    best_cpkt_WER = None
     for root, dirs, files in os.walk(folder):
         for d in sorted(dirs, reverse = True):
             if d.startswith("CKPT"):
-                ckpt_folder_candidate = os.path.join(root, d)
-                ckpt_file = os.path.join(ckpt_folder_candidate, "CKPT.yaml")
+                ckpt_folder = os.path.join(root, d)
+                ckpt_all.append(ckpt_folder)
+                ckpt_file = os.path.join(ckpt_folder, "CKPT.yaml")
                 wer = None
                 if os.path.exists(ckpt_file):
                     with open(ckpt_file, "r") as f:
                         ckpt = hyperpyyaml.load_hyperpyyaml(f)
                         if "WER" in ckpt:
                             wer = ckpt["WER"]
-                if cpkt_WER is None or (wer is not None and wer < cpkt_WER):
-                    cpkt_WER = wer
-                    cpkt_folder = ckpt_folder_candidate
+                if best_cpkt_WER is None or (wer is not None and wer < best_cpkt_WER):
+                    if best_cpkt_folder and best_cpkt_WER:
+                        ckpt_can_be_deleted.append(best_cpkt_folder)
+                    best_cpkt_WER = wer
+                    best_cpkt_folder = ckpt_folder
+                else:
+                    ckpt_can_be_deleted.append(ckpt_folder)
 
-    assert cpkt_folder is not None, f"Could not find checkpoint folder in {folder}"
-    print("Choose checkpoint folder", cpkt_folder)
+    assert best_cpkt_folder is not None, f"Could not find checkpoint folder in {folder}"
+    print("Choose checkpoint folder", best_cpkt_folder)
     final_folder = os.path.join(folder, "final")
     if os.path.exists(final_folder) or os.path.islink(final_folder):
         os.remove(final_folder)
-    os.symlink(os.path.relpath(cpkt_folder, folder), final_folder)
+    os.symlink(os.path.relpath(best_cpkt_folder, folder), final_folder)
 
     # Get parameters passed to the command line
     readme_file = os.path.join(folder, "README.txt")
@@ -125,10 +133,27 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
             wav2vec2 = model.hparams.wav2vec2
         sb.utils.checkpoints.torch_save(wav2vec2, wav2vec_file)
 
+    # print("-----------------------------")
+    # print("\n".join(sorted(ckpt_can_be_deleted)))
+    # print("+++++++++++++++++++++++++++++")
+    # print("\n".join(sorted(list(set(ckpt_all) - set(ckpt_can_be_deleted)))))
+    if delete_extra:
+        kept = sorted(list(set(ckpt_all) - set(ckpt_can_be_deleted)))
+        assert len(kept) > 0
+        for ckpt_folder in sorted(ckpt_can_be_deleted):
+            print("Delete", ckpt_folder)
+            shutil.rmtree(ckpt_folder)
+
 if __name__ == "__main__":
     
-    if len(sys.argv) not in (2, 3):
-        print("Usage: wav2vec_finalize.py folder [hparams]")
-        sys.exit(1)
 
-    finalize_folder(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+    import argparse
+    parser = argparse.ArgumentParser(description='Finalize a training model.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('folder', help='Folder with the trained model')
+    parser.add_argument('hparams', help='hparam.yaml file', default = None, nargs='?')
+    parser.add_argument('--delete-extra', help='Remove extra checkpoint folders', default = False, action='store_true')
+    args = parser.parse_args()
+
+    finalize_folder(args.folder, args.hparams, delete_extra = args.delete_extra)
