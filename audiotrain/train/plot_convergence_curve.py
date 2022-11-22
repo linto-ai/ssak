@@ -60,6 +60,7 @@ def get_log_history_speechbrain(path, only_finished_epochs = False, batch_size =
     for line in lines:
         if only_finished_epochs and not simple_get(line, "epoch_finished", eval): continue
         step = simple_get(line, "total_samples", int)
+        audio_duration = simple_get(line, "total_audio_h", float)
         if step < last_step:
             print("Warning: step decreased from {} to {} in {}".format(last_step, step, path))
             k = batch_size
@@ -71,6 +72,7 @@ def get_log_history_speechbrain(path, only_finished_epochs = False, batch_size =
             step = step2
         last_step = step
         log_history["step"] = log_history.get("step", []) + [step]
+        log_history["train_duration"] = log_history.get("train_duration", []) + [audio_duration]
         log_history["loss"] = log_history.get("loss", []) + [simple_get(line, "train loss")]
         log_history["eval_loss"] = log_history.get("eval_loss", []) + [simple_get(line, "valid loss")]
         wer = simple_get(line, "valid WER") / 100
@@ -78,14 +80,16 @@ def get_log_history_speechbrain(path, only_finished_epochs = False, batch_size =
         log_history["learning_rate"] = log_history.get("learning_rate", []) + [simple_get(line, "lr_model")]
         train_time = simple_get(line, "train_time_h")
         valid_time = simple_get(line, "valid_time_h")
+        log_history["train_time"] = log_history.get("train_time", []) + [train_time]
+        log_history["valid_time"] = log_history.get("valid_time", []) + [valid_time]
         train_time_delta = train_time - train_time_offset
         train_time_offset = train_time
         valid_time_delta = valid_time - valid_time_offset
         valid_time_offset = valid_time
         step_delta = step - step_offset
         step_offset = step
-        log_history["train_time"] = log_history.get("train_time", []) + [train_time_delta * 3600 / (step_delta / batch_size)]
-        log_history["valid_time"] = log_history.get("valid_time", []) + [valid_time_delta * 60]
+        log_history["train_time_norm"] = log_history.get("train_time_norm", []) + [train_time_delta / (step_delta / batch_size)]
+        log_history["valid_time_norm"] = log_history.get("valid_time_norm", []) + [valid_time_delta / 60]
 
     return log_history
 
@@ -121,8 +125,21 @@ def boole(b):
 
 if __name__ == "__main__":
 
+    import argparse
+    parser = argparse.ArgumentParser(description='Plot training convergence curves.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('dirs', help='Directories to plot.', type=str, nargs='+')
+    parser.add_argument('--use-time', help='Whether to use training time as abscisses (training audio data duration otherwise)', default = False, action='store_true')
+    args = parser.parse_args()
 
-    dirs = sys.argv[1:]
+    dirs = args.dirs
+    if args.use_time:
+        def get_x(log_history):
+            return log_history["train_time"]
+    else:
+        def get_x(log_history):
+            return log_history["train_duration"]
 
     dirs = [dir for dir in dirs if get_monitoring_file(dir) is not None]
 
@@ -156,8 +173,8 @@ if __name__ == "__main__":
     nplots = 2 + boole(PLOT_LEARNING_RATE) + boole(PLOT_TRAINING_TIME) + boole(PLOT_VALIDATION_TIME)
 
 
-    xmin = min([min(data["step"]) for data in datas.values()])
-    xmax = max([max(data["step"]) for data in datas.values()])
+    xmin = min([min(get_x(data)) for data in datas.values()])
+    xmax = max([max(get_x(data)) for data in datas.values()])
 
     best_wer = []
     argbest = []
@@ -167,18 +184,18 @@ if __name__ == "__main__":
 
     plt.subplot(nplots, 1, 1)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.plot(data["step"], data["loss"], colors[i]+"--", label="train" if len(dirs) == 1 else None)
-        plt.plot(data["step"], data["eval_loss"], colors[i], label="valid" if len(dirs) == 1 else dir)
-        plt.plot(data["step"], data["eval_loss"], colors[i]+"+")
-        plt.axvline(data["step"][argbest[i]], color = colors[i], linestyle = ":")
+        plt.plot(get_x(data), data["loss"], colors[i]+"--", label="train" if len(dirs) == 1 else None)
+        plt.plot(get_x(data), data["eval_loss"], colors[i], label="valid" if len(dirs) == 1 else dir)
+        plt.plot(get_x(data), data["eval_loss"], colors[i]+"+")
+        plt.axvline(get_x(data)[argbest[i]], color = colors[i], linestyle = ":")
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("loss")
     plt.subplot(nplots, 1, 2)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.plot(data["step"], data["eval_wer"], colors[i], label="best: {:.4g}%".format(100*best_wer[i]))
-        plt.plot(data["step"], data["eval_wer"], colors[i]+"+")
-        plt.axvline(data["step"][argbest[i]], color = colors[i], linestyle = ":")
+        plt.plot(get_x(data), data["eval_wer"], colors[i], label="best: {:.4g}%".format(100*best_wer[i]))
+        plt.plot(get_x(data), data["eval_wer"], colors[i]+"+")
+        plt.axvline(get_x(data)[argbest[i]], color = colors[i], linestyle = ":")
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("WER")
@@ -187,7 +204,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(data["step"], data["learning_rate"], colors[i], label="learning rate" if i == 0 else None)
+            plt.plot(get_x(data), data["learning_rate"], colors[i], label="learning rate" if i == 0 else None)
         #plt.ylabel("Learning Rate")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -195,7 +212,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(data["step"], data["train_time"], colors[i], label="train time (sec/batch)" if i == 0 else None)
+            plt.plot(get_x(data), data["train_time_norm"], colors[i], label="train time (sec/batch)" if i == 0 else None)
         #plt.ylabel("Training Time")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -203,8 +220,10 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(data["step"], data["valid_time"], colors[i], label="valid time (min)" if i == 0 else None)
+            plt.plot(get_x(data), data["valid_time_norm"], colors[i], label="valid time (min)" if i == 0 else None)
         #plt.ylabel("Validation Time")
         plt.xlim(xmin, xmax)
         plt.legend()
+
+    plt.xlabel("Training Time (hrs)" if args.use_time else "Training Data Duration (hrs)")
     plt.show()
