@@ -390,9 +390,9 @@ def parse_kaldi_wavscp(wavscp):
                 # examples:
                 # sox file.wav -t wav -r 16000 -b 16 - |
                 # flac -c -d -s -f file.flac |
-                if fields[1] == "sox":
+                if os.path.basename(fields[1]) == "sox":
                     path = fields[2]
-                elif fields[1] == "flac":
+                elif os.path.basename(fields[1]) == "flac":
                     path = fields[-1]
                 else:
                     raise RuntimeError(f"Unknown wav.scp format with {fields[1]}")
