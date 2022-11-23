@@ -7,6 +7,7 @@ from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.logs import get_num_gpus
 from audiotrain.utils.augment import SpeechAugment
 from audiotrain.utils.misc import save_source_dir, get_cache_dir, hashmd5
+from audiotrain.utils.yaml import easy_yaml_load
 from audiotrain.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
 from audiotrain.train.speechbrain.wav2vec_finalize import finalize_folder
 
@@ -493,7 +494,8 @@ def find_sub_obj_of_type(obj, t):
 
 
 if __name__ == "__main__":
-        
+
+    # Remove --gpus option from sys.argv (because it is not handled by speeechbrain)
     args = []
     skip = False
     for arg in sys.argv[1:]:
@@ -503,7 +505,24 @@ if __name__ == "__main__":
                 skip = True
             continue
         args.append(arg)
-    hparams_file, run_opts, overrides = sb.parse_arguments(args)
+
+    # Parse options
+    try:
+        hparams_file, run_opts, overrides = sb.parse_arguments(args)
+    except SystemExit as err:
+        # Print options found in the yaml file
+        if "--help" in args or "-h" in args:
+            fargs = [a for a in args if not a.startswith("-")]
+            if len(fargs) > 0:
+                hparams_file = fargs[0]
+                import argparse
+                parser = argparse.ArgumentParser(usage = f"\n{os.path.basename(sys.argv[0])} {hparams_file} [options]", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+                for key, value in easy_yaml_load(hparams_file, default = "Mandatory").items():
+                    if isinstance(value, (int, float, str, bool)):
+                        optional = value != "Mandatory"
+                        parser.add_argument("--" + key, default=value if optional else None, help="Optional" if optional else "Mandatory", type=type(value), metavar = str(type(value)).split("'")[1].upper())
+                parser.parse_args(args)
+        sys.exit(err.code)
 
     hparams = hyperpyyaml.load_hyperpyyaml(open(hparams_file),
         overrides + "\ndebug: " + str(run_opts["debug"])
@@ -608,6 +627,7 @@ if __name__ == "__main__":
     hparams["checkpointer"].add_recoverable("enc", trainer.modules.enc)
     hparams["checkpointer"].add_recoverable("ctc_lin", trainer.modules.ctc_lin)
 
+    # If resuming from checkpoint, load previous values
     if os.path.isfile(output_folder + "/train_log.txt"):
         with open(output_folder + "/train_log.txt", "r") as fin:
             last_line = fin.readlines()[-1].strip()

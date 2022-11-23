@@ -1,4 +1,5 @@
 import re
+import hyperpyyaml
 
 def make_yaml_overrides(yaml_file, key_values):
     """
@@ -59,8 +60,8 @@ def copy_yaml_fields(from_file, to_file, fields, overrides = ""):
                 f.write("".join(value)+"\n")
     return copied_fields
 
-def easy_yaml_load(filename):
-    return hyperpyyaml.load_hyperpyyaml(open(filename), overrides = make_yaml_placeholder_overrides(filename))
+def easy_yaml_load(filename, default = "PLACEHOLDER"):
+    return hyperpyyaml.load_hyperpyyaml(open(filename), overrides = make_yaml_placeholder_overrides(filename, default = default))
 
 def make_yaml_placeholder_overrides(yaml_file, default = "PLACEHOLDER"):
     """
