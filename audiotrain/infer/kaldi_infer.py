@@ -390,7 +390,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('data', help="Path to data (file(s) or kaldi folder(s))", nargs='+')
+    parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
     parser.add_argument('--model', help="Name of vosk, Path to trained folder, or Paths to acoustic and language model (separated by a coma)",
         #default = ".../linSTT_AM_fr-FR_v2.2.0,.../decoding_graph_fr-FR_Big_v2.2.0",
         #default = "vosk-model-fr-0.6-linto-2.2.0",

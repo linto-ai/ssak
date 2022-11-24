@@ -203,7 +203,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('data', help="Path to data (file(s) or kaldi folder(s))", nargs='+')
+    parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
     parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model",
         default = "Ilyes/wav2vec2-large-xlsr-53-french"
     )
