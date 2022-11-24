@@ -17,6 +17,10 @@ class TestFormatText(Test):
             format_text_fr("¾ et 3/4 et 3 m² et 3m³ et 3.7cm² et 3,7 cm³"),
             "trois quarts et trois quarts et trois mètres carrés et trois mètres cubes et trois point sept centimètres carrés et trois virgule sept centimètres cubes"
         )
+        self.assertEqual(
+            format_text_fr("10 000 et 100 000 000 ne sont pas pareils que 06 12 34 56 78"),
+            "dix mille et cent millions ne sont pas pareils que zéro six douze trente-quatre cinquante-six soixante-dix-huit"
+        )
 
     def test_format_special_chars(self):
         self.assertEqual(

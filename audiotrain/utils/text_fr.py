@@ -1,7 +1,7 @@
 import re
 from num2words import num2words
 
-from .text_utils import collapse_whitespace
+from audiotrain.utils.text_utils import collapse_whitespace
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -50,7 +50,11 @@ def format_text_fr(text, keep_punc = False):
 
     if "\n" in text:
         return "\n".join([format_text_fr(t, keep_punc) for t in text.split("\n")])
-   
+
+    if re.search(r"[IVX]", text):
+        for k,v in _romans.items():
+            text = re.sub(r"\b" + k + r"\b", v, text)
+
     text = text.lower()
     for reg, replacement in _corrections_caracteres_speciaux_fr:
         text = re.sub(reg, replacement, text)
@@ -129,33 +133,32 @@ def format_text_fr(text, keep_punc = False):
     chiffres = re.findall(r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:ème|eme|e)\b", text)
     chiffres = sorted(list(set(chiffres)), reverse=True, key=len)    
     for chiffre in chiffres:
-        word = undigit_fr(re.findall(r"\d+", chiffre)[0], to= "ordinal")
+        word = undigit(re.findall(r"\d+", chiffre)[0], to= "ordinal")
         text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
 
     text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
     text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
     text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
     text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
-    text = re.sub(r"(\d+)([^\d])",r" \1 \2", text) # add spaces before and after digits
 
     # Digits
-    chiffres = re.findall(r"\b\d[ /\d]*\b",text)
+    chiffres = re.findall(r"(?:\d+(?: \d\d\d)+)|(?:\d[/\d]*)",text)
     chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
     chiffres = sorted(list(set(chiffres)), reverse=True, key=len)    
     for chiffre in chiffres:
         numslash = len(re.findall("/", chiffre))
         if numslash == 0:
-            word = undigit_fr(chiffre)
+            word = undigit(chiffre)
         elif numslash == 1:
             i = chiffre.index("/")
-            first = undigit_fr(chiffre[:i])
-            second = undigit_fr(chiffre[i+1:], to="denominator")
+            first = undigit(chiffre[:i])
+            second = undigit(chiffre[i+1:], to="denominator")
             if float(chiffre[:i]) > 2. and second[-1] != "s":
                 second += "s"
             word = first + " " + second
         else:
-            word = "/".join([undigit_fr(s) for s in chiffre.split('/')])
-        text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
+            word = " / ".join([undigit(s) for s in chiffre.split('/')])
+        text = re.sub(str(chiffre), " "+word+" ", text)
 
     # Fractions
     text = re.sub(r"½", " un demi ", text)
@@ -213,14 +216,19 @@ def format_text_fr(text, keep_punc = False):
 
     return text
 
-def undigit_fr(str, to="cardinal"):
+def undigit(str, to="cardinal", lang = "fr"):
     str = re.sub(" ","", str)
     if to == "denominator":
+        assert lang == "fr"
         if str == "2": return "demi"
         if str == "3": return "tiers"
         if str == "4": return "quart"
         to = "ordinal"
-    return num2words(float(str), lang='fr', to=to)
+    if str.startswith("0") and to == "cardinal":
+        numZeros = len(re.findall(r"0+", str)[0])
+        if numZeros < len(str):
+            return numZeros * (num2words(0, lang=lang, to="cardinal")+" ") + num2words(float(str), lang=lang, to=to)
+    return num2words(float(str), lang=lang, to=to)
 
 _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("g", "grammes"),
@@ -287,6 +295,49 @@ _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1
                     ("quoiqu","quoiqu'"),
                     ("°", " degrés "),
                 ]]
+
+_romans = {
+    'I': 'un',
+    'II': 'deux',
+    'III': 'trois',
+    'IV': 'quatre',
+    'VII': 'sept',
+    'VIII': 'huit',
+    'IX': 'neuf',
+    'XI': 'onze',
+    'XII': 'douze',
+    'XIII': 'treize',
+    'XIV': 'quatorze',
+    'XV': 'quinze',
+    'XVI': 'seize',
+    'XVII': 'dix-sept',
+    'XVIII': 'dix-huit',
+    'XIX': 'dix-neuf',
+    'XX': 'vingt',
+    'XXI': 'vingt-et-un',
+    'XXII': 'vingt-deux',
+    'Ier': 'premier',
+    'Iere': 'première',
+    'Ière': 'première',
+    'IIe': 'deuxième',
+    'IIIe': 'troisième',
+    'IVe': 'quatrième',
+    'VIIe': 'septième',
+    'VIIIe': 'huitième',
+    'IXe': 'neuvième',
+    'XIe': 'onzième',
+    'XIIe': 'douzième',
+    'XIIIe': 'treizième',
+    'XIVe': 'quatorzième',
+    'XVe': 'quinzième',
+    'XVIe': 'seizième',
+    'XVIIe': 'dix-septième',
+    'XVIIIe': 'dix-huitième',
+    'XIXe': 'dix-neuvième',
+    'XXe': 'vingtième',
+    'XXIe': 'vingt-et-unième',
+    'XXIIe': 'vingt-deuxième',
+}
 
 if __name__ == "__main__":
 
