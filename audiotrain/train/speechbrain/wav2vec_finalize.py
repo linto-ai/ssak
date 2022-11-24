@@ -7,7 +7,7 @@ import re
 import speechbrain as sb
 
 from audiotrain.infer.speechbrain_infer import speechbrain_load_model
-from audiotrain.utils.yaml import copy_yaml_fields, make_yaml_overrides
+from audiotrain.utils.yaml_utils import copy_yaml_fields, make_yaml_overrides
 
 def finalize_folder(
         folder,

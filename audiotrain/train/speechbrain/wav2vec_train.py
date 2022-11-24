@@ -7,7 +7,7 @@ from audiotrain.utils.text import remove_special_words
 from audiotrain.utils.logs import get_num_gpus
 from audiotrain.utils.augment import SpeechAugment
 from audiotrain.utils.misc import save_source_dir, get_cache_dir, hashmd5
-from audiotrain.utils.yaml import easy_yaml_load
+from audiotrain.utils.yaml_utils import easy_yaml_load
 from audiotrain.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
 from audiotrain.train.speechbrain.wav2vec_finalize import finalize_folder
 

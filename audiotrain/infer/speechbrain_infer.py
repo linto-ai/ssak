@@ -3,7 +3,7 @@ from audiotrain.utils.dataset import to_audio_batches
 from audiotrain.utils.misc import get_cache_dir, hashmd5
 from audiotrain.utils.logs import tic, toc, gpu_mempeak
 from audiotrain.utils.debug import plot_logits
-from audiotrain.utils.yaml import make_yaml_overrides
+from audiotrain.utils.yaml_utils import make_yaml_overrides
 
 import huggingface_hub
 import speechbrain as sb
@@ -268,7 +268,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('data', help="Path to data (file(s) or kaldi folder(s))", nargs='+')
+    parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
     parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model",
         default = "speechbrain/asr-wav2vec2-commonvoice-fr"
     )
