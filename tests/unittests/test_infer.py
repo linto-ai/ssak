@@ -4,7 +4,7 @@ import shutil
 
 from .utils import Test
 
-class TestInference(Test):
+class TestInferenceSpeechbrain(Test):
 
     def test_infer_speechbrain(self):
 
@@ -53,6 +53,7 @@ class TestInference(Test):
         self.assertNonRegression(output_file, "infer/speechbrain.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)
 
+class TestInferenceKaldi(Test):
 
     def test_infer_kaldi(self):
 
@@ -110,6 +111,7 @@ class TestInference(Test):
         self.assertNonRegression(output_file, "infer/kaldi.txt")
         os.remove(output_file)
 
+class TestInferenceTransformers(Test):
 
     def test_infer_transformers(self):
 
@@ -156,4 +158,35 @@ class TestInference(Test):
             *opts,
         ])
         self.assertNonRegression(output_file, "infer/transformers.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
+        os.remove(output_file)
+
+class TestInferenceWhisper(Test):
+
+    def test_infer_whisper(self):
+
+        opts = []
+
+        stdout = self.assertRun([
+            self.get_lib_path("infer/whisper_infer.py"),
+            self.get_data_path("audio/bonjour.wav"),
+            *opts,
+        ])
+        self.assertEqual(stdout, " Bonjour!\n")
+
+        output_file = self.get_temp_path("output.txt")
+        self.assertRun([
+            self.get_lib_path("infer/whisper_infer.py"),
+            self.get_data_path("kaldi/small"),
+            "--output", output_file,
+            "--use_ids",
+            *opts,
+        ])
+        self.assertNonRegression(output_file, "infer/whisper.txt")
+        self.assertRun([
+            self.get_lib_path("infer/whisper_infer.py"),
+            self.get_data_path("kaldi/small"),
+            "--output", output_file,
+            *opts,
+        ])
+        self.assertNonRegression(output_file, "infer/whisper.txt", process_reference_lines = lambda line: line.split(" ", 1)[1])
         os.remove(output_file)

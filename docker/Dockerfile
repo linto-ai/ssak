@@ -48,7 +48,7 @@ RUN git clone https://github.com/speechbrain/speechbrain /opt/speechbrain \
     && SETUPTOOLS_USE_DISTUTILS=stdlib pip3 install -e .
 
 # Whisper
-# RUN pip3 install git+https://github.com/openai/whisper.git 
+RUN pip3 install git+https://github.com/openai/whisper.git 
 
 # Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
 COPY transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/

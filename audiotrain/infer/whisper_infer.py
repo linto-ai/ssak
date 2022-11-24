@@ -1,0 +1,116 @@
+from audiotrain.utils.env import auto_device # handles option --gpus
+from audiotrain.utils.dataset import to_audio_batches
+from audiotrain.utils.misc import get_cache_dir
+from audiotrain.utils.logs import tic, toc, gpu_mempeak
+
+import whisper
+
+import os
+import tempfile
+import json
+import requests
+
+
+def whisper_infer(
+    model,
+    audios,
+    batch_size = 1,
+    device = None,
+    language = "fr",
+    sort_by_len = False,
+    output_ids = False,
+    log_memtime = False,
+    ):
+    """
+    Transcribe audio(s) with speechbrain model
+
+    Args:
+        model: SpeechBrain model or a path to the model
+        audios:
+            Audio file path(s), or Kaldi folder(s), or Audio waveform(s)
+        batch_size: int
+            Batch size (default 1).
+        device: str
+            Device to use (default "cuda:0" if GPU available else "cpu").
+            Can be: "cpu", "cuda:0", "cuda:1", etc.
+        sort_by_len: bool
+            Sort audio by length before batching (longest audio first).
+        log_memtime: bool
+            If True, print timing and memory usage information.
+    """
+    if batch_size == 0:
+        batch_size = 1
+
+    if isinstance(model, str):
+        model = whisper.load_model(model, device = device, download_root = get_cache_dir("whisper"))
+
+    batches = to_audio_batches(audios, return_format = 'torch',
+        sample_rate = whisper.audio.SAMPLE_RATE,
+        batch_size = batch_size,
+        sort_by_len = sort_by_len,
+        output_ids = output_ids,
+    )
+
+    # Compute best predictions
+    tic()
+    for batch in batches:
+        if output_ids:
+            ids = [b[1] for b in batch]
+            batch = [b[0] for b in batch]
+
+        pred = []
+        for audio in batch:
+            res = model.transcribe(audio, language=language)
+            pred.append(res["text"])
+
+        if output_ids:
+            for id, p in zip(ids, pred):
+                yield (id, p)
+        else:
+            for p in pred:
+                yield p
+        if log_memtime: gpu_mempeak()
+    if log_memtime: toc("apply network", log_mem_usage = True)
+
+
+
+if __name__ == "__main__":
+
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
+    parser.add_argument('--model', help=f"Size of model to use. Among : {', '.join(whisper.available_models())}.", default = "base")
+    parser.add_argument('--language', help=f"Language to use. Among : {', '.join(sorted(k+'('+v+')' for k,v in whisper.tokenizer.LANGUAGES.items()))}.", default = "fr")
+    parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
+    parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
+    parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
+    #parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
+    #parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
+    parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
+    args = parser.parse_args()
+
+
+    if not args.output:
+        args.output = sys.stdout
+    elif args.output == "/dev/null":
+        # output nothing
+        args.output = open(os.devnull,"w")
+    else:
+        args.output = open(args.output, "w")
+
+    for reco in whisper_infer(
+        args.model, args.data,
+        #batch_size = args.batch_size,
+        #sort_by_len = args.sort_by_len,
+        output_ids = args.use_ids,
+        log_memtime = args.enable_logs,
+    ):
+        if isinstance(reco, str):
+            print(reco, file = args.output)
+        else:
+            print(*reco, file = args.output)
+        args.output.flush()
