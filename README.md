@@ -19,8 +19,14 @@ and also optionally (not exploited in most cases):
 └── utt2spk      : utterance -> speaker
 ```
 
+This repository focus on the following features:
+- Text cleaning and normalization, to train and evaluate acoustic and language models
+- Tools to manage labeled audio. For instance cut transcriptions into smaller chunks of audio, with corresponding timestamps
+- Scripts to convert data into different formats
+- Scripts to train models with common frameworks
+- Scripts to decode with models from common frameworks
 
-## Structure
+## Repository Folder Structure
 
 ```
 ├── audiotrain/      : Main python library
