@@ -279,8 +279,12 @@ def compute_alignment(audio, transcript, model, plot = False):
             c = transliterate(c)
             i = dictionary.get(c, None)
             if i is None:
-                print("WARNING: cannot find transliterated label", c)
-                i = blank_id
+                i = dictionary.get(c.lower(), None)
+                if i is None:
+                    i = dictionary.get(c.upper(), None)
+                    if i is None:
+                        print("WARNING: cannot find transliterated label", c)
+                        i = blank_id
         return i
 
     tokens = [get_index(c) for c in transcript]
