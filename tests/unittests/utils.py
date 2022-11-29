@@ -27,7 +27,7 @@ class Test(unittest.TestCase):
         return self._get_path("tests/data", fn, check)
 
     def get_lib_path(self, fn = None):
-        return self._get_path("audiotrain", fn)
+        return self._get_path("linastt", fn)
 
     def get_tool_path(self, fn = None):
         return self._get_path("tools", fn)

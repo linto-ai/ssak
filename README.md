@@ -29,7 +29,7 @@ This repository focus on the following features:
 ## Repository Folder Structure
 
 ```
-├── audiotrain/      : Main python library
+├── linastt/      : Main python library
 │   ├── infer/          : Functions and scripts to run inference and evaluate models
 │   ├── train/          : Scripts to train models (transformers, speechbrain, ...)
 │   └── utils/          : Helpers

@@ -1,15 +1,15 @@
 #!/usr/bin/python
  
-from audiotrain.utils.env import auto_device # handle option --gpus (and set environment variables at the beginning)
-from audiotrain.utils.dataset import kaldi_folder_to_dataset, to_annotation_text
-from audiotrain.utils.audio import load_audio
-from audiotrain.utils.text import remove_special_words
-from audiotrain.utils.logs import get_num_gpus
-from audiotrain.utils.augment import SpeechAugment
-from audiotrain.utils.misc import save_source_dir, get_cache_dir, hashmd5
-from audiotrain.utils.yaml_utils import easy_yaml_load
-from audiotrain.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
-from audiotrain.train.speechbrain.wav2vec_finalize import finalize_folder
+from linastt.utils.env import auto_device # handle option --gpus (and set environment variables at the beginning)
+from linastt.utils.dataset import kaldi_folder_to_dataset, to_annotation_text
+from linastt.utils.audio import load_audio
+from linastt.utils.text import remove_special_words
+from linastt.utils.logs import get_num_gpus
+from linastt.utils.augment import SpeechAugment
+from linastt.utils.misc import save_source_dir, get_cache_dir, hashmd5
+from linastt.utils.yaml_utils import easy_yaml_load
+from linastt.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
+from linastt.train.speechbrain.wav2vec_finalize import finalize_folder
 
 import sys
 import os

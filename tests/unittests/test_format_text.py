@@ -1,4 +1,4 @@
-from audiotrain.utils.text import format_text_fr
+from linastt.utils.text import format_text_fr
 
 from .utils import Test
 

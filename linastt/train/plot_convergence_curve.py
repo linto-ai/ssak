@@ -1,4 +1,4 @@
-from audiotrain.utils.env import *
+from linastt.utils.env import *
 import sys
 import os
 import json

@@ -8,7 +8,7 @@ with open("README.md") as f:
     long_description = f.read()
 
 setup(
-    name="audiotrain",
+    name="linastt",
     version="1.0",
     description="Tools to experiment with speech recognition, using several Python libraries",
     long_description=long_description,
@@ -19,7 +19,7 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     packages=setuptools.find_packages(),
-    package_data={"audiotrain": []},
+    package_data={"linastt": []},
     install_requires=[
         # TODO
     ],

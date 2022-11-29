@@ -20,7 +20,7 @@ class TestTrainTransformers(Test):
 
     def test_train_transformers(self):
 
-        dir0 = "./hf_21426663a80baad886b80354534d2a86_ml-10_ml-1_bm-Ilyes_wav2vec2-large-xlsr-53-french"
+        dir0 = "./hf_c98d67d4cf540fcdea3d919fb4c4a479_ml-10_ml-1_bm-Ilyes_wav2vec2-large-xlsr-53-french"
         dir = dir0 + "_lr-0.0001_bs-4_wd-0_ad-0.1_hd-0.05_fpd-0_ld-0.1_mtp-0.05_s-69_adamwt"
 
         shutil.rmtree(dir0, ignore_errors = True)        
@@ -53,7 +53,7 @@ class TestTrainTransformers(Test):
 
     def test_train_transformers_with_data_augmentation(self):
 
-        dir0 = "./hf_21426663a80baad886b80354534d2a86_ml-10_ml-1_bm-Ilyes_wav2vec2-large-xlsr-53-french"
+        dir0 = "./hf_c98d67d4cf540fcdea3d919fb4c4a479_ml-10_ml-1_bm-Ilyes_wav2vec2-large-xlsr-53-french"
         dir = dir0 + "_lr-0.0001_bs-4_wd-0_ad-0.1_hd-0.05_fpd-0_ld-0.1_mtp-0.05_s-69_adamwt_augment_online"
 
         shutil.rmtree(dir0, ignore_errors = True)        

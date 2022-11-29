@@ -1,8 +1,8 @@
 # Source: https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchaudio_tutorial.html
 
-from audiotrain.utils.text import transliterate
-from audiotrain.utils.viewer import PlayWav
-from audiotrain.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
+from linastt.utils.text import transliterate
+from linastt.utils.viewer import PlayWav
+from linastt.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
 
 import torch
 import transformers
@@ -334,7 +334,7 @@ if __name__ == "__main__":
     import sys
     import json
     import matplotlib.pyplot as plt
-    from audiotrain.utils.audio import load_audio
+    from linastt.utils.audio import load_audio
 
     audio_path = args.audio
     transcript = " ".join(args.transcription)

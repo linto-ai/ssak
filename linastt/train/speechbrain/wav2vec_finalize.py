@@ -6,8 +6,8 @@ import glob
 import re
 import speechbrain as sb
 
-from audiotrain.infer.speechbrain_infer import speechbrain_load_model
-from audiotrain.utils.yaml_utils import copy_yaml_fields, make_yaml_overrides
+from linastt.infer.speechbrain_infer import speechbrain_load_model
+from linastt.utils.yaml_utils import copy_yaml_fields, make_yaml_overrides
 
 def finalize_folder(
         folder,
@@ -110,7 +110,7 @@ decoding_function: !name:speechbrain.decoders.ctc_greedy_decode
             f.write("""
 wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
     source: LeBenchmark/wav2vec2-FR-7K-large
-    save_path: !apply:audiotrain.utils.misc.get_cache_dir [ speechbrain/wav2vec2_checkpoint ] # ~/.cache/speechbrain/wav2vec2_checkpoint
+    save_path: !apply:linastt.utils.misc.get_cache_dir [ speechbrain/wav2vec2_checkpoint ] # ~/.cache/speechbrain/wav2vec2_checkpoint
 """)
 
     # Copy the tokenizer

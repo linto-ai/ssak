@@ -1,7 +1,7 @@
-from audiotrain.utils.env import auto_device # handles option --gpus
-from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.misc import flatten, get_cache_dir # TODO: cache folder management
-from audiotrain.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.env import auto_device # handles option --gpus
+from linastt.utils.dataset import to_audio_batches
+from linastt.utils.misc import flatten, get_cache_dir # TODO: cache folder management
+from linastt.utils.logs import tic, toc, gpu_mempeak
 
 import os
 import transformers

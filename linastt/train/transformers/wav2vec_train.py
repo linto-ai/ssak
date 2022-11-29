@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-from audiotrain.utils.env import * # handle option --gpus (and set environment variables at the beginning)
-from audiotrain.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
-from audiotrain.utils.text import remove_special_words
-from audiotrain.utils.dataset import kaldi_folder_to_dataset, process_dataset
-from audiotrain.utils.augment import SpeechAugment
-from audiotrain.utils.misc import hashmd5, save_source_dir, remove_commonprefix
+from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
+from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
+from linastt.utils.text import remove_special_words
+from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
+from linastt.utils.augment import SpeechAugment
+from linastt.utils.misc import hashmd5, save_source_dir, remove_commonprefix
 
 import sys
 import os

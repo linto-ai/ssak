@@ -1,4 +1,4 @@
-from audiotrain.utils.logs import logger
+from linastt.utils.logs import logger
 
 from typing import Optional, List
 from audiomentations.core.transforms_interface import BaseWaveformTransform

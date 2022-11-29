@@ -1,7 +1,7 @@
-from audiotrain.utils.env import auto_device # handles option --gpus
-from audiotrain.utils.dataset import to_audio_batches
-from audiotrain.utils.logs import tic, toc, gpu_mempeak
-from audiotrain.utils.misc import get_cache_dir, hashmd5
+from linastt.utils.env import auto_device # handles option --gpus
+from linastt.utils.dataset import to_audio_batches
+from linastt.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.misc import get_cache_dir, hashmd5
 
 import vosk
 vosk.SetLogLevel(-1)

@@ -4,7 +4,7 @@ from operator import itemgetter
 import logging
 import random
 import math
-from audiotrain.utils.logs import logger
+from linastt.utils.logs import logger
 
 from .audio import load_audio, array_to_bytes
 from .text import remove_special_words

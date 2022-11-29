@@ -1,7 +1,7 @@
 import re
 from num2words import num2words
 
-from audiotrain.utils.text_utils import collapse_whitespace
+from linastt.utils.text_utils import collapse_whitespace
 
 def remove_special_words(text,
     glue_apostrophe = True,

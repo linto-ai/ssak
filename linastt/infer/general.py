@@ -1,8 +1,8 @@
 import speechbrain as sb
 import transformers
 import torch
-from audiotrain.infer.speechbrain_infer import speechbrain_load_model, speechbrain_compute_logits
-from audiotrain.infer.transformers_infer import transformers_load_model, transformers_compute_logits
+from linastt.infer.speechbrain_infer import speechbrain_load_model, speechbrain_compute_logits
+from linastt.infer.transformers_infer import transformers_load_model, transformers_compute_logits
 
 def load_model(source, device = None):
     try:
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('audio', help='Input audio files', type=str, nargs='+')
     args = parser.parse_args()
 
-    from audiotrain.utils.dataset import to_audio_batches
+    from linastt.utils.dataset import to_audio_batches
     import numpy as np
     import matplotlib.pyplot as plt
 

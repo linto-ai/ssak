@@ -5,9 +5,9 @@ import tempfile
 import urllib.request
 import zipfile
 from operator import itemgetter
-from audiotrain.utils.kaldi import check_kaldi_dir
+from linastt.utils.kaldi import check_kaldi_dir
 
-from audiotrain.utils.text import format_text_fr, transliterate
+from linastt.utils.text import format_text_fr, transliterate
 
 char_set_fr = "abcdefghijklmnopqrstuvwxyzàâçéèêëîïôûùüÿñæœ-' "
 

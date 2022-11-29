@@ -82,7 +82,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounterWithStopper
 #     sample_rate: !ref <sample_rate>
 #     speeds: [95, 100, 105]
 
-augmentation: !new:audiotrain.utils.augment.SpeechAugment
+augmentation: !new:linastt.utils.augment.SpeechAugment
     sample_rate: !ref <sample_rate>
     #noise_dir: /media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises
     rir_dir: /media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise
@@ -96,7 +96,7 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
     source: LeBenchmark/wav2vec2-FR-7K-large
     output_norm: True
     freeze: !ref <freeze_wav2vec>
-    save_path: !apply:audiotrain.utils.misc.get_cache_dir [ speechbrain/wav2vec2_checkpoint ] # ~/.cache/speechbrain/wav2vec2_checkpoint
+    save_path: !apply:linastt.utils.misc.get_cache_dir [ speechbrain/wav2vec2_checkpoint ] # ~/.cache/speechbrain/wav2vec2_checkpoint
 
 enc: !new:speechbrain.nnet.containers.Sequential
     input_shape: [null, null, !ref <wav2vec_output_dim>]
