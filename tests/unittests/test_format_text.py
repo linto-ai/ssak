@@ -24,6 +24,21 @@ class TestFormatText(Test):
             "dix mille et cent millions ne sont pas pareils que zéro six douze trente-quatre cinquante-six soixante-dix-huit"
         )
 
+        self.assertEqual(
+            format_text_fr("La Rochelle - CAUE 17 2003 2005 Inventaire du Pays"),
+            "la rochelle caue dix-sept deux mille trois deux mille cinq inventaire du pays"
+            )
+
+        self.assertEqual(
+            format_text_fr("Elle emploie 147 collaborateurs et dispose de 22 000 m² de surfaces d' entreposage situées Casablanca-Oukacha ( 4 000 m² ) , Had Soualem ( 4 100 m² ) et Ain Sebaâ ( 14 000m² )"),
+            "elle emploie cent quarante-sept collaborateurs et dispose de vingt-deux mille mètres carrés de surfaces d' entreposage situées casablanca-oukacha quatre mille mètres carrés had soualem quatre mille cent mètres carrés et ain sebaâ quatorze mille mètres carrés"
+        )
+
+        self.assertEqual(
+            format_text_fr("1 200 et 01 2002"),
+            "mille deux cents et zéro un deux mille deux"
+        )
+
     def test_format_special_chars(self):
         self.assertEqual(
             format_text_fr("L’état “from scratch”."),

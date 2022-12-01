@@ -5,6 +5,7 @@ if __name__ == "__main__":
     import sys
     import os
     import argparse
+    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -30,8 +31,14 @@ if __name__ == "__main__":
     fid_acronyms = open(args.file_acronyms, "a", encoding="utf-8") if args.file_acronyms else None
     fid_special_char = open(args.file_special_char, "a", encoding="utf-8") if args.file_special_char else None
 
+    # Get the number of lines
+    # Note: This is ~10 times slower than wc -l
+    #       but it's reasonnable (20 sec for ~70 000 000)
+    # see https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python
+    num_lines = sum(1 for line in open(input_file))
+
     try:
-        for line in open(input_file, "r", encoding="utf-8"):
+        for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
             line = format_text_fr(line,
                 lower_case = not args.keep_case,
                 keep_punc = args.keep_punc,

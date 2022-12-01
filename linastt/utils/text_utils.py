@@ -57,5 +57,6 @@ def remove_special_characters(
         for char in removed:
             if char not in _ALL_SPECIAL_CHARACTERS:
                 print(ord(char), char, file=fid)
+                fid.flush()
                 _ALL_SPECIAL_CHARACTERS.append(char)
     return output

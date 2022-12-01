@@ -69,6 +69,7 @@ def format_text_fr(text,
     remove_ligatures = True,
     fid_acronyms = None,
     fid_special_chars = None,
+    safety_checks = True,
     ):
 
     # Recursive call (list)
@@ -83,6 +84,8 @@ def format_text_fr(text,
 
     global _ALL_ACRONYMS
 
+    text_orig = text
+
     if re.search(r"[IVX]", text):
         for k,v in _romans.items():
             text = re.sub(r"\b" + k + r"\b", v, text)
@@ -92,6 +95,7 @@ def format_text_fr(text,
         for acronym in acronyms:
             if acronym not in _ALL_ACRONYMS:
                 print(acronym, file = fid_acronyms)
+                fid_acronyms.flush()
                 _ALL_ACRONYMS.append(acronym)
 
     if lower_case:
@@ -189,12 +193,13 @@ def format_text_fr(text,
     text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
     text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
     text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
+    text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text) # space after digits
     text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
 
     # Digits
-    chiffres = re.findall(r"(?:\d+(?: \d\d\d)+)|(?:\d[/\d]*)",text)
+    chiffres = re.findall(r"(?:\b\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
     chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
-    chiffres = sorted(list(set(chiffres)), reverse=True, key=len)    
+    chiffres = sorted(list(set(chiffres)), reverse=True, key=len)
     for chiffre in chiffres:
         numslash = len(re.findall("/", chiffre))
         if numslash == 0:
@@ -208,7 +213,14 @@ def format_text_fr(text,
             word = first + " " + second
         else:
             word = " / ".join([undigit(s) for s in chiffre.split('/')])
-        text = re.sub(str(chiffre), " "+word+" ", text)
+        if " " in chiffre:
+            text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
+        else:
+            text = re.sub(str(chiffre), " "+word+" ", text)
+
+    if safety_checks:
+        if re.findall(r"\d", text):
+            raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
 
     # Fractions
     text = re.sub(r"½", " un demi ", text)
@@ -221,14 +233,8 @@ def format_text_fr(text,
     text = re.sub(r"\bm³", " mètres cubes ", text)
     text = re.sub(r"²", " carrés ", text)
     text = re.sub(r"³", " cubes ", text)
-
-    text = re.sub(r"°c\b", "degrés", text)
-    text = re.sub("°", "degrés", text)
-    text = re.sub("&"," et ", text)
-    text = re.sub('%', ' pour cent ', text)
-    text = re.sub('€', ' euros ', text)
-    text = re.sub('\$', ' dollars ', text)
-    text = re.sub("~"," environ ", text)
+    text = re.sub(r"⁵", " puissance cinq ", text)
+    text = re.sub(r"⁷", " puissance sept ", text)
 
     text = re.sub(" '", " ", text)
     text = re.sub('--+',' ', text)
@@ -250,6 +256,28 @@ def format_text_fr(text,
 
     for reg, replacement in _corrections_abbreviations_fr:
         text = re.sub(reg, replacement, text)
+
+    # Symbols
+    text = re.sub(r"°c\b", "degrés", text)
+    text = re.sub("°", "degrés", text)
+    text = re.sub("&"," et ", text)
+    text = re.sub('%', ' pour cent ', text)
+    text = re.sub("~"," environ ", text)
+    text = re.sub("µ"," micro ", text)
+    text = re.sub("μ"," micro ", text)
+    text = re.sub("§"," paragraphe ", text)
+    text = re.sub(r"[\+⁺]"," plus ", text)
+    text = re.sub(r"⁻"," moins ", text)
+    text = re.sub("±"," plus ou moins ", text)
+    text = re.sub(r"ᵉʳ","er", text)
+    text = re.sub(r"ᵉ","e", text)
+    text = re.sub("·","", text)
+    # Currencies (TODO: decide plural or singular, manage 1.30 €)
+    text = re.sub('€', ' euros ', text)
+    text = re.sub('¥', ' yens ', text)
+    text = re.sub('£', ' livres ', text)
+    text = re.sub('\$', ' dollars ', text)
+    text = re.sub("¢"," cents ", text)
 
     if not keep_punc:
         text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
@@ -293,14 +321,10 @@ _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     # ("l", "litres"), # Caution with "l'"
     ("ml", "millilitres"),
     ("cm2", "centimètres carrés"),
-    ("µ", "micro"),
-    ("μ", "micro"),
 ]] + [
-    ("\+", "plus"),
-    ("ᵉʳ", "er"),
-    ("ᵉ", "eme"),
     ("@", " arobase "),
 ]
+
 
 _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), '%s' % x[1])
                   for x in [
@@ -394,5 +418,10 @@ _romans = {
 
 if __name__ == "__main__":
 
-    import sys
-    print(format_text_fr(" ".join(sys.argv[1:])))
+    import sys, os
+    if len(sys.argv) == 2 and os.path.isfile(sys.argv[1]):
+        with open(sys.argv[1], "r") as f:
+            text = f.read()
+            print(format_text_fr(text))
+    else:
+        print(format_text_fr(" ".join(sys.argv[1:])))
