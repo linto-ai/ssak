@@ -60,3 +60,6 @@ def remove_special_characters(
                 fid.flush()
                 _ALL_SPECIAL_CHARACTERS.append(char)
     return output
+
+def text_unescape(text):
+    return text.replace("*","\*").replace(".","\.").replace("(","\(").replace(")","\)").replace("+","\+")

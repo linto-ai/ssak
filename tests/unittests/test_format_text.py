@@ -77,6 +77,7 @@ class TestFormatText(Test):
             self.get_tool_path("clean_text_fr.py"),
             self.get_data_path("text/frwac.txt"),
             output_file,
+            "--extract_parenthesis",
             "--file_acro", acronym_file,
             "--file_special", special_char_file,
         ])

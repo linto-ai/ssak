@@ -1,7 +1,7 @@
 import re
 from num2words import num2words
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -67,20 +67,33 @@ def format_text_fr(text,
     lower_case = True,
     keep_punc = False,
     remove_ligatures = True,
+    extract_parenthesis = False,
     fid_acronyms = None,
     fid_special_chars = None,
     safety_checks = True,
     ):
 
+    opts = _rm_key(locals(), "text")
+
     # Recursive call (list)
     if isinstance(text, list):
-        opts = _rm_key(locals(), "text")
         return [format_text_fr(t, **opts) for t in text]
 
     # Recursive call (line breaks)
     if "\n" in text:
-        opts = _rm_key(locals(), "text")
         return "\n".join([format_text_fr(t, **opts) for t in text.split("\n")])
+    
+    # Recursive call (parenthesis)
+    if extract_parenthesis and "(" in text and ")" in text:
+        in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
+        if len(in_parenthesis):
+            in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
+            without_parenthesis = re.sub("("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")", "", text)
+            # assert without_parenthesis != text
+            if without_parenthesis != text: # Avoid infinite recursion
+                texts = [without_parenthesis] + in_parenthesis
+                return "\n".join([format_text_fr(t, **opts) for t in texts])
+
 
     global _ALL_ACRONYMS
 

@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser.add_argument('output', help="Output file (if not specified, the text will be outputed on stdout", type=str, nargs="?", default= None)
     parser.add_argument('--keep_punc', help="Keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_case', help="Keep case (otherwise, everything will be lowercased)", default= False, action="store_true")
+    parser.add_argument('--extract_parenthesis', help="To pull out parenthesis and process them separately (as new lines)", default= False, action="store_true")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
     parser.add_argument('--file_special_char', help="A file to list special characters that were removed", default= None, type = str)
     args = parser.parse_args()
@@ -42,6 +43,7 @@ if __name__ == "__main__":
             line = format_text_fr(line,
                 lower_case = not args.keep_case,
                 keep_punc = args.keep_punc,
+                extract_parenthesis = args.extract_parenthesis,
                 fid_acronyms = fid_acronyms,
                 fid_special_chars = fid_special_char,
             )
