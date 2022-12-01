@@ -1,3 +1,5 @@
+import os
+
 from linastt.utils.text import format_text_fr
 
 from .utils import Test
@@ -48,3 +50,23 @@ class TestFormatText(Test):
             format_text_fr("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
             "c' est la date est au format aaaa-mm-dd ça mesure trois millimètres"
         )
+
+    def test_non_regression_fr(self):
+        
+        output_file = self.get_temp_path("output.txt")
+        acronym_file = self.get_temp_path("acronyms.txt")
+        special_char_file = self.get_temp_path("special_chars.txt")
+        for f in [output_file, acronym_file, special_char_file]:
+            if os.path.exists(f): os.remove(f)
+        self.assertRun([
+            self.get_tool_path("clean_text_fr.py"),
+            self.get_data_path("text/frwac.txt"),
+            output_file,
+            "--file_acro", acronym_file,
+            "--file_special", special_char_file,
+        ])
+        self.assertNonRegression(output_file, "format_text/output.txt")
+        self.assertNonRegression(acronym_file, "format_text/acronyms.txt")
+        self.assertNonRegression(special_char_file, "format_text/special_chars.txt")
+        for f in [output_file, acronym_file, special_char_file]:
+            os.remove(f)

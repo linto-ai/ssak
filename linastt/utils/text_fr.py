@@ -1,7 +1,7 @@
 import re
 from num2words import num2words
 
-from linastt.utils.text_utils import collapse_whitespace
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -43,27 +43,77 @@ def remove_special_words(text,
     text = text.lower() # TCOF
     return text
 
-def format_text_fr(text, keep_punc = False):
-    
-    if isinstance(text, list):
-        return [format_text_fr(t) for t in text]
+def _rm_key(d, key):
+    d = d.copy()
+    d.pop(key)
+    return d
 
+def find_acronyms(text, ignore_first_upper_words = True):
+    if not text: return []
+    i = 0
+    if ignore_first_upper_words:
+        # All the first upper case letters will be ignored
+        up = text.upper()
+        for j, (a, b) in enumerate(zip(text, up)):
+            if a == " ":
+                i = j
+            if a != b:
+                break
+    return re.findall(r"\b[A-Z][A-Z0-9]{1,}\b", text[i:])
+
+_ALL_ACRONYMS = []
+
+def format_text_fr(text,
+    lower_case = True,
+    keep_punc = False,
+    remove_ligatures = True,
+    fid_acronyms = None,
+    fid_special_chars = None,
+    ):
+
+    # Recursive call (list)
+    if isinstance(text, list):
+        opts = _rm_key(locals(), "text")
+        return [format_text_fr(t, **opts) for t in text]
+
+    # Recursive call (line breaks)
     if "\n" in text:
-        return "\n".join([format_text_fr(t, keep_punc) for t in text.split("\n")])
+        opts = _rm_key(locals(), "text")
+        return "\n".join([format_text_fr(t, **opts) for t in text.split("\n")])
+
+    global _ALL_ACRONYMS
 
     if re.search(r"[IVX]", text):
         for k,v in _romans.items():
             text = re.sub(r"\b" + k + r"\b", v, text)
 
-    text = text.lower()
+    if fid_acronyms is not None:
+        acronyms = find_acronyms(text)
+        for acronym in acronyms:
+            if acronym not in _ALL_ACRONYMS:
+                print(acronym, file = fid_acronyms)
+                _ALL_ACRONYMS.append(acronym)
+
+    if lower_case:
+        text = text.lower()
+        if remove_ligatures:
+            text = re.sub(r"œ", "oe", text)
+            text = re.sub(r"æ", "ae", text)
+    elif remove_ligatures:
+        text = re.sub(r"œ", "oe", text)
+        text = re.sub(r"æ", "ae", text)
+        text = re.sub(r"Œ", "OE", text)
+        text = re.sub(r"Æ", "AE", text)
+
     for reg, replacement in _corrections_caracteres_speciaux_fr:
         text = re.sub(reg, replacement, text)
 
+
     text = ' '+text+' '
 
-    numbers=re.findall("\d+,000",text)
+    numbers=re.findall("\d+[,.]000",text)
     for n in numbers:
-        text = re.sub(n,re.sub(",","",n), text)
+        text = re.sub(n,re.sub(r"[,.]","",n), text)
 
 
     # Replace "." by "point" and "/" by "slash" in internet websites
@@ -206,11 +256,13 @@ def format_text_fr(text, keep_punc = False):
 
     text = re.sub(' - | -$|^- ','', text)
 
-    # Non printable characters
-    if '\x81' in text:
-        #i = text.index('\x81')
-        #print("WARNING: weird character in text: ", text[:i], "\\x81", text[i+1:])
-        text = text.replace('\x81', ' ')
+    text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
+
+    # # Non printable characters
+    # if '\x81' in text:
+    #     #i = text.index('\x81')
+    #     #print("WARNING: weird character in text: ", text[:i], "\\x81", text[i+1:])
+    #     text = text.replace('\x81', ' ')
 
     text = collapse_whitespace(text)
 
@@ -232,6 +284,7 @@ def undigit(str, to="cardinal", lang = "fr"):
 
 _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("g", "grammes"),
+    ("µg", "microgrammes"),
     ("μg", "microgrammes"),
     ("mg", "milligrammes"),
     ("kg", "kilogrammes"),
@@ -239,12 +292,14 @@ _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("cm", "centimètres"),
     # ("l", "litres"), # Caution with "l'"
     ("ml", "millilitres"),
-    ("cm2", "centimètres carrés")
+    ("cm2", "centimètres carrés"),
+    ("µ", "micro"),
+    ("μ", "micro"),
 ]] + [
     ("\+", "plus"),
     ("ᵉʳ", "er"),
     ("ᵉ", "eme"),
-    ("@", " arobase ")
+    ("@", " arobase "),
 ]
 
 _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), '%s' % x[1])
@@ -261,24 +316,22 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     ("û","û"),
                     ("î","î"),
                     ("Ã","à"),
-                    # ('À','à'),
-                    # ('É','é'),
-                    # ('È','è'),
-                    # ('Â','â'),
-                    # ('Ê','ê'),
-                    # ('Ç','ç'),
-                    # ('Ù','ù'),
-                    # ('Û','û'),
-                    # ('Î','î'),
-                    ("œ","oe"),
-                    ("æ","ae")
+                    # ('À','À'),
+                    # ('É','É'),
+                    # ('È','È'),
+                    # ('Â','Â'),
+                    # ('Ê','Ê'),
+                    # ('Ç','Ç'),
+                    # ('Ù','Ù'),
+                    # ('Û','Û'),
+                    # ('Î','Î'),
+                    ('ａ', 'a'), ('ｂ', 'b'), ('ｃ', 'c'), ('ｄ', 'd'), ('ｅ', 'e'), ('ｆ', 'f'), ('ｇ', 'g'), ('ｈ', 'h'), ('ｉ', 'i'), ('ｊ', 'j'), ('ｋ', 'k'), ('ｌ', 'l'), ('ｍ', 'm'), ('ｎ', 'n'), ('ｏ', 'o'), ('ｐ', 'p'), ('ｑ', 'q'), ('ｒ', 'r'), ('ｓ', 's'), ('ｔ', 't'), ('ｕ', 'u'), ('ｖ', 'v'), ('ｗ', 'w'), ('ｘ', 'x'), ('ｙ', 'y'), ('ｚ', 'z'),
                 ]]
 
 _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1])
                   for x in [
                     ("nº","numéro"),
                     ("n°","numéro"),
-                    ("mp3","m p 3"),
                     ("jus +qu'","jusqu'"),
                     ("pres +qu'","presqu'"),
                     ("lors +qu'","lorsqu'"),
