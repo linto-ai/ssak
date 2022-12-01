@@ -86,3 +86,19 @@ def commonprefix(m, end = None):
 def remove_commonprefix(l, end = None):
     cp = commonprefix(l, end)
     return [s[len(cp):] for s in l]
+
+class suppress_stderr(object):
+    def __enter__(self):
+        self.errnull_file = open(os.devnull, 'w')
+        self.old_stderr_fileno_undup    = sys.stderr.fileno()
+        self.old_stderr_fileno = os.dup ( sys.stderr.fileno() )
+        self.old_stderr = sys.stderr
+        os.dup2 ( self.errnull_file.fileno(), self.old_stderr_fileno_undup )
+        sys.stderr = self.errnull_file
+        return self
+
+    def __exit__(self, *_):
+        sys.stderr = self.old_stderr
+        os.dup2 ( self.old_stderr_fileno, self.old_stderr_fileno_undup )
+        os.close ( self.old_stderr_fileno )
+        self.errnull_file.close()

@@ -1,4 +1,5 @@
 from linastt.utils.env import *
+from linastt.utils.misc import commonprefix
 import sys
 import os
 import json
@@ -124,18 +125,6 @@ def get_log_history_speechbrain(path, only_finished_epochs = False, batch_size =
 
 def simple_get(line, field, t = float):
     return t(line.split(field+":")[-1].split()[0].split(",")[0])
-
-# Return the longest prefix of all list elements.
-def commonprefix(m):
-    "Given a list of pathnames, returns the longest common leading component"
-    if not m: return ''
-    s1 = min(m)
-    s2 = max(m)
-    for i, c in enumerate(s1):
-        if c != s2[i]:
-            return s1[:i]
-    return s1
-
 
 def get_monitoring_file(dir):
     if os.path.isfile(dir):

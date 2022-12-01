@@ -1,5 +1,4 @@
 import os
-import sys
 
 # To address the following error when importing librosa
 #   RuntimeError: cannot cache function '__shear_dense': no locator available for file '/usr/local/lib/python3.9/site-packages/librosa/util/utils.py'
@@ -13,6 +12,8 @@ import torchaudio
 
 import numpy as np
 import torch
+
+from linastt.utils.misc import suppress_stderr
 
 def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True, return_format = 'array', verbose = False):
     """ 
@@ -113,21 +114,4 @@ def save_audio(path, audio, sample_rate = 16_000):
     Save an audio signal into a wav file.
     """
     sox.write(path, audio, sample_rate)
-
-class suppress_stderr(object):
-    def __enter__(self):
-        self.errnull_file = open(os.devnull, 'w')
-        self.old_stderr_fileno_undup    = sys.stderr.fileno()
-        self.old_stderr_fileno = os.dup ( sys.stderr.fileno() )
-        self.old_stderr = sys.stderr
-        os.dup2 ( self.errnull_file.fileno(), self.old_stderr_fileno_undup )
-        sys.stderr = self.errnull_file
-        return self
-
-    def __exit__(self, *_):
-        sys.stderr = self.old_stderr
-        os.dup2 ( self.old_stderr_fileno, self.old_stderr_fileno_undup )
-        os.close ( self.old_stderr_fileno )
-        self.errnull_file.close()
-
 

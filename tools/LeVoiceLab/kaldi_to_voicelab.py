@@ -9,6 +9,8 @@ from datetime import datetime
 import json
 import random
 
+from linastt.utils.misc import commonprefix
+
 CONVERT_ALL_WAV_TO_THE_SAME = False
 
 
@@ -78,17 +80,6 @@ def get_audio_duration(audio_file):
     if audio_file in _durations:
         return _durations[audio_file]
     return float(subprocess.check_output(['soxi', '-D' , audio_file]))
-
-# Return the longest prefix of all list elements.
-def commonprefix(m):
-    "Given a list of pathnames, returns the longest common leading component"
-    if not m: return ''
-    s1 = min(m)
-    s2 = max(m)
-    for i, c in enumerate(s1):
-        if c != s2[i]:
-            return s1[:i]
-    return s1
 
 def get_audio_durations(audio_files):
     currdir = os.path.realpath(os.curdir)

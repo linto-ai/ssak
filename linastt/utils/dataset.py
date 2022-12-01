@@ -5,6 +5,7 @@ import logging
 import random
 import math
 from linastt.utils.logs import logger
+from linastt.utils.misc import commonprefix
 
 from .audio import load_audio, array_to_bytes
 from .text import remove_special_words
@@ -463,16 +464,6 @@ def format_cache_files(cache_files):
             return str(cache_files)
     else:
         return str(cache_files)
-# Return the longest prefix of all list elements.
-def commonprefix(m):
-    "Given a list of pathnames, returns the longest common leading component"
-    if not m: return ''
-    s1 = min(m)
-    s2 = max(m)
-    for i, c in enumerate(s1):
-        if c != s2[i]:
-            return s1[:i]
-    return s1
 
 
 def process_dataset(processor, dataset,
