@@ -56,7 +56,7 @@ def remove_special_characters(
         removed = [c for c in string if c not in output]
         for char in removed:
             if char not in _ALL_SPECIAL_CHARACTERS:
-                print(ord(char), char, file=fid)
+                print(f"{ord(char):06d} {char}", file=fid)
                 fid.flush()
                 _ALL_SPECIAL_CHARACTERS.append(char)
     return output

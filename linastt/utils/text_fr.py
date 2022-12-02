@@ -1,4 +1,5 @@
 import re
+import math
 from num2words import num2words
 
 from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape
@@ -76,248 +77,258 @@ def format_text_fr(text,
 
     opts = _rm_key(locals(), "text")
 
-    # Recursive call (list)
-    if isinstance(text, list):
-        return [format_text_fr(t, **opts) for t in text]
-
-    # Recursive call (line breaks)
-    if "\n" in text:
-        return "\n".join([format_text_fr(t, **opts) for t in text.split("\n")])
-    
-    # Recursive call (parenthesis)
-    if extract_parenthesis and "(" in text and ")" in text:
-        in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
-        if len(in_parenthesis):
-            in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
-            regex = "("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")"
-            try:
-                without_parenthesis = re.sub(regex, "", text)
-            except Exception as e:
-                print("PROBLEM WITH TEXT:", regex)
-                raise e
-            # assert without_parenthesis != text
-            if without_parenthesis != text: # Avoid infinite recursion
-                texts = [without_parenthesis] + in_parenthesis
-                return "\n".join([format_text_fr(t, **opts) for t in texts])
-
-
-    global _ALL_ACRONYMS
-
     text_orig = text
 
-    if re.search(r"[IVX]", text):
-        for k,v in _romans.items():
-            text = re.sub(r"\b" + k + r"\b", v, text)
+    try:
 
-    if fid_acronyms is not None:
-        acronyms = find_acronyms(text)
-        for acronym in acronyms:
-            if acronym not in _ALL_ACRONYMS:
-                print(acronym, file = fid_acronyms)
-                fid_acronyms.flush()
-                _ALL_ACRONYMS.append(acronym)
+        # Recursive call (list)
+        if isinstance(text, list):
+            return [format_text_fr(t, **opts) for t in text]
 
-    if lower_case:
-        text = text.lower()
-        if remove_ligatures:
+        # Recursive call (line breaks)
+        if "\n" in text:
+            return "\n".join([format_text_fr(t, **opts) for t in text.split("\n")])
+        
+        # Recursive call (parenthesis)
+        if extract_parenthesis and "(" in text and ")" in text:
+            in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
+            if len(in_parenthesis):
+                in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
+                regex = "("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")"
+                without_parenthesis = re.sub(regex, "", text)
+                # assert without_parenthesis != text
+                if without_parenthesis != text: # Avoid infinite recursion
+                    texts = [without_parenthesis] + in_parenthesis
+                    return "\n".join([format_text_fr(t, **opts) for t in texts])
+
+
+        global _ALL_ACRONYMS
+
+        if re.search(r"[IVX]", text):
+            for k,v in _romans.items():
+                text = re.sub(r"\b" + k + r"\b", v, text)
+
+        if fid_acronyms is not None:
+            acronyms = find_acronyms(text)
+            for acronym in acronyms:
+                if acronym not in _ALL_ACRONYMS:
+                    print(acronym, file = fid_acronyms)
+                    fid_acronyms.flush()
+                    _ALL_ACRONYMS.append(acronym)
+
+        if lower_case:
+            text = text.lower()
+            if remove_ligatures:
+                text = re.sub(r"œ", "oe", text)
+                text = re.sub(r"æ", "ae", text)
+                text = re.sub(r"ﬁ", "fi", text)
+                text = re.sub(r"ﬂ", "fl", text)
+                text = re.sub("ĳ", "ij", text)
+        elif remove_ligatures:
             text = re.sub(r"œ", "oe", text)
             text = re.sub(r"æ", "ae", text)
-    elif remove_ligatures:
-        text = re.sub(r"œ", "oe", text)
-        text = re.sub(r"æ", "ae", text)
-        text = re.sub(r"Œ", "OE", text)
-        text = re.sub(r"Æ", "AE", text)
+            text = re.sub(r"ﬁ", "fi", text)
+            text = re.sub(r"ﬂ", "fl", text)
+            text = re.sub("ĳ", "ij", text)
+            text = re.sub(r"Œ", "OE", text)
+            text = re.sub(r"Æ", "AE", text)
 
-    for reg, replacement in _corrections_caracteres_speciaux_fr:
-        text = re.sub(reg, replacement, text)
-
-
-    text = ' '+text+' '
-
-    numbers=re.findall("\d+[,.]000",text)
-    for n in numbers:
-        text = re.sub(n,re.sub(r"[,.]","",n), text)
+        for reg, replacement in _corrections_caracteres_speciaux_fr:
+            text = re.sub(reg, replacement, text)
 
 
-    # Replace "." by "point" and "/" by "slash" in internet websites
-    # Find all the websites in the text
-    websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
-    websites = sorted(set(websites), key = len, reverse = True)
-    for w in websites:
-        w2 = w
-        w2 = re.sub("\.", " point ", w2)
-        w2 = re.sub(":", " deux points ", w2)
-        w2 = re.sub("/", " slash ", w2)
-        w2 = re.sub("-", " tiret ", w2)
-        #text = re.sub(w, w2, text)
-        text = text.replace(w, w2)
+        text = ' '+text+' '
 
-    # Abbréviations
-    text = re.sub(" m\. "," monsieur ",text)
-    text = re.sub(" mme\.? ", " madame ",text)
-    text = re.sub(" mlle\.? ", " mademoiselle ",text)
+        numbers=re.findall("\d+[,.]000",text)
+        for n in numbers:
+            text = re.sub(n,re.sub(r"[,.]","",n), text)
 
 
-    text = re.sub(r"[’‘]","'", text)
-    text = re.sub("'","' ", text)
-    text = re.sub('"',' " ', text)
-    text = re.sub("' '", "''", text)
-    text = re.sub(":", " : ", text)
-    text = re.sub(";", " ; ", text)
-    text = re.sub(',|¸',',', text)
-    text = re.sub(", ", " , ", text)
-    text = re.sub("\!", " ! ", text)
-    text = re.sub("\?", " ? ", text)
-    text = re.sub("^ *-+", "", text)
-    text = re.sub("\^+","", text)
-    text = re.sub(" +(- +)+", " ", text)
-    text = re.sub("- ", "-", text)
-    text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
-    text = re.sub(" -([a-zàâäçèéêëîïôùûü]+)", r"-\1", text)
-    text = re.sub("([,;:\!\?\.]) -([a-zàâäçèéêëîïôùûü]+)", r"\1 \2", text)
-    text = re.sub("([a-zàâäçèéêëîïôùûü]{3,})' ", r"\1 ", text)
-    text = re.sub("([a-zàâäçèéêëîïôùûü]{2,})' *[,;:\!\?\.]", r"\1 ", text)
-    text = re.sub('\.{2,}',' ', text)
-    text = re.sub('\. *$',' . ', text)
-    text = re.sub('(\d)\. ',r'\1 . ', text)
-    
-    text=re.sub('\{',' { ',text)
-    text=re.sub('\}',' } ',text)
-    text=re.sub('\(',' ( ',text)
-    text=re.sub('\)',' ) ',text)
-    text=re.sub('\[',' [ ',text)
-    text=re.sub('\]',' ] ',text)
-    text=re.sub(r"<([^<>]*)>",r"\1",text)
+        # Replace "." by "point" and "/" by "slash" in internet websites
+        # Find all the websites in the text
+        websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
+        websites = sorted(set(websites), key = len, reverse = True)
+        for w in websites:
+            w2 = w
+            w2 = re.sub("\.", " point ", w2)
+            w2 = re.sub(":", " deux points ", w2)
+            w2 = re.sub("/", " slash ", w2)
+            w2 = re.sub("-", " tiret ", w2)
+            #text = re.sub(w, w2, text)
+            text = text.replace(w, w2)
 
-    for reg, replacement in _corrections_regex_fr:
-        text = re.sub(reg, replacement, text)
+        # Abbréviations
+        text = re.sub(" m\. "," monsieur ",text)
+        text = re.sub(" mme\.? ", " madame ",text)
+        text = re.sub(" mlle\.? ", " mademoiselle ",text)
 
-    heures=re.findall("\d+ *h *\d+",text)
-    for h in heures:
-        split_h=h.split('h')
-        text_rep=re.sub('^0+','',split_h[0])+' heures '+re.sub('^0+','',split_h[1])
-        #text_rep=split_h[0]+' heures '+split_h[1]
-        text=text.replace(h, text_rep)
 
-    text = re.sub("(\d+)''",r"\1 secondes ",text)
-    text = re.sub("(\d+)'",r"\1 minutes ",text)
-    #text = re.sub("(\d+)°",r"\1 degrés ",text)
+        text = re.sub(r"[’‘]","'", text)
+        text = re.sub("'","' ", text)
+        text = re.sub('"',' " ', text)
+        text = re.sub("' '", "''", text)
+        text = re.sub(":", " : ", text)
+        text = re.sub(";", " ; ", text)
+        text = re.sub(',|¸',',', text)
+        text = re.sub(", ", " , ", text)
+        text = re.sub("\!", " ! ", text)
+        text = re.sub("\?", " ? ", text)
+        text = re.sub("^ *-+", "", text)
+        text = re.sub("\^+","", text)
+        text = re.sub(" +(- +)+", " ", text)
+        text = re.sub("- ", " ", text)
+        text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
+        text = re.sub(" -([a-zàâäçèéêëîïôùûü]+)", r"-\1", text)
+        text = re.sub("([,;:\!\?\.]) -([a-zàâäçèéêëîïôùûü]+)", r"\1 \2", text)
+        text = re.sub("([a-zàâäçèéêëîïôùûü]{3,})' ", r"\1 ", text)
+        text = re.sub("([a-zàâäçèéêëîïôùûü]{2,})' *[,;:\!\?\.]", r"\1 ", text)
+        text = re.sub('\.{2,}',' ', text)
+        text = re.sub('\. *$',' . ', text)
+        text = re.sub('(\d)\. ',r'\1 . ', text)
+        
+        text=re.sub('\{',' { ',text)
+        text=re.sub('\}',' } ',text)
+        text=re.sub('\(',' ( ',text)
+        text=re.sub('\)',' ) ',text)
+        text=re.sub('\[',' [ ',text)
+        text=re.sub('\]',' ] ',text)
+        text=re.sub(r"<([^<>]*)>",r"\1",text)
 
-    chiffres = re.findall(r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:ème|eme|e)\b", text)
-    chiffres = sorted(list(set(chiffres)), reverse=True, key=len)    
-    for chiffre in chiffres:
-        word = undigit(re.findall(r"\d+", chiffre)[0], to= "ordinal")
-        text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
+        for reg, replacement in _corrections_regex_fr:
+            text = re.sub(reg, replacement, text)
 
-    text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
-    text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
-    text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
-    text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text) # space after digits
-    text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
+        heures=re.findall("\d+ *h *\d+",text)
+        for h in heures:
+            split_h=h.split('h')
+            text_rep=re.sub('^0+','',split_h[0])+' heures '+re.sub('^0+','',split_h[1])
+            #text_rep=split_h[0]+' heures '+split_h[1]
+            text=text.replace(h, text_rep)
 
-    # Digits
-    chiffres = re.findall(r"(?:\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
-    chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
-    chiffres = list(set(chiffres))
-    chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
-    #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
-    chiffres = sorted(chiffres, reverse=True, key=len)
-    for chiffre in chiffres:
-        numslash = len(re.findall("/", chiffre))
-        if numslash == 0:
-            word = undigit(chiffre)
-        elif numslash == 1:
-            i = chiffre.index("/")
-            first = undigit(chiffre[:i])
-            second = undigit(chiffre[i+1:], to="denominator")
-            if float(chiffre[:i]) > 2. and second[-1] != "s":
-                second += "s"
-            word = first + " " + second
-        else:
-            word = " / ".join([undigit(s) for s in chiffre.split('/') if s])
-        if " " in chiffre:
-            text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
-        else:
-            text = re.sub(str(chiffre), " "+word+" ", text)
+        text = re.sub("(\d+)''",r"\1 secondes ",text)
+        text = re.sub("(\d+)'",r"\1 minutes ",text)
+        #text = re.sub("(\d+)°",r"\1 degrés ",text)
 
-    if safety_checks:
-        if re.findall(r"\d", text):
-            raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
+        chiffres = re.findall(r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:ème|eme|e)\b", text)
+        chiffres = sorted(list(set(chiffres)), reverse=True, key=lambda x: (len(x), x))
+        for chiffre in chiffres:
+            word = undigit(re.findall(r"\d+", chiffre)[0], to= "ordinal")
+            text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
 
-    # Fractions
-    text = re.sub(r"½", " un demi ", text)
-    text = re.sub(r"⅓", " un tiers ", text)
-    text = re.sub(r"⅔", " deux tiers ", text)
-    text = re.sub(r"¼", " un quart ", text)
-    text = re.sub(r"¾", " trois quarts ", text)
-    # Exponents
-    text = re.sub(r"\bm²", " mètres carrés ", text)
-    text = re.sub(r"\bm³", " mètres cubes ", text)
-    text = re.sub(r"²", " carrés ", text)
-    text = re.sub(r"³", " cubes ", text)
-    text = re.sub(r"⁵", " puissance cinq ", text)
-    text = re.sub(r"⁷", " puissance sept ", text)
+        text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
+        text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
+        text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
+        text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text) # space after digits
+        text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
 
-    text = re.sub(" '", " ", text)
-    text = re.sub('--+',' ', text)
-    text = re.sub('_',' ', text)
-    text = re.sub('–',' ', text)
-    text = re.sub('—+',' ', text)
-    text = re.sub('…','...', text)
-    text = re.sub('\*+', ' ', text)
-    text = re.sub(r"[«“][^\S\r\n]*", '"', text)
-    text = re.sub(r"[^\S\r\n]*[»”]", '"', text)
-    text = re.sub(r"[’‘]", "'", text)
-    text = re.sub(r"–", "-", text)
-    text = re.sub('#+',' ', text)
-    text = re.sub(" "," ",text)
-    text = re.sub(' ', '  ',text)
+        # Digits
+        chiffres = re.findall(r"(?:\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
+        chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
+        chiffres = list(set(chiffres))
+        chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
+        #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
+        chiffres = sorted(chiffres, reverse=True, key=lambda x: (len(x), x))
+        for chiffre in chiffres:
+            numslash = len(re.findall("/", chiffre))
+            if numslash == 0:
+                word = undigit(chiffre)
+            elif numslash == 1:
+                i = chiffre.index("/")
+                first = undigit(chiffre[:i])
+                second = undigit(chiffre[i+1:], to="denominator")
+                if float(chiffre[:i]) > 2. and second[-1] != "s":
+                    second += "s"
+                word = first + " " + second
+            else:
+                word = " / ".join([undigit(s) for s in chiffre.split('/') if s])
+            if " " in chiffre:
+                text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
+            else:
+                text = re.sub(str(chiffre), " "+word+" ", text)
 
-    text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
-    text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
+        if safety_checks:
+            if re.findall(r"\d", text):
+                raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
 
-    for reg, replacement in _corrections_abbreviations_fr:
-        text = re.sub(reg, replacement, text)
+        # Fractions
+        text = re.sub(r"½", " un demi ", text)
+        text = re.sub(r"⅓", " un tiers ", text)
+        text = re.sub(r"⅔", " deux tiers ", text)
+        text = re.sub(r"¼", " un quart ", text)
+        text = re.sub(r"¾", " trois quarts ", text)
+        # Exponents
+        text = re.sub(r"\bm²", " mètres carrés ", text)
+        text = re.sub(r"\bm³", " mètres cubes ", text)
+        text = re.sub(r"²", " carrés ", text)
+        text = re.sub(r"³", " cubes ", text)
+        text = re.sub(r"⁵", " puissance cinq ", text)
+        text = re.sub(r"⁷", " puissance sept ", text)
 
-    for reg, replacement in _multi_spelling_words:
-        text = re.sub(reg, replacement, text)
+        text = re.sub(" '", " ", text)
+        text = re.sub('--+',' ', text)
+        text = re.sub('_',' ', text)
+        text = re.sub('–',' ', text)
+        text = re.sub('—+',' ', text)
+        text = re.sub('…','...', text)
+        text = re.sub('\*+', ' ', text)
+        text = re.sub(r"[«“][^\S\r\n]*", '"', text)
+        text = re.sub(r"[^\S\r\n]*[»”″„]", '"', text)
+        text = re.sub(r"[’‘‛]", "'", text)
+        text = re.sub("‚", ",", text)
+        text = re.sub(r"–", "-", text)
+        text = re.sub('#+',' ', text)
+        text = re.sub(" "," ",text)
+        text = re.sub(' ', '  ',text)
 
-    # Symbols
-    text = re.sub(r"°c\b", "degrés", text)
-    text = re.sub("°", "degrés", text)
-    text = re.sub("&"," et ", text)
-    text = re.sub('%', ' pour cent ', text)
-    text = re.sub("~"," environ ", text)
-    text = re.sub("µ"," micro ", text)
-    text = re.sub("μ"," micro ", text)
-    text = re.sub("§"," paragraphe ", text)
-    text = re.sub(r"[\+⁺]"," plus ", text)
-    text = re.sub(r"⁻"," moins ", text)
-    text = re.sub("±"," plus ou moins ", text)
-    text = re.sub(r"ᵉʳ","er", text)
-    text = re.sub(r"ᵉ","e", text)
-    text = re.sub("·","", text)
-    # Currencies (TODO: decide plural or singular, manage 1.30 €)
-    text = re.sub('€', ' euros ', text)
-    text = re.sub('¥', ' yens ', text)
-    text = re.sub('£', ' livres ', text)
-    text = re.sub('\$', ' dollars ', text)
-    text = re.sub("¢"," cents ", text)
+        text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
+        text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
 
-    if not keep_punc:
-        text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
+        for reg, replacement in _corrections_abbreviations_fr:
+            text = re.sub(reg, replacement, text)
 
-    text = re.sub(' - | -$|^- ','', text)
+        for reg, replacement in _multi_spelling_words:
+            text = re.sub(reg, replacement, text)
 
-    text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
+        # Symbols
+        text = re.sub(r"°c\b", "degrés", text)
+        text = re.sub("°", "degrés", text)
+        text = re.sub("&"," et ", text)
+        text = re.sub('%', ' pour cent ', text)
+        text = re.sub('‰', ' pour mille ', text)
+        text = re.sub("~"," environ ", text)
+        text = re.sub("µ"," micro ", text)
+        text = re.sub("μ"," micro ", text)
+        text = re.sub("§"," paragraphe ", text)
+        text = re.sub(r"[\+⁺]"," plus ", text)
+        text = re.sub(r"⁻"," moins ", text)
+        text = re.sub("±"," plus ou moins ", text)
+        text = re.sub(r"ᵉʳ","er", text)
+        text = re.sub(r"ᵉ","e", text)
+        text = re.sub("·","", text)
+        # Currencies (TODO: decide plural or singular, manage 1.30 €)
+        text = re.sub('€', ' euros ', text)
+        text = re.sub('¥', ' yens ', text)
+        text = re.sub('£', ' livres ', text)
+        text = re.sub('\$', ' dollars ', text)
+        text = re.sub("¢"," cents ", text)
 
-    # # Non printable characters
-    # if '\x81' in text:
-    #     #i = text.index('\x81')
-    #     #print("WARNING: weird character in text: ", text[:i], "\\x81", text[i+1:])
-    #     text = text.replace('\x81', ' ')
+        if not keep_punc:
+            text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
 
-    text = collapse_whitespace(text)
+        text = re.sub(' - | -$|^- ','', text)
+
+        text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
+
+        # # Non printable characters
+        # if '\x81' in text:
+        #     #i = text.index('\x81')
+        #     #print("WARNING: weird character in text: ", text[:i], "\\x81", text[i+1:])
+        #     text = text.replace('\x81', ' ')
+
+        text = collapse_whitespace(text)
+
+    except Exception as e:
+        print(f"ERROR with text: {text_orig}")
+        raise e
 
     return text
 
@@ -345,7 +356,9 @@ def my_num2words(x, lang = "fr", to = "cardinal"):
         else:
             return num2words(x, lang=lang, to=to)
     except OverflowError:
-        #print("WARNING: got too high number", x)
+        if x == math.inf: # !
+            return "infinité"
+        # TODO: print a warning
         return my_num2words(x//10, lang=lang, to=to)
 
 
@@ -365,20 +378,74 @@ _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
 ]
 
 
-_corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), '%s' % x[1])
+_corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
                   for x in [
                     (" ", " "),
+                    ("а","a"),
                     ("â","â"),
                     ("à","à"),
                     ("á","á"),
                     ("ã","à"),
+                    ("ā","a"),
+                    ("ă","a"),
+                    ("ǎ","a"),
+                    ("е","e"),
                     ("ê","ê"),
                     ("é","é"),
                     ("è","è"),
-                    ("ô","ô"),
-                    ("û","û"),
+                    ("ē","e"),
+                    ("ĕ","e"),
+                    ("ė","e"),
+                    ("ę","e"),
+                    ("ě","e"),
+                    ("ё","e"),
+                    ("ϊ","ï"),
+                    ("ΐ","ï"),
+                    ("ĩ","i"),
+                    ("ī","i"),
+                    ("ĭ","i"),
+                    ("į","i"),
+                    ("į","i"),
                     ("î","î"),
-                    ("Ã","à"),
+                    ("ı","i"),
+                    ("ô","ô"),
+                    ("ό","ο"),
+                    ("ǒ","o"),
+                    ("ō","o"),
+                    ("ő","o"),
+                    ("û","û"),
+                    ("ǔ","u"),
+                    ("ǜ","ü"),
+                    ("ύ","u"),
+                    ("ū","u"),
+                    ("ŷ","y"),
+                    ("ć","c"),
+                    ("č","c"),
+                    ("ƒ","f"),
+                    ("ĝ","g"),
+                    ("ğ","g"),
+                    ("ġ","g"),
+                    ("ĥ","h"),
+                    ("ħ","h"),                    
+                    ("ĵ","j"),
+                    ("ķ","k"),
+                    ("ł","l"),
+                    ("ń","n"),
+                    ("ņ","n"),
+                    ("ň","n"),
+                    ("ř","r"),
+                    ("ś","s"),
+                    ("ş","s"),
+                    ("š","s"),
+                    ("ș","s"),
+                    ("ţ","t"),
+                    ("ț","t"),
+                    ("ť","t"),
+                    ("ŵ","w"),
+                    ("ź","z"),
+                    ("ż","z"),
+                    ("ž","z"),
+                    ("Ã","a"),
                     # ('À','À'),
                     # ('É','É'),
                     # ('È','È'),
@@ -389,6 +456,126 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     # ('Û','Û'),
                     # ('Î','Î'),
                     ('ａ', 'a'), ('ｂ', 'b'), ('ｃ', 'c'), ('ｄ', 'd'), ('ｅ', 'e'), ('ｆ', 'f'), ('ｇ', 'g'), ('ｈ', 'h'), ('ｉ', 'i'), ('ｊ', 'j'), ('ｋ', 'k'), ('ｌ', 'l'), ('ｍ', 'm'), ('ｎ', 'n'), ('ｏ', 'o'), ('ｐ', 'p'), ('ｑ', 'q'), ('ｒ', 'r'), ('ｓ', 's'), ('ｔ', 't'), ('ｕ', 'u'), ('ｖ', 'v'), ('ｗ', 'w'), ('ｘ', 'x'), ('ｙ', 'y'), ('ｚ', 'z'),
+                    ("α", " alpha "),
+                    ("β", " beta "),
+                    ("γ", " gamma "),
+                    ("δ", " delta "),
+                    ("ε", " epsilon "),
+                    ("ζ", " zeta "),
+                    ("η", " eta "),
+                    ("θ", " theta "),
+                    ("ι", " iota "),
+                    ("κ", " kappa "),
+                    ("λ", " lambda "),
+                    ("ν", " nu "),
+                    ("ξ", " xi "),
+                    ("ο", " omicron "),
+                    ("π", " pi "),
+                    ("ρ", " rho "),
+                    ("σ", " sigma "),
+                    ("τ", " tau "),
+                    ("υ", " upsilon "),
+                    ("φ", " phi "),
+                    ("χ", " chi "),
+                    ("ψ", " psi "),
+                    ("ω", " omega "),
+                    ("Α", " alpha "),
+                    ("Β", " beta "),
+                    ("Γ", " gamma "),
+                    ("Δ", " delta "),
+                    ("Ε", " epsilon "),
+                    ("Ζ", " zeta "),
+                    ("Η", " eta "),
+                    ("Θ", " theta "),
+                    ("Ι", " iota "),
+                    ("Κ", " kappa "),
+                    ("Λ", " lambda "),
+                    ("Μ", " micro "),
+                    ("Ν", " nu "),
+                    ("Ξ", " xi "),
+                    ("Ο", " omicron "),
+                    ("Π", " pi "),
+                    ("Ρ", " rho "),
+                    ("Σ", " sigma "),
+                    ("Τ", " tau "),
+                    ("Υ", " upsilon "),
+                    ("Φ", " phi "),
+                    ("Χ", " chi "),
+                    ("Ψ", " psi "),
+                    ("Ω", " omega "),
+                    ("♠", " pique "),
+                    ("♣", " trèfle "),
+                    ("♥", " coeur "),
+                    ("♦", " carreau "),
+                    ("♜", " tour "),
+                    ("♞", " cavalier "),
+                    ("♝", " fou "),
+                    ("♛", " reine "),
+                    ("♚", " roi "),
+                    ("♟", " pion "),
+                    ("♔", " roi "),
+                    ("♕", " reine "),
+                    ("♖", " tour "),
+                    ("♗", " fou "),
+                    ("♘", " cavalier "),
+                    ("♙", " pion "),
+                    ("♭", " bémol "),
+                    ("♮", " dièse "),
+                    ("♂", " mâle "),
+                    ("♀", " femelle "),
+                    ("☿", " mercure "),
+                    ("∈", " appartient à "),
+                    ("∉", " n'appartient pas à "),
+                    ("∅", " vide "),
+                    ("∪", " union "),
+                    ("∩", " intersection "),
+                    ("∧", " et "),
+                    ("∨", " ou "),
+                    ("∀", " pour tout "),
+                    ("∃", " il existe "),
+                    ("∂", " dérivée de "),
+                    ("∇", " gradient de "),
+                    ("√", " racine carrée de "),
+                    ("∫", " intégrale de "),
+                    ("∬", " double intégrale de "),
+                    ("∭", " triple intégrale de "),
+                    ("∮", " intégrale de surface de "),
+                    ("∯", " double intégrale de surface de "),
+                    ("∰", " triple intégrale de surface de "),
+                    ("∴", " donc "),
+                    ("∵", " car "),
+                    ("∼", " environ "),
+                    ("≈", " estime "),
+                    ("≠", " différent de "),
+                    ("≡", " égal à "),
+                    ("≤", " inférieur ou égal à "),
+                    ("≥", " supérieur ou égal à "),
+                    ("⊂", " est inclus dans "),
+                    ("⊃", " contient "),
+                    ("⊄", " n'est pas inclus dans "),
+                    ("⊆", " est inclus dans ou égal à "),
+                    ("⊇", " contient ou est égal à "),
+                    ("⊕", " addition "),
+                    ("⊗", " multiplication "),
+                    ("⊥", " perpendiculaire à "),
+                    ("∑", " somme de "),
+                    ("∏", " produit de "),
+                    ("∐", " somme directe de "),
+                    ("⇒", " implique "),
+                    ("⇔", " équivaut à "),
+                    ("⇐", " est impliqué par "),
+                    ("⇆", " est équivalent à "),
+                    ("⇎", " est défini par "),
+                    ("ℤ", " entiers "),
+                    ("ℚ", " rationnels "),
+                    ("ℝ", " réels "),
+                    ("ℂ", " complexes "),
+                    ("ℕ", " naturels "),
+                    ("ℵ", " aleph "),
+                    ("ℶ", " beth "),
+                    ("ℷ", " gimel "),
+                    ("ℸ", " daleth "),
+                    ("ℹ", " information "),
                 ]]
 
 _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1])
@@ -469,7 +656,7 @@ _multi_spelling_words = [(r'\b%s\b' % x[0], '%s' % x[1])
                     ("ognon", "oignon"),
                     ("ognons", "oignons"),
                     ("orang-outan", "orang-outang"),
-                    ("orang-outans", "orang-outangs"),
+                    ("orangs-outans", "orangs-outangs"),
                     ("parafe", "paraphe"),
                     ("parafes", "paraphes"),
                     ("paye", "paie"),

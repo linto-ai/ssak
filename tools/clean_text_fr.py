@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Note: This is ~10 times slower than wc -l
     #       but it's reasonnable (20 sec for ~70 000 000)
     # see https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python
-    num_lines = sum(1 for line in open(input_file))
+    num_lines = sum(1 for _ in open(input_file))
 
     try:
         for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
@@ -47,9 +47,10 @@ if __name__ == "__main__":
                 fid_acronyms = fid_acronyms,
                 fid_special_chars = fid_special_char,
             )
-            if line.strip():
-                fout.write(line)
-                fout.flush()
+            for subline in line.splitlines():
+                if subline:
+                    fout.write(subline+"\n")
+                    fout.flush()
     finally:
         if fout is not sys.stdout:
             fout.close()

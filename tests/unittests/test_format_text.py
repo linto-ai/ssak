@@ -65,6 +65,11 @@ class TestFormatText(Test):
             "quatre-vingt-dix-huit mille cent cinquante et un seize trente-neuf un seizième"
         )
 
+        self.assertEqual(
+            format_text_fr("2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"),
+            "infinité"
+        )
+
     def test_format_special_chars(self):
         self.assertEqual(
             format_text_fr("L’état “from scratch”."),
@@ -96,6 +101,12 @@ class TestFormatText(Test):
         self.assertEqual(
             format_text_fr("J'ai mis les clefs dans la serrure en revenant du bistrot, etc. Je suis un feignant et cætera."),
             "j' ai mis les clés dans la serrure en revenant du bistro et cetera je suis un fainéant et cetera"
+        )
+
+    def test_misc(self):
+        self.assertEqual(
+            format_text_fr("chef-d'oeuvre et- voilà - quoi"),
+            "chef-d' oeuvre et voilà quoi"
         )
 
 
