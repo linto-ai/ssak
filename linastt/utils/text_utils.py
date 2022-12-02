@@ -62,4 +62,18 @@ def remove_special_characters(
     return output
 
 def text_unescape(text):
-    return text.replace("*","\*").replace(".","\.").replace("(","\(").replace(")","\)").replace("+","\+")
+    return text.replace("\\","\\\\")\
+        .replace("*","\*")\
+        .replace(".","\.")\
+        .replace("(","\(")\
+        .replace(")","\)")\
+        .replace("[","\[")\
+        .replace("]","\]")\
+        .replace("{","\{")\
+        .replace("}","\}")\
+        .replace("|","\|")\
+        .replace("+","\+")\
+        .replace("-","\-")\
+        .replace("^","\^")\
+        .replace("$","\$")\
+        .replace("?","\?")

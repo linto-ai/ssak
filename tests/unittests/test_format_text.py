@@ -39,6 +39,32 @@ class TestFormatText(Test):
             "mille deux cents et zéro un deux mille deux"
         )
 
+        self.assertEqual(
+            format_text_fr("1 200 et 01 2002"),
+            "mille deux cents et zéro un deux mille deux"
+        )
+
+        self.assertEqual(
+            format_text_fr("1/6 000 de seconde pour les  quelques 6 000 précieuses"),
+            "un six millième de seconde pour les quelques six mille précieuses"
+        )
+
+        self.assertEqual(
+            format_text_fr("155/70-12 155/70-15 140/80-13"),
+            #"cent cinquante-cinq soixante-dixièmes douze mille cent cinquante-cinq soixante-dix quinze mille cent quarante quatre-vingts treize"
+            "cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze mille cent quarante quatre-vingts treize"
+        )
+
+        self.assertEqual(
+            format_text_fr("Jeu 1 : 160/65-315  155/70-12 155/70-15"),
+            "jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
+        )
+
+        self.assertEqual(
+            format_text_fr("98-151/16, 39-1/16"),
+            "quatre-vingt-dix-huit mille cent cinquante et un seize trente-neuf un seizième"
+        )
+
     def test_format_special_chars(self):
         self.assertEqual(
             format_text_fr("L’état “from scratch”."),
@@ -65,6 +91,13 @@ class TestFormatText(Test):
             format_text_fr("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
             "c' est la date est au format aaaa-mm-dd ça mesure trois millimètres"
         )
+
+    def test_spelling(self):
+        self.assertEqual(
+            format_text_fr("J'ai mis les clefs dans la serrure en revenant du bistrot, etc. Je suis un feignant et cætera."),
+            "j' ai mis les clés dans la serrure en revenant du bistro et cetera je suis un fainéant et cetera"
+        )
+
 
     def test_non_regression_fr(self):
         

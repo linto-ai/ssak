@@ -2,6 +2,7 @@ import re
 from num2words import num2words
 
 from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape
+from linastt.utils.misc import flatten
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -88,7 +89,12 @@ def format_text_fr(text,
         in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
         if len(in_parenthesis):
             in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
-            without_parenthesis = re.sub("("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")", "", text)
+            regex = "("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")"
+            try:
+                without_parenthesis = re.sub(regex, "", text)
+            except Exception as e:
+                print("PROBLEM WITH TEXT:", regex)
+                raise e
             # assert without_parenthesis != text
             if without_parenthesis != text: # Avoid infinite recursion
                 texts = [without_parenthesis] + in_parenthesis
@@ -210,9 +216,12 @@ def format_text_fr(text,
     text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
 
     # Digits
-    chiffres = re.findall(r"(?:\b\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
+    chiffres = re.findall(r"(?:\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
     chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
-    chiffres = sorted(list(set(chiffres)), reverse=True, key=len)
+    chiffres = list(set(chiffres))
+    chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
+    #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
+    chiffres = sorted(chiffres, reverse=True, key=len)
     for chiffre in chiffres:
         numslash = len(re.findall("/", chiffre))
         if numslash == 0:
@@ -225,7 +234,7 @@ def format_text_fr(text,
                 second += "s"
             word = first + " " + second
         else:
-            word = " / ".join([undigit(s) for s in chiffre.split('/')])
+            word = " / ".join([undigit(s) for s in chiffre.split('/') if s])
         if " " in chiffre:
             text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
         else:
@@ -268,6 +277,9 @@ def format_text_fr(text,
     text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
 
     for reg, replacement in _corrections_abbreviations_fr:
+        text = re.sub(reg, replacement, text)
+
+    for reg, replacement in _multi_spelling_words:
         text = re.sub(reg, replacement, text)
 
     # Symbols
@@ -320,8 +332,22 @@ def undigit(str, to="cardinal", lang = "fr"):
     if str.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", str)[0])
         if numZeros < len(str):
-            return numZeros * (num2words(0, lang=lang, to="cardinal")+" ") + num2words(float(str), lang=lang, to=to)
-    return num2words(float(str), lang=lang, to=to)
+            return numZeros * (my_num2words(0, lang=lang, to="cardinal")+" ") + my_num2words(float(str), lang=lang, to=to)
+    return my_num2words(float(str), lang=lang, to=to)
+
+def my_num2words(x, lang = "fr", to = "cardinal"):
+    """
+    Bugfix for num2words
+    """
+    try:
+        if lang == "fr" and to == "ordinal":
+            return num2words(x, lang=lang, to=to).replace("vingtsième", "vingtième")
+        else:
+            return num2words(x, lang=lang, to=to)
+    except OverflowError:
+        #print("WARNING: got too high number", x)
+        return my_num2words(x//10, lang=lang, to=to)
+
 
 _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("g", "grammes"),
@@ -386,6 +412,94 @@ _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1
                     ("°", " degrés "),
                 ]]
 
+_multi_spelling_words = [(r'\b%s\b' % x[0], '%s' % x[1])
+                  for x in [
+                    ("ailloli", "aïoli"),
+                    ("aillolis", "aïolis"),
+                    ("aulne", "aune"),
+                    ("aulnes", "aunes"),
+                    ("bâiller", "bayer"),
+                    ("bagout", "bagou"),
+                    ("balluchon", "baluchon"),
+                    ("balluchons", "baluchons"),
+                    ("becqueter", "béqueter"),
+                    ("bistrot", "bistro"),
+                    ("bistrots", "bistros"),
+                    ("bonbonne", "bombonne"),
+                    ("bonbonnes", "bombonnes"),
+                    ("cacahouète", "cacahuète"),
+                    ("cacahouètes", "cacahuètes"),
+                    ("cannette", "canette"),
+                    ("cannettes", "canettes"),
+                    ("caryatide", "cariatide"),
+                    ("caryatides", "cariatides"),
+                    ("chausse-trape", "chausse-trappe"),
+                    ("chausse-trapes", "chausse-trappes"),
+                    ("clef", "clé"),
+                    ("clefs", "clés"),
+                    ("cuiller", "cuillère"),
+                    ("cuillers", "cuillères"),
+                    ("démarcage", "démarquage"),
+                    ("égrener", "égrainer"),
+                    ("enraiement", "enraiement"),
+                    ("etc", "et cetera"),
+                    ("caetera", "cetera"),
+                    ("cætera", "cetera"),
+                    ("feignant", "fainéant"),
+                    ("feignants", "fainéants"),
+                    ("gri-gri", "grigri"),
+                    ("gri-gris", "grigris"),
+                    ("gris-gris", "grigris"),
+                    ("hawaiien", "hawaïen"),
+                    ("hawaiiens", "hawaïens"),
+                    ("iraquien", "irakien"),
+                    ("iraquiens", "irakiens"),
+                    ("isle", "île"),
+                    ("isles", "îles"),
+                    ("khôl", "kohl"),
+                    ("kohol", "kohl"),
+                    ("koheul", "kohl"),
+                    ("laïc", "laïque"),
+                    ("laïcs", "laïques"),
+                    ("lettonne", "lettone"),
+                    ("lettonnes", "lettones"),
+                    ("lis", "lys"),
+                    ("nénuphar", "nénufar"),
+                    ("nénuphars", "nénufars"),
+                    ("ognon", "oignon"),
+                    ("ognons", "oignons"),
+                    ("orang-outan", "orang-outang"),
+                    ("orang-outans", "orang-outangs"),
+                    ("parafe", "paraphe"),
+                    ("parafes", "paraphes"),
+                    ("paye", "paie"),
+                    ("payes", "paies"),
+                    ("phantasme", "fantasme"),
+                    ("phantasmes", "fantasmes"),
+                    ("pizzéria", "pizzeria"),
+                    ("pizzérias", "pizzerias"),
+                    ("rapeur", "rappeur"),
+                    ("rapeurs", "rappeurs"),
+                    ("rencard", "rancard"),
+                    ("rencards", "rancards"),
+                    ("resurgir", "ressurgir"),
+                    ("soûl", "saoul"),
+                    ("soûls", "saouls"),
+                    ("tannin", "tanin"),
+                    ("tannins", "tanins"),
+                    ("tartufe", "tartuffe"),
+                    ("tartufes", "tartuffes"),
+                    ("trimballer", "trimbaler"),
+                    ("tzar", "tsar"),
+                    ("tzars", "tsars"),
+                    ("tzigane", "tsigane"),
+                    ("tziganes", "tsiganes"),
+                    ("ululer", "hululer"),
+                    ("vantail", "ventail"),
+                    ("yoghourt", "yogourt"), # yaourt
+                    ("yoghourts", "yogourts"), # yaourt
+                ]]
+
 _romans = {
     'I': 'un',
     'II': 'deux',
@@ -435,6 +549,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2 and os.path.isfile(sys.argv[1]):
         with open(sys.argv[1], "r") as f:
             text = f.read()
-            print(format_text_fr(text))
+            for line in text.splitlines():
+                print(format_text_fr(line))
     else:
         print(format_text_fr(" ".join(sys.argv[1:])))
