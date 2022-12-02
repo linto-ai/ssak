@@ -48,7 +48,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('audios', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
-    parser.add_argument('annotations', help='Output folder', type=str) #, nargs='?', default = None)
+    parser.add_argument('annotations', help='File with annotations', type=str) #, nargs='?', default = None)
     parser.add_argument('--model', help="Acoustic model (Speechbrain or Transformer)", type=str, default = "speechbrain/asr-wav2vec2-commonvoice-fr")
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
