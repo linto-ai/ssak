@@ -467,6 +467,16 @@ if __name__ == "__main__":
 
     outputfolder = sys.argv[1] if len(sys.argv) >= 2 else "data"
 
+    print("Note that you can disable graphical interface by doing:\n\
+```\n\
+#install Xvfb\n\
+sudo apt-get install xvfb\n\
+\n\
+#set display number to :99\n\
+Xvfb :99 -ac &\n\
+export DISPLAY=:99\n\
+```")
+
     scrape_huffingtonpost(outputfolder+"/huffingtonpost")
     scrape_20minutes(outputfolder+"/20minutes")
     scrape_leparisien(outputfolder+"/leparisien")
