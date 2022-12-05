@@ -445,13 +445,15 @@ def scrape(
         #driver.close()
 
     except Exception as e:
-        if not found_subsections:
-            soup = section
-        else:
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-        filename = os.path.realpath("error.html")
-        print("ERROR: Writing current page to", filename)
-        print(soup, file = open(filename, "w"))
+        try:
+            if not found_subsections:
+                soup = section
+            else:
+                soup = BeautifulSoup(driver.page_source, "html.parser")
+            filename = os.path.realpath("error.html")
+            print("ERROR: Writing current page to", filename)
+            print(soup, file = open(filename, "w"))
+        except: pass
         raise e
 
     finally:
