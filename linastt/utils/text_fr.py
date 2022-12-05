@@ -225,6 +225,7 @@ def format_text_fr(text,
         chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
         chiffres = list(set(chiffres))
         chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
+        chiffres = chiffres + flatten([c.split("/") for c in chiffres if "/" in c])
         #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
         chiffres = sorted(chiffres, reverse=True, key=lambda x: (len(x), x))
         for chiffre in chiffres:
