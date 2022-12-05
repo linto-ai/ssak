@@ -25,7 +25,7 @@ if __name__ == "__main__":
         if os.path.exists(output_file):
             raise RuntimeError(f"Output file {output_file} already exists")
             # os.remove(output_file)
-        fout = open(output_file, "w", encoding="utf-8")
+        fout = open(output_file, "a", encoding="utf-8")
     else:
         fout = sys.stdout
 
