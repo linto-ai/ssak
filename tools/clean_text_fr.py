@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser.add_argument('output', help="Output file (if not specified, the text will be outputed on stdout", type=str, nargs="?", default= None)
     parser.add_argument('--keep_punc', help="Keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_case', help="Keep case (otherwise, everything will be lowercased)", default= False, action="store_true")
+    parser.add_argument('--remove_suspicious_entry', help="To remove entries that are probably written in bad French", default= False, action="store_true")
     parser.add_argument('--extract_parenthesis', help="To pull out parenthesis and process them separately (as new lines)", default= False, action="store_true")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
     parser.add_argument('--file_special_char', help="A file to list special characters that were removed", default= None, type = str)
@@ -46,8 +47,10 @@ if __name__ == "__main__":
                 extract_parenthesis = args.extract_parenthesis,
                 fid_acronyms = fid_acronyms,
                 fid_special_chars = fid_special_char,
+                remove_suspicious_entry = args.remove_suspicious_entry,
             )
             for subline in line.splitlines():
+                subline = subline.strip()
                 if subline:
                     fout.write(subline+"\n")
                     fout.flush()

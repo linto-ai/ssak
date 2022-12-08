@@ -66,6 +66,16 @@ class TestFormatText(Test):
         )
 
         self.assertEqual(
+            format_text_fr("Attentats du 21//07: le suspect extradé d'Italie inculpé à Londres. Nous sommes le 01/01/2019 à 10h00 Il fait -1°C."),
+            "attentats du vingt et un juillet le suspect extradé d' italie inculpé à londres nous sommes le premier janvier deux mille dix-neuf à dix heures il fait moins un degrés"
+        )
+
+        self.assertEqual(
+            format_text_fr("32/01/2019 31/13 "),
+            "trente-deux zéro un deux mille dix-neuf trente et un treizièmes"
+        )
+
+        self.assertEqual(
             format_text_fr("Une quantité c' est un volume  Quand on divise un volume par une surface on obtient une hauteur Par exemple un 1 litre / m² = 1 000 000 mm3/1 000 000 mm² = 1mm"),
             "une quantité c' est un volume quand on divise un volume par une surface on obtient une hauteur par exemple un un litre mètres carrés un million millimètres trois un million millimètres carrés un millimètres"
         )
@@ -79,6 +89,16 @@ class TestFormatText(Test):
         self.assertEqual(
             format_text_fr("L’état “from scratch”."),
             "l' état from scratch"
+        )
+
+        self.assertEqual(
+            format_text_fr("``Elle veut nous faire croire qu'elle était complètement abrutie'', a affirmé l'avocat général notant cependant que l'ancienne prostituée -qui aurait dit dans la voiture ``Vas-y,allume-les!''-avait réussi sa reconversion après 1994."),
+            "elle veut nous faire croire qu' elle était complètement abrutie a affirmé l' avocat général notant cependant que l' ancienne prostituée qui aurait dit dans la voiture vas-y allume-les avait réussi sa reconversion après mille neuf cent quatre-vingt-quatorze"
+        )
+
+        self.assertEqual(
+            format_text_fr("Hello aaaf-bearn-gascogne, belle-mère, rouge-gorge."),
+            "hello aaaf bearn gascogne belle-mère rouge-gorge"
         )
 
     def test_websites(self):
@@ -99,7 +119,7 @@ class TestFormatText(Test):
         )
         self.assertEqual(
             format_text_fr("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
-            "c' est la date est au format aaaa-mm-dd ça mesure trois millimètres"
+            "c' est la date est au format aaaa millimètres dd ça mesure trois millimètres" # Not the best...
         )
 
     def test_spelling(self):

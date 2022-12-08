@@ -2,7 +2,7 @@ import re
 import math
 from num2words import num2words
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate
 from linastt.utils.misc import flatten
 
 def remove_special_words(text,
@@ -73,6 +73,7 @@ def format_text_fr(text,
     fid_acronyms = None,
     fid_special_chars = None,
     safety_checks = True,
+    remove_suspicious_entry = False,
     ):
 
     opts = _rm_key(locals(), "text")
@@ -101,6 +102,15 @@ def format_text_fr(text,
                     texts = [without_parenthesis] + in_parenthesis
                     return "\n".join([format_text_fr(t, **opts) for t in texts])
 
+        if remove_suspicious_entry:
+            # Assuming no letter can be repeated 3 times in French
+            if re.findall(r"([a-z])\1{2,}", text):
+                return ""
+            # Assuming no words start with double letters in French
+            if re.findall(re.compile(r"\b([a-z])\1{1,}", re.IGNORECASE), transliterate(text)):
+                return ""
+            if "familyfont" in text:
+                return ""
 
         global _ALL_ACRONYMS
 
@@ -133,9 +143,12 @@ def format_text_fr(text,
             text = re.sub(r"Œ", "OE", text)
             text = re.sub(r"Æ", "AE", text)
 
+        text = re.sub("``", "\"", text)
+        text = re.sub("''", "\"", text)
+        text = re.sub("-+", "-", text) # ---- -> -
+
         for reg, replacement in _corrections_caracteres_speciaux_fr:
             text = re.sub(reg, replacement, text)
-
 
         text = ' '+text+' '
 
@@ -177,8 +190,8 @@ def format_text_fr(text,
         text = re.sub("\^+","", text)
         text = re.sub(" +(- +)+", " ", text)
         text = re.sub("- ", " ", text)
-        text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
-        text = re.sub(" -([a-zàâäçèéêëîïôùûü]+)", r"-\1", text)
+        #text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
+        #text = re.sub(" -([a-zàâäçèéêëîïôùûü]+)", r"-\1", text)
         text = re.sub("([,;:\!\?\.]) -([a-zàâäçèéêëîïôùûü]+)", r"\1 \2", text)
         text = re.sub("([a-zàâäçèéêëîïôùûü]{3,})' ", r"\1 ", text)
         text = re.sub("([a-zàâäçèéêëîïôùûü]{2,})' *[,;:\!\?\.]", r"\1 ", text)
@@ -221,7 +234,7 @@ def format_text_fr(text,
         text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
 
         # Digits
-        chiffres = re.findall(r"(?:\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\d[/\d]*)",text)
+        chiffres = re.findall(r"(?:\-?\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\-?\d[/\d]*)",text)
         chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
         chiffres = list(set(chiffres))
         chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
@@ -229,18 +242,53 @@ def format_text_fr(text,
         #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
         chiffres = sorted(chiffres, reverse=True, key=lambda x: (len(x), x))
         for chiffre in chiffres:
-            numslash = len(re.findall("/", chiffre))
+            chiffref = re.sub("/+", "/", chiffre)
+            if not chiffref:
+                continue
+            numslash = len(re.findall("/", chiffref))
             if numslash == 0:
-                word = undigit(chiffre)
-            elif numslash == 1:
-                i = chiffre.index("/")
-                first = undigit(chiffre[:i])
-                second = undigit(chiffre[i+1:], to="denominator")
-                if float(chiffre[:i]) > 2. and second[-1] != "s":
-                    second += "s"
+                word = undigit(chiffref)
+            elif numslash == 1: # Fraction or date
+                i = chiffref.index("/")
+                is_date = False
+                if len(chiffref[i+1:]) == 2:
+                    try:
+                        first = int(chiffref[:i])
+                        second = int(chiffref[i+1:])
+                        is_date = first > 0 and first < 32 and second > 0 and second < 13
+                    except: pass
+                if is_date:
+                    first = undigit(chiffref[:i].lstrip("0"))
+                    if first == "un": first = "premier"
+                    second = _int_to_month[second]
+                else:
+                    first = undigit(chiffref[:i])
+                    second = undigit(chiffref[i+1:], to="denominator")
+                    if float(chiffref[:i]) > 2. and second[-1] != "s":
+                        second += "s"
                 word = first + " " + second
+            elif numslash == 2: # Maybe a date
+                i1 = chiffref.index("/")
+                i2 = chiffref.index("/", i1+1)
+                is_date = False
+                if len(chiffref[i1+1:i2]) == 2 and len(chiffref[i2+1:]) == 4:
+                    try:
+                        first = int(chiffref[:i1])
+                        second = int(chiffref[i1+1:i2])
+                        third = int(chiffref[i2+1:])
+                        is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
+                    except: pass
+                third = undigit(chiffref[i2+1:])
+                if is_date:
+                    first = undigit(chiffref[:i1].lstrip("0"))
+                    if first == "un": first = "premier"
+                    second = _int_to_month[int(chiffref[i1+1:i2])]
+                    word = " ".join([first, second, third])
+                else:
+                    word = " / ".join([undigit(s) for s in chiffref.split('/')])
             else:
-                word = " / ".join([undigit(s) for s in chiffre.split('/') if s])
+                word = " / ".join([undigit(s) for s in chiffref.split('/')])
+            # Replace
             if " " in chiffre:
                 text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
             else:
@@ -249,6 +297,17 @@ def format_text_fr(text,
         if safety_checks:
             if re.findall(r"\d", text):
                 raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
+
+        # Dashes
+        text = re.sub(r"((?:^)|(?:\W))[-_]",r"\1, ", text) # " j'ai dit -à ma ``belle-mère''-casse-toi" -> " j'ai dit , à ma ``belle-mère'', casse-toi"
+        # Find all words with at least 2 dashes
+        for word in sorted(list(set(re.findall(r"\b[a-z]+(?:-[a-z]+){2,}\b", text))), key = len, reverse = True):
+            if "http" not in word and "www" not in word and not (len(re.findall("-", word)) in [2, 3] and word.split("-")[-2].lower() in ["de", "du", "des", "sur", "sous", "en", "au", "à", "le", "la", "les", "lès", "saint", "sainte", "grand", "t", "vous", "el", "al"]):
+                subwords = word.split("-")
+                if not (len(subwords) in [2, 3] and subwords[-2].lower() in ["de", "du", "des", "sur", "sous", "en", "au", "à", "le", "la", "les", "lès", "saint", "sainte", "grand", "t", "vous", "el", "al"]) \
+                    and not min([(w in _all_nums) or (w.endswith("s") and w[:-1] in _all_nums) for w in subwords]):
+                        # Replace all dashes by spaces
+                        text = re.sub(r"\b"+word+r"\b", re.sub("-", " ", word), text)
 
         # Fractions
         text = re.sub(r"½", " un demi ", text)
@@ -265,6 +324,7 @@ def format_text_fr(text,
         text = re.sub(r"⁷", " puissance sept ", text)
 
         text = re.sub(" '", " ", text)
+        text = re.sub("'+", "'", text)
         text = re.sub('--+',' ', text)
         text = re.sub('_',' ', text)
         text = re.sub('–',' ', text)
@@ -362,6 +422,253 @@ def my_num2words(x, lang = "fr", to = "cardinal"):
         # TODO: print a warning
         return my_num2words(x//10, lang=lang, to=to)
 
+_int_to_month = {
+    1: "janvier",
+    2: "février",
+    3: "mars",
+    4: "avril",
+    5: "mai",
+    6: "juin",
+    7: "juillet",
+    8: "août",
+    9: "septembre",
+    10: "octobre",
+    11: "novembre",
+    12: "décembre"
+}
+
+#sorted(list(set([item for sublist in [w.split() for w in [num2words(i, lang='fr') for i in list(range(17)) + [i*10 for i in range(1,11)] + [1000**i for i in range(1,202)]]] for item in sublist])),key = len)
+_all_nums = [
+ 'un',
+ 'dix',
+ 'six',
+ 'sept',
+ 'onze',
+ 'cinq',
+ 'huit',
+ 'cent',
+ 'neuf',
+ 'deux',
+ 'zéro',
+ 'mille',
+ 'trois',
+ 'seize',
+ 'vingt',
+ 'douze',
+ 'treize',
+ 'quatre',
+ 'trente',
+ 'quinze',
+ 'million',
+ 'billion',
+ 'trillion',
+ 'quarante',
+ 'soixante',
+ 'quatorze',
+ 'milliard',
+ 'billiard',
+ 'decillion',
+ 'cinquante',
+ 'nonillion',
+ 'trilliard',
+ 'octillion',
+ 'nonilliard',
+ 'decilliard',
+ 'sextillion',
+ 'octilliard',
+ 'septillion',
+ 'centillion',
+ 'quintillion',
+ 'sextilliard',
+ 'quadrillion',
+ 'septilliard',
+ 'centilliard',
+ 'undecillion',
+ 'undecilliard',
+ 'quintilliard',
+ 'tredecillion',
+ 'sexdecillion',
+ 'soixante-dix',
+ 'quadrilliard',
+ 'duodecillion',
+ 'vigintillion',
+ 'quindecillion',
+ 'trigintillion',
+ 'tredecilliard',
+ 'octodecillion',
+ 'vigintilliard',
+ 'duodecilliard',
+ 'sexdecilliard',
+ 'quatre-vingts',
+ 'septdecillion',
+ 'sexagintillion',
+ 'octogintillion',
+ 'octodecilliard',
+ 'novemdecillion',
+ 'trigintilliard',
+ 'nonagintillion',
+ 'septdecilliard',
+ 'unvigintillion',
+ 'quindecilliard',
+ 'unvigintilliard',
+ 'sexagintilliard',
+ 'octogintilliard',
+ 'duovigintillion',
+ 'sexvigintillion',
+ 'trevigintillion',
+ 'novemdecilliard',
+ 'untrigintillion',
+ 'nonagintilliard',
+ 'septuagintillion',
+ 'trevigintilliard',
+ 'unoctogintillion',
+ 'septvigintillion',
+ 'tretrigintillion',
+ 'duovigintilliard',
+ 'untrigintilliard',
+ 'octovigintillion',
+ 'quatre-vingt-dix',
+ 'quinvigintillion',
+ 'duotrigintillion',
+ 'unsexagintillion',
+ 'sexvigintilliard',
+ 'unnonagintillion',
+ 'quadragintillion',
+ 'sextrigintillion',
+ 'quintrigintillion',
+ 'novemvigintillion',
+ 'quinvigintilliard',
+ 'treoctogintillion',
+ 'sexnonagintillion',
+ 'sextrigintilliard',
+ 'trenonagintillion',
+ 'octotrigintillion',
+ 'septuagintilliard',
+ 'quadragintilliard',
+ 'septtrigintillion',
+ 'tretrigintilliard',
+ 'duotrigintilliard',
+ 'unoctogintilliard',
+ 'duooctogintillion',
+ 'unsexagintilliard',
+ 'duononagintillion',
+ 'sexsexagintillion',
+ 'octovigintilliard',
+ 'tresexagintillion',
+ 'duosexagintillion',
+ 'sexoctogintillion',
+ 'unnonagintilliard',
+ 'quattuordecillion',
+ 'quinquagintillion',
+ 'septvigintilliard',
+ 'quinnonagintillion',
+ 'quinoctogintillion',
+ 'tresexagintilliard',
+ 'quattuordecilliard',
+ 'octosexagintillion',
+ 'unquadragintillion',
+ 'septtrigintilliard',
+ 'septsexagintillion',
+ 'novemtrigintillion',
+ 'octooctogintillion',
+ 'duooctogintilliard',
+ 'novemvigintilliard',
+ 'treoctogintilliard',
+ 'octotrigintilliard',
+ 'quinsexagintillion',
+ 'sexnonagintilliard',
+ 'septoctogintillion',
+ 'sexoctogintilliard',
+ 'septnonagintillion',
+ 'octononagintillion',
+ 'sexsexagintilliard',
+ 'duononagintilliard',
+ 'duosexagintilliard',
+ 'quintrigintilliard',
+ 'trenonagintilliard',
+ 'quinquagintilliard',
+ 'unseptuagintillion',
+ 'quinsexagintilliard',
+ 'unseptuagintilliard',
+ 'sexquadragintillion',
+ 'septoctogintilliard',
+ 'treseptuagintillion',
+ 'octooctogintilliard',
+ 'novemnonagintillion',
+ 'novemoctogintillion',
+ 'septnonagintilliard',
+ 'trequadragintillion',
+ 'octosexagintilliard',
+ 'quinoctogintilliard',
+ 'quinnonagintilliard',
+ 'duoquadragintillion',
+ 'unquinquagintillion',
+ 'novemtrigintilliard',
+ 'sexseptuagintillion',
+ 'duoseptuagintillion',
+ 'unquadragintilliard',
+ 'octononagintilliard',
+ 'novemsexagintillion',
+ 'septsexagintilliard',
+ 'octoseptuagintillion',
+ 'sexquadragintilliard',
+ 'novemoctogintilliard',
+ 'treseptuagintilliard',
+ 'duoquadragintilliard',
+ 'duoseptuagintilliard',
+ 'septquadragintillion',
+ 'quinquadragintillion',
+ 'duoquinquagintillion',
+ 'sexseptuagintilliard',
+ 'trequinquagintillion',
+ 'sexquinquagintillion',
+ 'unquinquagintilliard',
+ 'trequadragintilliard',
+ 'novemsexagintilliard',
+ 'novemnonagintilliard',
+ 'octoquadragintillion',
+ 'septseptuagintillion',
+ 'quinseptuagintillion',
+ 'quattuorvigintillion',
+ 'octoquinquagintillion',
+ 'quattuortrigintillion',
+ 'septquadragintilliard',
+ 'octoquadragintilliard',
+ 'quinseptuagintilliard',
+ 'septseptuagintilliard',
+ 'quattuorvigintilliard',
+ 'duoquinquagintilliard',
+ 'octoseptuagintilliard',
+ 'trequinquagintilliard',
+ 'novemseptuagintillion',
+ 'quinquinquagintillion',
+ 'novemquadragintillion',
+ 'septquinquagintillion',
+ 'quinquadragintilliard',
+ 'sexquinquagintilliard',
+ 'novemquadragintilliard',
+ 'octoquinquagintilliard',
+ 'septquinquagintilliard',
+ 'quattuorsexagintillion',
+ 'novemquinquagintillion',
+ 'quinquinquagintilliard',
+ 'quattuornonagintillion',
+ 'quattuoroctogintillion',
+ 'quattuortrigintilliard',
+ 'novemseptuagintilliard',
+ 'quattuorsexagintilliard',
+ 'novemquinquagintilliard',
+ 'quattuoroctogintilliard',
+ 'quattuornonagintilliard',
+ 'quattuorseptuagintillion',
+ 'quattuorquadragintillion',
+ 'quattuorquinquagintillion',
+ 'quattuorseptuagintilliard',
+ 'quattuorquadragintilliard',
+ 'quattuorquinquagintilliard',
+]
+
+
 
 _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("g", "grammes"),
@@ -427,8 +734,6 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
                     ("ğ","g"),
                     ("ġ","g"),
                     ("ĥ","h"),
-                    ("ħ","h"),                    
-                    ("ĵ","j"),
                     ("ķ","k"),
                     ("ł","l"),
                     ("ń","n"),
@@ -456,6 +761,8 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
                     # ('Ù','Ù'),
                     # ('Û','Û'),
                     # ('Î','Î'),
+                    ("×", " fois "),
+                    ("÷", " divisé par "),
                     ('ａ', 'a'), ('ｂ', 'b'), ('ｃ', 'c'), ('ｄ', 'd'), ('ｅ', 'e'), ('ｆ', 'f'), ('ｇ', 'g'), ('ｈ', 'h'), ('ｉ', 'i'), ('ｊ', 'j'), ('ｋ', 'k'), ('ｌ', 'l'), ('ｍ', 'm'), ('ｎ', 'n'), ('ｏ', 'o'), ('ｐ', 'p'), ('ｑ', 'q'), ('ｒ', 'r'), ('ｓ', 's'), ('ｔ', 't'), ('ｕ', 'u'), ('ｖ', 'v'), ('ｗ', 'w'), ('ｘ', 'x'), ('ｙ', 'y'), ('ｚ', 'z'),
                     ("α", " alpha "),
                     ("β", " beta "),
