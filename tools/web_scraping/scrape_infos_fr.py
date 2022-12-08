@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""scrap.py: Scrape to get text with medical lexicon from."""
+"""scrap.py: Scrape information websites to extract text."""
 
 __author__      = "Jerome Louradour"
 __copyright__   = "Copyright 2022, Linagora"
@@ -19,10 +19,11 @@ from selenium import webdriver # python -m pip install selenium
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common import exceptions as selenium_exceptions
 
 VERBOSE_DEFAULT = 1
 
-def scrape_20minutes(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_20minutes(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     return scrape(
         "https://www.20minutes.fr/",
@@ -34,9 +35,10 @@ def scrape_20minutes(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         [("a",), ("article", {"class_":"box preview list-item preview-stretch"})],
         [None],
         outfolder, verbose = verbose, max_pages = max_pages,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_huffingtonpost(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_huffingtonpost(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     return scrape(
         "https://www.huffingtonpost.fr/",
@@ -48,10 +50,11 @@ def scrape_huffingtonpost(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None
         [("a", {"class_": "item-image"})], # Articles in a page
         [['article-chapo'], ['asset', 'asset-text']], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
-        button_sleep = 1,
+        #button_sleep = 1,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_leparisien(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_leparisien(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     return scrape(
         "https://www.leparisien.fr/",
@@ -63,9 +66,10 @@ def scrape_leparisien(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         [['paragraph', 'text_align_left']], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
         ignore_article_if = lambda x: x.text.startswith("Abonnés"),
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_actu(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_actu(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     return scrape(
         "https://actu.fr/",
@@ -77,9 +81,10 @@ def scrape_actu(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         [None], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
         ignore_article_if = lambda x: x.get("data-trk") is None,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_numerama(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_numerama(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
     
     return scrape(
         "https://www.numerama.com/",
@@ -90,9 +95,10 @@ def scrape_numerama(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         None, # Articles in a page
         [None], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_lemonde(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_lemonde(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
     
     return scrape(
         "https://www.lemonde.fr/",
@@ -101,12 +107,13 @@ def scrape_lemonde(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         ],
         ("a", "js-actu-tag"), # Top Menu
         [("a", {"class": "teaser__link"})],  # Articles in a page
-        [['post__live-container--answer-text', 'post__space-node'], ['article__paragraph']], # Paragraph classes in articles
+        [['post__live-container--answer-text', 'post__space-node'], ['article__paragraph'], ['article__paragraph', 'article__paragraph--lf']], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
         ignore_article_if = lambda x: x.text.lstrip().startswith("Article réservé à nos abonnés"),
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_nouvelobs(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_nouvelobs(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     return scrape(
         "https://www.nouvelobs.com/",
@@ -117,9 +124,10 @@ def scrape_nouvelobs(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         None,  # Articles in a page
         [None], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_lesechos(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_lesechos(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     def is_top_menu(x):
         if x.get("/") == "/":
@@ -140,9 +148,10 @@ def scrape_lesechos(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         [("a", is_article)],  # Articles in a page
         [['sc-14kwckt-6', 'gPHWRV']], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
+        close_at_the_end = close_at_the_end,
     )
 
-def scrape_slate(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
+def scrape_slate(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None, close_at_the_end = True):
 
     categories = [
         #'audio',
@@ -196,6 +205,7 @@ def scrape_slate(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
         [("a", is_article)],  # Articles in a page
         [None, ['Corps']], # Paragraph classes in articles
         outfolder, verbose = verbose, max_pages = max_pages,
+        close_at_the_end = close_at_the_end,
     )
 
 # def scrape_lefigaro(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
@@ -245,7 +255,7 @@ def scrape(
     max_pages = None,
     verbose = True,
     ignore_article_if = None,
-    timeout = 60,
+    close_at_the_end = True,
     ):
 
     driver = webdriver.Firefox()
@@ -291,16 +301,19 @@ def scrape(
         driver.get(website)
 
         for k in click_buttons:
-            if isinstance(k, dict):
-                click_button(driver, **k, verbose = verbose)
-            elif isinstance(k, (tuple, list)):
-                click_button(driver, *k, verbose = verbose)
-            else:
-                click_button(driver, k, verbose = verbose)
-            if button_sleep:
-                if verbose>1:
-                    print("* Sleeping", button_sleep, "seconds")
-                time.sleep(button_sleep)
+            try:
+                if isinstance(k, dict):
+                    click_button(driver, **k, verbose = verbose)
+                elif isinstance(k, (tuple, list)):
+                    click_button(driver, *k, verbose = verbose)
+                else:
+                    click_button(driver, k, verbose = verbose)
+                if button_sleep:
+                    if verbose>1:
+                        print("* Sleeping", button_sleep, "seconds")
+                    time.sleep(button_sleep)
+            except selenium_exceptions.TimeoutException:
+                print("WARNING: Error when clicking on button", k)
 
         os.makedirs(outfolder, exist_ok=True)
 
@@ -354,13 +367,13 @@ def scrape(
                 soup = BeautifulSoup(driver.page_source, "html.parser")
 
                 
-                if verbose>1:
-                    print("* Reading section:", larticle_section)
                 if article_section is None:
                     # Default simple strategy
                     articles = soup.find_all("a", {"href": lambda x: x and x.endswith("html")})
                 else:
                     larticle_section = article_section[-1]
+                    if verbose>1:
+                        print("* Reading section:", larticle_section)
                     if len(larticle_section) == 2 and callable(larticle_section[1]):
                         articles = [x for x in soup.find_all(larticle_section[0]) if larticle_section[1](x)]
                     else:
@@ -432,7 +445,8 @@ def scrape(
                         else:
                             num_pages += 1
                             if max_pages and num_pages >= max_pages:
-                                driver.close()
+                                if close_at_the_end:
+                                    driver.close()
                                 return
                     if not found_paragraphs:
                         print("WARNING: no paragraph found in", sublink)
@@ -454,20 +468,21 @@ def scrape(
             print("ERROR: Writing current page to", filename)
             print(soup, file = open(filename, "w"))
         except: pass
+        try:
+            print("ERROR with URL: ", driver.current_url)
+            if driver.current_url == website:
+                # Print clickable buttons
+                for button in driver.find_elements(by = By.TAG_NAME, value = "button"):
+                    print("Button -- class =", button.get("class"), "id = ", button.get("id"))
+        except: pass
         raise e
 
     finally:
-        driver.close()
+        if close_at_the_end:
+            driver.close()
 
 
 if __name__ == "__main__":
-
-    import sys
-    if len(sys.argv) not in [1, 2]:
-        print(f"Usage: python3 {sys.argv[0]} [outfolder]")
-        exit(1)
-
-    outputfolder = sys.argv[1] if len(sys.argv) >= 2 else "data"
 
     print("Note that you can disable graphical interface by doing:\n\
 ```\n\
@@ -479,15 +494,42 @@ Xvfb :99 -ac &\n\
 export DISPLAY=:99\n\
 ```")
 
-    scrape_huffingtonpost(outputfolder+"/huffingtonpost")
-    scrape_20minutes(outputfolder+"/20minutes")
-    scrape_leparisien(outputfolder+"/leparisien")
-    scrape_actu(outputfolder+"/actu")
-    scrape_numerama(outputfolder+"/numerama")
-    scrape_lemonde(outputfolder+"/lemonde")
-    scrape_nouvelobs(outputfolder+"/nouvelobs")
-    scrape_lesechos(outputfolder+"/lesechos")
-    scrape_slate(outputfolder+"/slate")
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Scrape a website.')
+    parser.add_argument('output', type=str, default="data", help='Output folder', nargs="?")
+    parser.add_argument("--no-close", action="store_true", help="Do not close the browser at the end", default=False)
+    parser.add_argument("--verbose", action="store_true", help="More verbose", default=False)
+    args = parser.parse_args()
+
+    outputfolder = args.output
+
+    kwargs = {"close_at_the_end" : not args.no_close, "verbose" : 2 if args.verbose else 1}
+
+    # Scrape in a random order
+    import random
+    indices = list(range(9))
+    random.shuffle(indices)
+
+    for i in indices:
+        if i==0:
+            scrape_huffingtonpost(outputfolder+"/huffingtonpost", **kwargs)
+        elif i==1:
+            scrape_20minutes(outputfolder+"/20minutes", **kwargs)
+        elif i==2:
+            scrape_leparisien(outputfolder+"/leparisien", **kwargs)
+        elif i==3:
+            scrape_actu(outputfolder+"/actu", **kwargs)
+        elif i==4:
+            scrape_numerama(outputfolder+"/numerama", **kwargs)
+        elif i==5:
+            scrape_lemonde(outputfolder+"/lemonde", **kwargs)
+        elif i==6:
+            scrape_nouvelobs(outputfolder+"/nouvelobs", **kwargs)
+        elif i==7:
+            scrape_lesechos(outputfolder+"/lesechos", **kwargs)
+        elif i==8:
+            scrape_slate(outputfolder+"/slate", **kwargs)
 
     # Others TODO?
     # scrape_vice(outputfolder+"/vice")
