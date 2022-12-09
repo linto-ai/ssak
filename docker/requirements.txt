@@ -22,5 +22,5 @@ tensorboard
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
-transformers==4.21.0
+transformers==4.25.1
 vosk

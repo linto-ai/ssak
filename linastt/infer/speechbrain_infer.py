@@ -1,12 +1,14 @@
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir, hashmd5
-from linastt.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.logs import tic, toc, gpu_mempeak, logger
 from linastt.utils.debug import plot_logits
 from linastt.utils.yaml_utils import make_yaml_overrides
 
 import huggingface_hub
 import speechbrain as sb
+from speechbrain.lobes.models.huggingface_whisper import HuggingFaceWhisper
+
 import torch
 import torch.nn.utils.rnn as rnn_utils
 import torch.nn.functional as F
@@ -25,6 +27,7 @@ def speechbrain_infer(
     audios,
     batch_size = 1,
     device = None,
+    language = "fr",
     arpa_path = None, alpha = 0.5, beta = 1.0,
     sort_by_len = False,
     output_ids = False,
@@ -60,9 +63,9 @@ def speechbrain_infer(
     if isinstance(model, str):
         model = speechbrain_load_model(model, device = device)
 
-    assert isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
+    assert isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR, HuggingFaceWhisper)), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
 
-    sample_rate = model.audio_normalizer.sample_rate
+    sample_rate = model.audio_normalizer.sample_rate if hasattr(model, "audio_normalizer") else model.sampling_rate
 
     batches = to_audio_batches(audios, return_format = 'torch',
         sample_rate = sample_rate,
@@ -79,7 +82,7 @@ def speechbrain_infer(
             if output_ids:
                 ids = [b[1] for b in batch]
                 batch = [b[0] for b in batch]
-            pred = speechbrain_transcribe_batch(model, batch, plot_logprobas = plot_logprobas)
+            pred = speechbrain_transcribe_batch(model, batch, language = language, plot_logprobas = plot_logprobas)
             if output_ids:
                 for id, p in zip(ids, pred):
                     yield (id, p)
@@ -130,15 +133,60 @@ def speechbrain_infer(
 
 MAX_LEN = 2240400
 
-def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logprobas = False):
-    if plot_logprobas or max([len(a) for a in audios]) > max_len:
+def model_cannot_compute_logits(model):
+    res = isinstance(model, HuggingFaceWhisper)
+    if res:
+        logger.warning(f"Model of type {type(model)} cannot be used to compute logits. And memory overflow might occur when processing a long audio")
+    return res
+
+def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logprobas = False, language = "fr"):
+    if (plot_logprobas or max([len(a) for a in audios]) > max_len) and not model_cannot_compute_logits(model):
         reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
     else:
-        batch, wav_lens = pack_sequences(audios, device = model.device)
-        reco = model.transcribe_batch(batch, wav_lens)[0]
+        device = speechbrain_get_device(model)
+        batch, wav_lens = pack_sequences(audios, device = device)
+        if isinstance(model, HuggingFaceWhisper):
+            if not hasattr(model, "input_tokens") or model.task != "transcribe_"+language:
+                # Note: there might be another way of doing this using
+                #   model.tokenizer.set_prefix_tokens("french", "transcribe", False)
+                ids = model.tokenizer.additional_special_tokens_ids
+                specials = model.tokenizer.special_tokens_map["additional_special_tokens"]
+                bos_index = model.tokenizer.encode("")[0] # WTF: model.tokenizer.bos_token_id is wrong
+                eos_index = model.tokenizer.encode("")[-1] # same as model.tokenizer.eos_token_id
+                language_token = f"<|{language}|>"
+                if language_token not in specials:
+                    raise ValueError(f"Language '{language}' not supported by the model. Please use one of {sorted([t[2:-2] for t in specials if len(t) == 6])}")
+                language_index = ids[specials.index(language_token)]
+                transcribe_index = ids[specials.index("<|transcribe|>")]
+                dostart_index = ids[specials.index("<|notimestamps|>")]
+                model.input_tokens = [bos_index, language_index, transcribe_index, dostart_index]
+                model.bos_index = bos_index
+                model.eos_index = eos_index
+                model.task = "transcribe_"+language
+            decoder_input_ids = torch.tensor([model.input_tokens] * batch.shape[0], dtype = torch.int).to(device)
+            model.encoder_only = True
+            hidden = model.forward(batch, decoder_input_ids = decoder_input_ids)
+            
+            decoder = sb.decoders.seq2seq.S2SWhisperGreedySearch(model,
+                bos_index = model.bos_index, eos_index = model.eos_index,
+                min_decode_ratio = 0, max_decode_ratio= 0.1,
+            )
+            decoder.set_decoder_input_tokens(model.input_tokens)
+            output_ids, _ = decoder(hidden, wav_lens)
+
+            # output_ids = torch.argmax(logprobs,dim=-1)
+            # # Remove the 3 first tokens
+            # print(output_ids.shape)
+            # output_ids = output_ids[:, 3:]
+            # print(output_ids.shape)
+            reco = model.tokenizer.batch_decode(output_ids)
+        else:
+            reco = model.transcribe_batch(batch, wav_lens)[0]
     return reco
 
 def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False):
+    if isinstance(model, HuggingFaceWhisper):
+        raise NotImplementedError("Computing log probability is not implemented for HuggingFaceWhisper models")
     if not isinstance(audios, list):
         audios = [audios]
         reco, log_probas = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
@@ -165,9 +213,9 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas 
                     k += 1
                 log_probas[k].append(log_probas_tmp[j-i])
         log_probas = [torch.cat(p, dim = 0) for p in log_probas]
-        log_probas, wav_lens = pack_sequences(log_probas, device = model.device)
+        log_probas, wav_lens = pack_sequences(log_probas, device = speechbrain_get_device(model))
     else:
-        batch, wav_lens = pack_sequences(audios, device = model.device)
+        batch, wav_lens = pack_sequences(audios, device = speechbrain_get_device(model))
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
     #log_probas = torch.log_softmax(log_probas, dim=-1)
     if plot_logprobas:
@@ -210,7 +258,7 @@ def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
 
 def pack_sequences(tensors, device = "cpu"):
     if len(tensors) == 1:
-        return tensors[0].unsqueeze(0), torch.Tensor([1.])
+        return tensors[0].unsqueeze(0).to(device), torch.Tensor([1.]).to(device)
     tensor = rnn_utils.pad_sequence(tensors, batch_first=True)
     wav_lens = [len(x) for x in tensors]
     maxwav_lens = max(wav_lens)
@@ -255,10 +303,21 @@ def speechbrain_load_model(source, device = None):
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError:
-        model = sb.pretrained.EncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+        try:
+            model = sb.pretrained.EncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+        except ValueError:
+            model = HuggingFaceWhisper(source, save_path = get_cache_dir("huggingface/hub"), freeze = True)
+            model = model.to(device)
     model.train(False)
     model.requires_grad_(False)
     return model
+
+def speechbrain_get_device(model):
+    if hasattr(model, "device"):
+        return model.device
+    if hasattr(model, "model") and hasattr(model.model, "device"):
+        return model.model.device
+    raise NotImplementedError(f"Cannot find device for model {type(model)}")
 
 if __name__ == "__main__":
 
@@ -272,6 +331,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model",
         default = "speechbrain/asr-wav2vec2-commonvoice-fr"
     )
+    parser.add_argument('--language', help="Code of language. Relevant only for multi-lingual models such as openai/whisper-XXX", default = "fr")
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
@@ -296,6 +356,7 @@ if __name__ == "__main__":
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
         output_ids = args.use_ids,
+        language = args.language,
         arpa_path = args.arpa,
         log_memtime = args.enable_logs,
         plot_logprobas = args.plot_logprobas,
