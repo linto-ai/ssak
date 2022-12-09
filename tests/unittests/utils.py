@@ -38,6 +38,10 @@ class Test(unittest.TestCase):
             tmpdir = os.path.join(tmpdir, fn)
         return tmpdir
 
+    def get_output_path(self, fn = None):
+        if fn == None: return tempfile.tempdir
+        return os.path.join(tempfile.tempdir, fn)
+
     def loosehash(self, obj):
         # Hash the approximation of an object into a deterministic string
         return self.hash(self.loose(obj))
@@ -73,6 +77,8 @@ class Test(unittest.TestCase):
     def assertRun(self, cmd):
         if isinstance(cmd, str):
             return self.assertRun(cmd.split())
+        curdir = os.getcwd()
+        os.chdir(tempfile.tempdir)
         if cmd[0].endswith(".py"):
             cmd = [sys.executable] + cmd
         print("Running:", " ".join(cmd))
@@ -80,6 +86,7 @@ class Test(unittest.TestCase):
             env = dict(os.environ, PYTHONPATH = os.pathsep.join(sys.path)), # Otherwise ".local" path might be missing
             stdout = subprocess.PIPE, stderr = subprocess.PIPE
         )
+        os.chdir(curdir)
         (stdout, stderr) = p.communicate()
         self.assertEqual(p.returncode, 0, msg = stderr.decode("utf-8"))
         return stdout.decode("utf-8")

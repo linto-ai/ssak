@@ -26,7 +26,7 @@ class TestTrainSpeechbrain(Test):
     def test_train_speechbrain_fromscratch(self):
 
         hparams_file = "hyperparameters_wav2vec_fromscratch.yaml"
-        dir = "speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-1-10_frTrue_lr1.0-0.0001_bs4_s1234_ascending"
+        dir = self.get_output_path("speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-1-10_frTrue_lr1.0-0.0001_bs4_s1234_ascending")
         shutil.rmtree(dir, ignore_errors = True)
 
         self.assertRun([
@@ -41,7 +41,7 @@ class TestTrainSpeechbrain(Test):
     def test_train_speechbrain_finetune(self):
 
         hparams_file = "hyperparameters_wav2vec_finetune_cv-fr.yaml"
-        dir = "speechbrain_asr-wav2vec2-commonvoice-fr_len-0.5-10_frTrue_lr1.0-0.0001_bs4_s1234_random"
+        dir = self.get_output_path("speechbrain_asr-wav2vec2-commonvoice-fr_len-0.5-10_frTrue_lr1.0-0.0001_bs4_s1234_random")
         shutil.rmtree(dir, ignore_errors = True)
 
         self.assertRun([
