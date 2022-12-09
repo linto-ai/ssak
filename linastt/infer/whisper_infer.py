@@ -4,12 +4,7 @@ from linastt.utils.misc import get_cache_dir
 from linastt.utils.logs import tic, toc, gpu_mempeak
 
 import whisper
-
-import os
-import tempfile
-import json
-import requests
-
+import torch
 
 def whisper_infer(
     model,
@@ -51,6 +46,8 @@ def whisper_infer(
         output_ids = output_ids,
     )
 
+    fp16 = model.device != torch.device("cpu")
+
     # Compute best predictions
     tic()
     for batch in batches:
@@ -60,7 +57,7 @@ def whisper_infer(
 
         pred = []
         for audio in batch:
-            res = model.transcribe(audio, language=language)
+            res = model.transcribe(audio, language=language, fp16 = fp16, temperature = 0.0)
             pred.append(res["text"])
 
         if output_ids:
@@ -76,6 +73,7 @@ def whisper_infer(
 
 if __name__ == "__main__":
 
+    import os
     import sys
     import argparse
 
