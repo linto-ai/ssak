@@ -156,7 +156,6 @@ def format_text_fr(text,
         for n in numbers:
             text = re.sub(n,re.sub(r"[,.]","",n), text)
 
-
         # Replace "." by "point" and "/" by "slash" in internet websites
         # Find all the websites in the text
         websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
@@ -175,7 +174,6 @@ def format_text_fr(text,
         text = re.sub(" mme\.? ", " madame ",text)
         text = re.sub(" mlle\.? ", " mademoiselle ",text)
 
-
         text = re.sub(r"[’‘]","'", text)
         text = re.sub("'","' ", text)
         text = re.sub('"',' " ', text)
@@ -186,7 +184,7 @@ def format_text_fr(text,
         text = re.sub(", ", " , ", text)
         text = re.sub("\!", " ! ", text)
         text = re.sub("\?", " ? ", text)
-        text = re.sub("^ *-+", "", text)
+        #text = re.sub("^ *-+", "", text)
         text = re.sub("\^+","", text)
         text = re.sub(" +(- +)+", " ", text)
         text = re.sub("- ", " ", text)
@@ -198,7 +196,7 @@ def format_text_fr(text,
         text = re.sub('\.{2,}',' ', text)
         text = re.sub('\. *$',' . ', text)
         text = re.sub('(\d)\. ',r'\1 . ', text)
-        
+
         text=re.sub('\{',' { ',text)
         text=re.sub('\}',' } ',text)
         text=re.sub('\(',' ( ',text)
@@ -419,6 +417,8 @@ def my_num2words(x, lang = "fr", to = "cardinal"):
     except OverflowError:
         if x == math.inf: # !
             return "infinité"
+        if x == -math.inf: # !
+            return "moins infinité"
         # TODO: print a warning
         return my_num2words(x//10, lang=lang, to=to)
 
