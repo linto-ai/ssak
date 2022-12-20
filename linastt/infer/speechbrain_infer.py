@@ -12,6 +12,7 @@ from speechbrain.lobes.models.huggingface_whisper import HuggingFaceWhisper
 import torch
 import torch.nn.utils.rnn as rnn_utils
 import torch.nn.functional as F
+import math
 
 import transformers
 import pyctcdecode
@@ -104,7 +105,7 @@ def speechbrain_infer(
             if output_ids:
                 ids = [b[1] for b in batch]
                 batch = [b[0] for b in batch]
-            pred, log_probas = speechbrain_compute_logits(model, batch, plot_logprobas = plot_logprobas)
+            _, log_probas = speechbrain_compute_logits(model, batch, plot_logprobas = plot_logprobas)
             if output_ids:
                 logits.append((ids, log_probas))
             else:
@@ -141,7 +142,7 @@ def model_cannot_compute_logits(model):
 
 def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logprobas = False, language = "fr"):
     if (plot_logprobas or max([len(a) for a in audios]) > max_len) and not model_cannot_compute_logits(model):
-        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
+        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas, compute_predictions = True)
     else:
         device = speechbrain_get_device(model)
         batch, wav_lens = pack_sequences(audios, device = device)
@@ -184,12 +185,12 @@ def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logproba
             reco = model.transcribe_batch(batch, wav_lens)[0]
     return reco
 
-def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False):
+def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False, compute_predictions = False):
     if isinstance(model, HuggingFaceWhisper):
         raise NotImplementedError("Computing log probability is not implemented for HuggingFaceWhisper models")
     if not isinstance(audios, list):
         audios = [audios]
-        reco, log_probas = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas)
+        reco, log_probas = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas, compute_predictions = compute_predictions)
         return reco[0], log_probas[0]
     assert len(audios) > 0, "audios must be a non-empty list"
     if not isinstance(audios[0], torch.Tensor):
@@ -217,12 +218,21 @@ def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas 
     else:
         batch, wav_lens = pack_sequences(audios, device = speechbrain_get_device(model))
         log_probas = model.forward(batch, wav_lens) # Same as encode_batch for EncoderASR, but it would be same as transcribe_batch for EncoderDecoderASR (which returns strings and token indices)
-    #log_probas = torch.log_softmax(log_probas, dim=-1)
+    # Set log_probas outside of input signal to -inf (except from the blank)
+    for i in range(len(log_probas)):
+        wav_len = wav_lens[i]
+        if wav_len < 1.:
+            wav_len = math.ceil(wav_len * log_probas.shape[1])
+            log_probas[i, wav_len:] = -700
+            log_probas[i, wav_len:, blank_id] = 0
     if plot_logprobas:
         # for debug
         plot_logits(log_probas, model)
-    indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = blank_id)
-    reco = model.tokenizer.decode(indices)
+    if compute_predictions:
+        indices = sb.decoders.ctc_greedy_decode(log_probas, wav_lens, blank_id = blank_id)
+        reco = model.tokenizer.decode(indices)
+    else:
+        reco = [""] * len(audios)
     return reco, log_probas
 
 def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
