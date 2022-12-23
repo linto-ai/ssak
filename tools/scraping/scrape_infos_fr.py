@@ -258,6 +258,7 @@ def scrape(
     close_at_the_end = True,
     ):
 
+
     driver = webdriver.Firefox()
 
     text_to_discard = [ norm_text(t) for t in [
@@ -475,7 +476,8 @@ def scrape(
                 for button in driver.find_elements(by = By.TAG_NAME, value = "button"):
                     print("Button -- class =", button.get("class"), "id = ", button.get("id"))
         except: pass
-        raise e
+        print(e)
+        #raise e
 
     finally:
         if close_at_the_end:
@@ -499,6 +501,7 @@ export DISPLAY=:99\n\
     parser = argparse.ArgumentParser(description='Scrape a website.')
     parser.add_argument('output', type=str, default="data", help='Output folder', nargs="?")
     parser.add_argument("--no-close", action="store_true", help="Do not close the browser at the end", default=False)
+    parser.add_argument("--loop", action="store_true", help="Do loop infinity", default=False)
     parser.add_argument("--verbose", action="store_true", help="More verbose", default=False)
     args = parser.parse_args()
 
@@ -511,45 +514,58 @@ export DISPLAY=:99\n\
     indices = list(range(9))
     random.shuffle(indices)
 
-    for i in indices:
-        if i==0:
-            scrape_huffingtonpost(outputfolder+"/huffingtonpost", **kwargs)
-        elif i==1:
-            scrape_20minutes(outputfolder+"/20minutes", **kwargs)
-        elif i==2:
-            scrape_leparisien(outputfolder+"/leparisien", **kwargs)
-        elif i==3:
-            scrape_actu(outputfolder+"/actu", **kwargs)
-        elif i==4:
-            scrape_numerama(outputfolder+"/numerama", **kwargs)
-        elif i==5:
-            scrape_lemonde(outputfolder+"/lemonde", **kwargs)
-        elif i==6:
-            scrape_nouvelobs(outputfolder+"/nouvelobs", **kwargs)
-        elif i==7:
-            scrape_lesechos(outputfolder+"/lesechos", **kwargs)
-        elif i==8:
-            scrape_slate(outputfolder+"/slate", **kwargs)
+    if args.loop:
+        def iters():
+            while True:
+                yield
+    else:
+        def iters():
+            return [None]
 
-    # Others TODO?
-    # scrape_vice(outputfolder+"/vice")
-    # scrape_lefigaro(outputfolder+"/lefigaro")
-    # scrape_lepoint(outputfolder+"/lepoint")
-    # scrape_liberation(outputfolder+"/liberation")
-    # scrape_lejdd(outputfolder+"/lejdd")
-    # scrape_lequipe(outputfolder+"/lequipe")
-    # scrape_lci(outputfolder+"/lci")
-    # scrape_ouestfrance(outputfolder+"/ouestfrance")
-    # scrape_lesoir(outputfolder+"/lesoir")
-    # scrape_ladepeche(outputfolder+"/ladepeche")
-    # scrape_lavoixdunord(outputfolder+"/lavoixdunord")
-    # scrape_lunion(outputfolder+"/lunion")
-    # scrape_lanouvellerepublique(outputfolder+"/lanouvellerepublique")
-    # scrape_lalsace(outputfolder+"/lalsace")
-    #
-    # ... Twitter
-    # 
-    # Aggrégateurs d'info:
-    # https://news.google.com
-    # https://comptoir.io/
-    
+    for iter in iters():
+
+        for i in indices:
+            if i==0:
+                scrape_huffingtonpost(outputfolder+"/huffingtonpost", **kwargs)
+            elif i==1:
+                scrape_20minutes(outputfolder+"/20minutes", **kwargs)
+            elif i==2:
+                scrape_leparisien(outputfolder+"/leparisien", **kwargs)
+            elif i==3:
+                scrape_actu(outputfolder+"/actu", **kwargs)
+            elif i==4:
+                scrape_numerama(outputfolder+"/numerama", **kwargs)
+            elif i==5:
+                scrape_lemonde(outputfolder+"/lemonde", **kwargs)
+            elif i==6:
+                scrape_nouvelobs(outputfolder+"/nouvelobs", **kwargs)
+            elif i==7:
+                scrape_lesechos(outputfolder+"/lesechos", **kwargs)
+            elif i==8:
+                scrape_slate(outputfolder+"/slate", **kwargs)
+
+        if args.loop:
+            time.sleep(60*60*6) # wait 6 hours
+
+        # Others TODO?
+        # scrape_vice(outputfolder+"/vice")
+        # scrape_lefigaro(outputfolder+"/lefigaro")
+        # scrape_lepoint(outputfolder+"/lepoint")
+        # scrape_liberation(outputfolder+"/liberation")
+        # scrape_lejdd(outputfolder+"/lejdd")
+        # scrape_lequipe(outputfolder+"/lequipe")
+        # scrape_lci(outputfolder+"/lci")
+        # scrape_ouestfrance(outputfolder+"/ouestfrance")
+        # scrape_lesoir(outputfolder+"/lesoir")
+        # scrape_ladepeche(outputfolder+"/ladepeche")
+        # scrape_lavoixdunord(outputfolder+"/lavoixdunord")
+        # scrape_lunion(outputfolder+"/lunion")
+        # scrape_lanouvellerepublique(outputfolder+"/lanouvellerepublique")
+        # scrape_lalsace(outputfolder+"/lalsace")
+        #
+        # ... Twitter
+        # 
+        # Aggrégateurs d'info:
+        # https://news.google.com
+        # https://comptoir.io/
+        
