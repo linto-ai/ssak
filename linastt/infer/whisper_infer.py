@@ -40,6 +40,9 @@ def whisper_infer(
     if batch_size == 0:
         batch_size = 1
 
+    if device is None:
+        device = auto_device()
+
     if isinstance(model, str):
         model = whisper.load_model(model, device = device, download_root = get_cache_dir("whisper"))
 
@@ -100,6 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
+    parser.add_argument('--max_threads', help="Maximum thread values (for CPU computation)", default= None, type = int)
     #parser.add_argument('--batch_size', help="Maximum batch size", type=int, default=32)
     #parser.add_argument('--sort_by_len', help="Sort by (decreasing) length", default=False, action="store_true")
     parser.add_argument('--enable_logs', help="Enable logs about time", default=False, action="store_true")
@@ -113,6 +117,9 @@ if __name__ == "__main__":
         args.output = open(os.devnull,"w")
     else:
         args.output = open(args.output, "w")
+
+    if args.max_threads:
+        torch.set_num_threads(args.max_threads)
 
     for reco in whisper_infer(
         args.model, args.data,
