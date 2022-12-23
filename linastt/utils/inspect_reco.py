@@ -272,22 +272,7 @@ def compute_alignment(audio, transcript, model, plot = False):
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    def get_index(c):
-        i = dictionary.get(c, None)
-        if i is None:
-            print("WARNING: cannot find label", c)
-            c = transliterate(c)
-            i = dictionary.get(c, None)
-            if i is None:
-                i = dictionary.get(c.lower(), None)
-                if i is None:
-                    i = dictionary.get(c.upper(), None)
-                    if i is None:
-                        print("WARNING: cannot find transliterated label", c)
-                        i = blank_id
-        return i
-
-    tokens = [get_index(c) for c in transcript]
+    tokens = [loose_get_char_index(dictionary, c, blank_id) for c in transcript]
     tokens = [i for i in tokens if i is not None]
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
@@ -314,6 +299,19 @@ def compute_alignment(audio, transcript, model, plot = False):
     word_segments = merge_words(segments)
 
     return labels, emission, trellis, segments, word_segments
+
+def loose_get_char_index(dictionary, c, default):
+        i = dictionary.get(c, None)
+        if i is None:
+            other_char = list(set([c.lower(), c.upper(), transliterate(c), transliterate(c).lower(), transliterate(c).upper()]))
+            for c2 in other_char:
+                i = dictionary.get(c2, None)
+                if i is not None:
+                    break
+            if i is None:
+                print("WARNING: cannot find label " + " / ".join(list(set([c] + other_char))))
+                i = default
+        return i
 
 if __name__ == "__main__":
 
