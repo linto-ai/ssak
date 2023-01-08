@@ -3,6 +3,7 @@ import wave
 import numpy as np
 import os
 import tempfile
+import time
 
 
 if "disable asla messages":
@@ -37,6 +38,7 @@ class AudioPlayer:
         self.pos = 0
         self.stream = None
         self._open(wav)
+        self.tmpwav = None
 
     def callback(self, in_data, frame_count, time_info, status):
         data = self.wf.readframes(frame_count)
@@ -46,10 +48,10 @@ class AudioPlayer:
     def _open(self, wav):
         # Convert wav to a wave file
         if not wav.endswith(".wav"):
-            tmpwav = tempfile.mktemp(suffix=".wav")
-            cmd = "ffmpeg -i {} -acodec pcm_s16le -ac 1 -ar 16000 {}".format(wav, tmpwav)
+            self.tmpwav = tempfile.mktemp(suffix=".wav")
+            cmd = "ffmpeg -i {} -acodec pcm_s16le -ac 1 -ar 16000 {}".format(wav, self.tmpwav)
             os.system(cmd)
-            wav = tmpwav
+            wav = self.tmpwav
 
         self.wf = wave.open(wav, 'rb')
         self.getWaveForm()
@@ -82,12 +84,14 @@ class AudioPlayer:
         self.stream.close()
         self.wf.close()
         self.p.terminate()
+        if self.tmpwav:
+            os.remove(self.tmpwav)
         
     def getWaveForm(self):
         signal = self.wf.readframes(-1)
-        signal = np.fromstring(signal, 'int16')
+        signal = np.frombuffer(signal, 'int16')
         if len(signal) != self.wf.getnframes():
-            signal = np.fromstring(signal, 'int32')
+            signal = np.frombuffer(signal, 'int32')
         assert len(signal) == self.wf.getnframes(), "len(signal) {} != self.wf.getnframes {}".format(len(signal), self.wf.getnframes())
         fs = self.wf.getframerate()
         t = np.linspace(0, len(signal)/fs, num=len(signal))
@@ -96,3 +100,45 @@ class AudioPlayer:
     def getDuration(self):
         return self.wf.getnframes()/self.wf.getframerate()
 
+def play_audiofile(filename, start = None, end = None, ask_for_replay = False, precision = 0.01):
+
+    if start is None:
+        start = 0
+
+    player = AudioPlayer(filename)
+    try:
+        x = "r"
+        while x.lower().startswith("r"):
+            player.seek(start)
+            player.play()
+            slept = 0
+            while player.playing() and (end is None or slept < end-start):
+                time.sleep(precision)
+                slept += precision
+            player.pause()
+            if ask_for_replay:
+                x = input("(Type something starting with 'r' to replay)")
+            else:
+                x = ""
+    finally:
+        player.close()
+    
+
+if __name__ == "__main__":
+
+    import sys
+    import time
+
+    if len(sys.argv) < 2:
+        print(f"Usage: {os.path.basename(sys.executable)} {sys.argv[0]} filename [start] [end]")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    start = None
+    end = None
+    if len(sys.argv) > 2:
+        start = float(sys.argv[2])
+    if len(sys.argv) > 3:
+        end = float(sys.argv[3])
+
+    play_audiofile(filename, start, end, ask_for_replay = True)
