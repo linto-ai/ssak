@@ -46,14 +46,19 @@ class AudioPlayer:
         return (data, pyaudio.paContinue)
 
     def _open(self, wav):
-        # Convert wav to a wave file
-        if not wav.endswith(".wav"):
+        assert os.path.isfile(wav), "File not found: {}".format(wav)
+
+        try:
+            self.wf = wave.open(wav, 'rb')
+
+        except:
+            # Convert wav to a wave file
             self.tmpwav = tempfile.mktemp(suffix=".wav")
-            cmd = "ffmpeg -i {} -acodec pcm_s16le -ac 1 -ar 16000 {}".format(wav, self.tmpwav)
+            cmd = "ffmpeg -i {} -acodec pcm_s16le -ac 1 -ar 16000 {} > /dev/null 2> /dev/null".format(wav, self.tmpwav)
             os.system(cmd)
             wav = self.tmpwav
-
-        self.wf = wave.open(wav, 'rb')
+            self.wf = wave.open(wav, 'rb')
+        
         self.getWaveForm()
         self.stream = self.p.open(format=self.p.get_format_from_width(self.wf.getsampwidth()),
                 channels = self.wf.getnchannels(),
@@ -100,12 +105,25 @@ class AudioPlayer:
     def getDuration(self):
         return self.wf.getnframes()/self.wf.getframerate()
 
-def play_audiofile(filename, start = None, end = None, ask_for_replay = False, precision = 0.01):
+_player = None
+_player_filename = None
+
+def play_audiofile(filename, start = None, end = None, ask_for_replay = False, precision = 0.01, can_cache = True):
 
     if start is None:
         start = 0
 
-    player = AudioPlayer(filename)
+    if can_cache:
+        global _player, _player_filename
+        if _player is not None and _player_filename != filename:
+            _player.close()
+            _player = None
+        if _player is None:
+            _player = AudioPlayer(filename)
+            _player_filename = filename
+        player = _player
+    else:
+        player = AudioPlayer(filename)
     try:
         x = "r"
         while x.lower().startswith("r"):
@@ -121,7 +139,8 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
             else:
                 x = ""
     finally:
-        player.close()
+        if not can_cache:
+            player.close()
     
 
 if __name__ == "__main__":
