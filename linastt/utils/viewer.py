@@ -1,22 +1,44 @@
 import matplotlib.pyplot as plt
-from .player import AudioPlayer
+from linastt.utils.player import AudioPlayer
+
+import whisper.audio
+import torchaudio
 
 class PlayWav:
     """
     A viewer of segmentation
     """
-    def __init__(self, wav, ax = None, draw = True):
+    def __init__(self, wav, ax = None, draw = True, use_mel = False):
      
-        self.wav = wav
+        if use_mel:
+            n_plots = 2
+            # Import sample rate of wav file
+            info = torchaudio.info(wav)
+            sample_rate = info.sample_rate 
+            timescale_mel = 100 # whisper.audio.HOP_LENGTH * 2 * whisper.audio.SAMPLE_RATE / sample_rate
+
+        else:
+            n_plots = 1
 
         if ax is None:
             fig = plt.figure(facecolor='white', tight_layout=True)
-            ax = fig.add_subplot(1, 1, 1)
+            ax = fig.add_subplot(n_plots, 1, 1)
         elif isinstance(ax, plt.Figure):
-            ax = ax.add_subplot(1, 1, 1)
+            ax = ax.add_subplot(n_plots, 1, 1)
+        elif use_mel:
+            raise NotImplementedError("Plotting mel spectrogram not possible when an axes is specified")
         assert isinstance(ax, plt.Axes), "Please provide None, an Axes or a Figure"
         self.ax = ax
         self.fig = ax.get_figure()
+        self.axes = [self.ax]
+
+        if use_mel:
+            mel = whisper.audio.log_mel_spectrogram(wav)
+            self.ax2 = self.fig.add_subplot(n_plots, 1, 2)
+            plt.imshow(mel, aspect='auto', extent=[0, mel.shape[1], 0, mel.shape[0]])
+            plt.yticks([])
+            plt.setp(plt.gca().get_xticklabels(), visible=False)
+            self.axes.append(self.ax2)
 
         cids = list()
         cids.append(
@@ -31,7 +53,8 @@ class PlayWav:
         self.timer.add_callback(self._update_timeline)
         self.timer.start()
 
-        self.timeline = self.ax.plot([0, 0], [0, 0], color='r')[-1]
+        self.timelines = [ax.plot([0, 0], [0, 0], color='r')[-1] for ax in self.axes]
+        self.timescales = [1] + ([timescale_mel] if use_mel else [])
 
         if draw:
             self.draw()
@@ -43,6 +66,7 @@ class PlayWav:
             self.t_bias = minx
 
         self.maxy = plt.ylim()[-1]
+        self._draw_timeline(0)
     
     def _draw_timeline(self, t):
         """
@@ -53,7 +77,8 @@ class PlayWav:
         self._draw_info(t)
         t = self.t_scale * t + self.t_bias
         min, max = self.ax.get_ylim()
-        self.timeline.set_data([t, t], [min, max])
+        for timeline, scale in zip(self.timelines, self.timescales):
+            timeline.set_data([t*scale, t*scale], [min, max])
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -161,6 +186,6 @@ if __name__ == "__main__":
     import sys
 
     wavfile = sys.argv[1]
-    PlayWav(wavfile)
+    PlayWav(wavfile, use_mel = True)
     plt.show()
 
