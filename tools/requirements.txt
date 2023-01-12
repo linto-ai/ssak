@@ -1,4 +1,6 @@
 bs4
+certifi
 docx
+pycurl
 python-slugify
 selenium
