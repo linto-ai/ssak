@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir, hashmd5

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from linastt.utils.env import * # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir
@@ -90,7 +92,8 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
+    parser = argparse.ArgumentParser(
+        description='Transcribe audio(s) with whisper',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
