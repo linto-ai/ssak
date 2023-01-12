@@ -208,7 +208,7 @@ def cm_import(
 
     assert "message" in result, f"'message' not found in response: {result}"
 
-    print(result["message"])
+    print("\n"+result["message"])
 
 def cm_find_conversation(
     name,
@@ -274,9 +274,10 @@ def format_transcription(transcription):
             for expected_keys in ["start", "end", "words", "avg_logprob"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
+        text = transcription["text"].strip()
         return {
-            "transcription_result": transcription["text"],
-            "raw_transcription": transcription["text"],
+            "transcription_result": text,
+            "raw_transcription": text,
             "confidence": np.mean([np.exp(seg["avg_logprob"]) for seg in transcription["segments"]]),
             "segments": [
                 {
@@ -284,8 +285,8 @@ def format_transcription(transcription):
                     "start": round(seg["start"], 2),
                     "end": round(seg["end"], 2),
                     "duration": round(seg["end"] - seg["start"], 2),
-                    "raw_segment": seg["text"],
-                    "segment": seg["text"],
+                    "raw_segment": seg["text"].strip(),
+                    "segment": seg["text"].strip(),
                     "words": [
                         {
                             "word": word["word"],
@@ -370,14 +371,21 @@ if __name__ == "__main__":
             verbose=args.verbose,
         )
         if args.verbose:
-            print("\nTransrciption results:")
+            print("\nTranscription results:")
             print(json.dumps(args.transcription, indent=2, ensure_ascii=False))
 
     else:
-        default_name += " - " + os.path.splitext(os.path.basename(args.transcription))[0].replace(default_name, "")
-        with open(args.transcription, "r") as f:
-            args.transcription = json.load(f)
-        args.transcription = format_transcription(args.transcription)
+        if os.path.isfile(args.transcription):
+            default_name += " - " + os.path.splitext(os.path.basename(args.transcription))[0].replace(default_name, "")
+            with open(args.transcription, "r") as f:
+                args.transcription = json.load(f)
+        else:
+            try:
+                args.transcription = json.loads(args.transcription)
+            except json.decoder.JSONDecodeError:
+                raise ValueError(f"Transcription file {args.transcription} not found, and not a valid json string.")
+    
+    args.transcription = format_transcription(args.transcription)
 
     name=args.name if args.name else default_name
 
