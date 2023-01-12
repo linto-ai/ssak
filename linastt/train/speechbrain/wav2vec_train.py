@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
  
 from linastt.utils.env import auto_device # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.dataset import kaldi_folder_to_dataset, to_annotation_text

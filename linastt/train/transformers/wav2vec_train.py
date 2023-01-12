@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
