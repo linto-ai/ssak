@@ -183,9 +183,25 @@ class PlayWav:
 
 if __name__ == "__main__":
 
+    import os
     import sys
 
+    if len(sys.argv) < 2 or len(sys.argv) > 4:
+        print(f"Usage: {os.path.basename(sys.executable)} {sys.argv[0]} filename [start] [end]")
+        sys.exit(1)
+
     wavfile = sys.argv[1]
-    PlayWav(wavfile, use_mel = True)
+    start = float(sys.argv[2]) if len(sys.argv) > 2 else None
+    end = float(sys.argv[3]) if len(sys.argv) > 3 else None
+    if start or end:
+        # Cut the wav in a temporary file
+        import tempfile
+        import os
+        if start is None: start = 0
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+            os.system(" ".join(["sox", wavfile, tmp.name, "trim", str(start), str(end-start) if end is not None else ""]))
+            PlayWav(tmp.name, use_mel = True)
+    else:
+        PlayWav(wavfile, use_mel = True)
     plt.show()
 

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     import sys
     import time
 
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 or len(sys.argv) > 4:
         print(f"Usage: {os.path.basename(sys.executable)} {sys.argv[0]} filename [start] [end]")
         sys.exit(1)
 
