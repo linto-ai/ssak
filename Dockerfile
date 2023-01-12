@@ -60,6 +60,13 @@ RUN pip3 install git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd
 RUN apt-get install -y --no-install-recommends portaudio19-dev
 RUN pip3 install PyAudio
 
+# Used to scrap
+COPY tools/requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
+RUN rm requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends xvfb 
+RUN apt-get update && apt-get install -y --no-install-recommends firefox-esr 
+
 # Locale
 # RUN sed -i '/fr_FR.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 # ENV LANG fr_FR.UTF-8  
