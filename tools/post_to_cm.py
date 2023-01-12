@@ -7,6 +7,7 @@ import time
 import io 
 import certifi
 import urllib.parse
+import re
 import numpy as np
 
 ####################
@@ -16,7 +17,7 @@ def format_option_for_curl(option, c):
     if isinstance(option, bool):
         return "true" if option else "false"
     if isinstance(option, dict):
-        return json.dumps(option)
+        return json.dumps(option) # TODO: ensure_ascii= ?
     if isinstance(option, str) and os.path.isfile(option):
         return (c.FORM_FILE, option)
     return str(option)
@@ -27,6 +28,16 @@ def format_options_for_curl(options, c):
     ]
 
 def curl_post(url, options, headers=[], verbose=False):
+    return _curl_do("POST", url, options=options, headers=headers, verbose=verbose)
+
+def curl_get(url, options={}, headers=[], verbose=False):
+    return _curl_do("GET", url, options=options, headers=headers, verbose=verbose)
+
+def curl_delete(url, headers=[], verbose=False):
+    return _curl_do("DELETE", url, options={}, headers=headers, verbose=verbose)
+
+def _curl_do(action, url, options, headers=[], verbose=False):
+    assert action in ["GET", "POST", "DELETE"], f"Unknown action {action}"
     c = pycurl.Curl()
 
     # Example:
@@ -37,21 +48,32 @@ def curl_post(url, options, headers=[], verbose=False):
         # ("force_sync", "false")   
     options = format_options_for_curl(options, c)
 
+    if action == "GET":
+        c.setopt(c.CAINFO, certifi.where())
+        if len(options):
+            url += "?" + urllib.parse.urlencode(format_options_for_curl(options, c))
+    if action == "DELETE":
+        c.setopt(c.CUSTOMREQUEST, "DELETE")
+        assert len(options) == 0, "DELETE requests cannot have options"
+    c.setopt(c.URL, url)
+    c.setopt(c.HTTPHEADER, ['accept: application/json'] + headers) # ['Content-Type: multipart/form-data'] ?
+    if action == "POST":
+        c.setopt(c.HTTPPOST, options)
+    buffer = io.BytesIO()
+    c.setopt(c.WRITEDATA, buffer)
+
     if verbose:
         options_str = " \\\n\t".join([f"-F '{key}={value}'" for key, value in options])
         headers_str = " \\\n\t".join([f"-H '{header}'" for header in headers]) + (" \\\n\t" if len(headers) else "")
-        print(f"\ncurl -X 'POST' \\\n\t\
+        cmd_str=f"\ncurl -X '{action}' \\\n\t\
 '{url}' \\\n\t\
 -H 'accept: application/json' \\\n\t\
--H 'Content-Type: multipart/form-data' \\\n\t\
 {headers_str}\
-{options_str}")
+{options_str}"
+        # Do not print passwords
+        cmd_str = re.sub(r"(-F 'password=)([^']*)(')", r"\1XXX\3", cmd_str)
+        print(cmd_str)
 
-    c.setopt(c.URL, url)
-    c.setopt(c.HTTPHEADER, ['accept: application/json'] + headers)
-    c.setopt(c.HTTPPOST, options)
-    buffer = io.BytesIO()
-    c.setopt(c.WRITEDATA, buffer)
     c.perform()
     c.close()
 
@@ -63,51 +85,7 @@ def curl_post(url, options, headers=[], verbose=False):
         raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
 
     return response_body
-
-def curl_get(url, options={}, verbose=False):
-    c = pycurl.Curl()
-
-    if len(options):
-        url += "?" + urllib.parse.urlencode(format_options_for_curl(options, c))
-
-    if verbose:
-        print(f"\ncurl -X 'GET' \\\n\t'{url}' \\\n\t-H 'accept: application/json'")
-
-    c.setopt(c.URL, url)
-    c.setopt(c.CAINFO, certifi.where())
-    c.setopt(c.HTTPHEADER, ['accept: application/json'])
-    buffer = io.BytesIO()
-    c.setopt(c.WRITEDATA, buffer)
-    c.perform()
-    c.close()
-
-    response_body = buffer.getvalue().decode('utf-8')
-
-    try:
-        response_body = json.loads(response_body)
-    except json.decoder.JSONDecodeError:
-        raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
-
-    return response_body
-
-def curl_delete(url, headers=[], verbose=False):
-    c = pycurl.Curl()
-
-    if verbose:
-        print(f"\ncurl -X 'DELETE' \\\n\t'{url}' \\\n\t-H 'accept: application/json'")
-
-    #initializing the request URL
-    c.setopt(c.URL, url)
-    c.setopt(c.CAINFO, certifi.where())
-    c.setopt(c.HTTPHEADER, ['accept: application/json', 'Content-Type: multipart/form-data'] + headers)
-    c.setopt(c.CUSTOMREQUEST, "DELETE")
-    buffer = io.BytesIO()
-    c.setopt(c.WRITEDATA, buffer)
-    c.perform()
-    c.close()
-
-
-
+    
 ####################
 # Linstt 
 
@@ -115,7 +93,7 @@ def linstt_transcribe(
         audio_file,
         url = "http://biggerboi.linto.ai:8000",
         convert_numbers=True,
-        return_raw=False,
+        return_raw=True,
         wordsub={},
         verbose=False,
         timeout = 3600, ping_interval = 1
@@ -179,13 +157,13 @@ def linstt_transcribe(
 
 CM_TOKEN = {}
 
-def cm_get_token(email, password, url="https://alpha.linto.ai", verbose=False):
-    if not url.endswith("cm-api"):
-        url = url.rstrip("/") + "/cm-api"
+def cm_get_token(url, email, password, verbose=False):
+
+    _id = f"{url}@{email}"
 
     global CM_TOKEN
-    if url in CM_TOKEN:
-        return CM_TOKEN[url]
+    if _id in CM_TOKEN:
+        return CM_TOKEN[_id]
 
     token = curl_post(
         url + "/auth/login",
@@ -196,14 +174,13 @@ def cm_get_token(email, password, url="https://alpha.linto.ai", verbose=False):
         verbose=verbose,
     )
     assert "token" in token, f"'token' not found in response: {token}"
-    CM_TOKEN = token["token"]
-    return CM_TOKEN
+    CM_TOKEN[_id] = token = token["token"]
+    return token
 
 def cm_import(
         audio_file,
         transcription,
-        email, password,
-        url="https://alpha.linto.ai",
+        url,email, password,
         lang="fr-FR",
         name=None,
         verbose=False,
@@ -211,13 +188,10 @@ def cm_import(
     assert os.path.isfile(audio_file), f"File {audio_file} does not exist."
     assert isinstance(transcription, dict), f"Transcription must be a dict, got {type(transcription)}"
 
-    if not url.endswith("cm-api"):
-        url = url.rstrip("/") + "/cm-api"
-
     if not name:
         name = os.path.splitext(os.path.basename(audio_file))[0] + " - UNK"
 
-    token = cm_get_token(email, password, url, verbose=verbose)
+    token = cm_get_token(url, email, password, verbose=verbose)
 
     result = curl_post(
         url + "/api/conversations/import?type=transcription",
@@ -238,15 +212,11 @@ def cm_import(
 
 def cm_find_conversation(
     name,
-    email, password,
-    url="https://alpha.linto.ai",
+    url,email, password,
     verbose=False,
     ):
 
-    if not url.endswith("cm-api"):
-        url = url.rstrip("/") + "/cm-api"
-
-    token = cm_get_token(email, password, url, verbose=verbose)
+    token = cm_get_token(url, email, password, verbose=verbose)
 
     conversations = curl_post(
         url + "/api/conversations/search",
@@ -258,32 +228,34 @@ def cm_find_conversation(
         verbose=verbose,
     )
 
-    assert "conversations" in conversations, f"'conversations' not found in response: {result}"
+    assert "conversations" in conversations, f"'conversations' not found in response: {conversations}"
     conversations = conversations["conversations"]
 
     return conversations
 
 def cm_delete_conversation(
     conversation_id,
-    email, password,
-    url="https://alpha.linto.ai",
+    url, email, password,
     verbose=False,
     ):
 
-    if not url.endswith("cm-api"):
-        url = url.rstrip("/") + "/cm-api"
     if isinstance(conversation_id, dict):
         assert "_id" in conversation_id, f"'_id' not found in response: {conversation_id}"
         conversation_id = conversation_id["_id"]
     assert isinstance(conversation_id, str), f"Conversation ID must be a string, got {type(conversation_id)}"
 
-    token = cm_get_token(email, password, url, verbose=verbose)
+    token = cm_get_token(url, email, password, verbose=verbose)
 
     result = curl_delete(
         url + f"/api/conversations/{conversation_id}/",
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
     )
+
+    assert "message" in result, f"'message' not found in response: {result}"
+    if verbose:
+        print(result["message"])
+    return result
     
 
 
@@ -326,7 +298,7 @@ def format_transcription(transcription):
             ]
         }
 
-    # LinSTT transcription
+    # LinSTT isolated transcription (linto-platform-stt)
     if "text" in transcription and "confidence-score" in transcription and "words" in transcription:
         text = transcription["text"]
         words = transcription["words"]
@@ -376,14 +348,18 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     args = parser.parse_args()
 
+    if not args.url.endswith("cm-api"):
+        args.url = args.url.rstrip("/") + "/cm-api"
+
     if not args.email:
         args.email = os.environ.get("CM_EMAIL")
         if not args.email:
-            raise ValueError("No CM email given. Please set CM_EMAIL environment variable or use option -u.")
+            raise ValueError("No CM email given. Please set CM_EMAIL environment variable, or use option -u.")
+
     if not args.password:
         args.password = os.environ.get("CM_PASSWD")
         if not args.password:
-            raise ValueError("No CM password given. Please set CM_PASSWD environment variable or use option -p.")
+            raise ValueError("No CM password given. Please set CM_PASSWD environment variable, or use option -p.")
 
     default_name = os.path.splitext(os.path.basename(args.audio))[0]
     if not args.transcription:
@@ -405,10 +381,8 @@ if __name__ == "__main__":
 
     name=args.name if args.name else default_name
 
-    conversations = cm_find_conversation(
-        name,
-        email=args.email,
-        password=args.password,
+    conversations = cm_find_conversation(name,
+        url=args.url, email=args.email, password=args.password,
         verbose=args.verbose,
     )
     if len(conversations):
@@ -422,10 +396,8 @@ if __name__ == "__main__":
             pass
         elif "d" in x.lower():
             for conv in conversations:
-                cm_delete_conversation(
-                    conv,
-                    email=args.email,
-                    password=args.password,
+                cm_delete_conversation(conv,
+                    url=args.url, email=args.email, password=args.password,
                     verbose=args.verbose,
                 )
         else:
@@ -435,8 +407,8 @@ if __name__ == "__main__":
     cm_import(
         args.audio,
         args.transcription,
-        url=args.url,
         name=name,
+        url=args.url,
         email=args.email,
         password=args.password,
         verbose=args.verbose,
