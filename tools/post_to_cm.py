@@ -216,10 +216,12 @@ def cm_import(
 
 def format_transcription(transcription):
     assert isinstance(transcription, dict)
+
     if "transcription_result" in transcription:
         return transcription
+
+    # Whisper augmented with words
     if "text" in transcription and "segments" in transcription:
-        # Whisper augmented with words
         for i, seg in enumerate(transcription["segments"]):
             for expected_keys in ["start", "end", "words", "avg_logprob"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
@@ -245,6 +247,36 @@ def format_transcription(transcription):
                         } for word in seg["words"]
                     ]
                 } for seg in transcription["segments"]
+            ]
+        }
+
+    # LinSTT transcription
+    if "text" in transcription and "confidence-score" in transcription and "words" in transcription:
+        text = transcription["text"]
+        words = transcription["words"]
+        start = words[0]["start"]
+        end = words[-1]["end"]
+        return {
+            "transcription_result": text,
+            "raw_transcription": text,
+            "confidence": transcription["confidence-score"],
+            "segments": [
+                {
+                    "spk_id": None,
+                    "start": round(start, 2),
+                    "end": round(end, 2),
+                    "duration": round(end - start, 2),
+                    "raw_segment": text,
+                    "segment": text,
+                    "words": [
+                        {
+                            "word": word["word"],
+                            "start": round(word["start"], 2),
+                            "end": round(word["end"], 2),
+                            "conf": word["conf"],
+                        } for word in words
+                    ]
+                }
             ]
         }
 
