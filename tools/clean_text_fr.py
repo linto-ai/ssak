@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from linastt.utils.text import format_text_fr
 
 if __name__ == "__main__":

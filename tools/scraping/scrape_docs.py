@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """scrap.py: Scrape documents (docx and odt files)."""
 

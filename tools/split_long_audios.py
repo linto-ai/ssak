@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
 from linastt.utils.text import remove_special_words
