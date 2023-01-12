@@ -2,7 +2,7 @@ accelerate
 audiomentations
 datasets
 datasets[audio]
-dtw
+dtw-python
 envsubst
 huggingface_hub
 ipython
