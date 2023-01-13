@@ -4,11 +4,14 @@ import pycurl
 import os
 import json
 import time
+import datetime
 import io 
 import certifi
 import urllib.parse
 import re
 import numpy as np
+
+from linastt.utils.misc import hashmd5
 
 ####################
 # Curl helpers
@@ -20,6 +23,8 @@ def format_option_for_curl(option, c):
         return json.dumps(option) # TODO: ensure_ascii= ?
     if isinstance(option, str) and os.path.isfile(option):
         return (c.FORM_FILE, option)
+    if isinstance(option, str):
+        return option.encode("utf8")
     return str(option)
 
 def format_options_for_curl(options, c):
@@ -193,14 +198,30 @@ def cm_import(
 
     token = cm_get_token(url, email, password, verbose=verbose)
 
+    speakers = get_speakers(transcription)
+    has_speaker = speakers != [None]
+    has_punc = has_punctuation(transcription)
+
+    datestr = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d - %H:%M:%S")
+
     result = curl_post(
         url + "/api/conversations/import?type=transcription",
         {
+            "transcription": transcription,
             "file": audio_file,
             "lang": lang,
             "name": name,
             "segmentCharSize": 2500,
-            "transcription": transcription,
+            "transcriptionConfig": {'punctuationConfig': {'enablePunctuation': has_punc,
+                                                          'serviceName': 'Custom' if has_punc else None},
+                                    'diarizationConfig': {'enableDiarization': has_speaker,
+                                                          'numberOfSpeaker': len(speakers),
+                                                          'maxNumberOfSpeaker': None,
+                                                          'serviceName': 'Custom' if has_speaker else None},
+                                    'enableNormalization': has_digit(transcription)},
+            "description": f"Audio: {os.path.basename(audio_file)} / Transcription: {hashmd5(transcription)} / Import: {datestr}",
+            "organizationId": "63989a54e9b3c20019dcae7d", # NOCOMMIT
+            "membersRight": "0",
         },
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
@@ -270,7 +291,7 @@ def format_transcription(transcription):
 
     # Whisper augmented with words
     if "text" in transcription and "segments" in transcription:
-        for i, seg in enumerate(transcription["segments"]):
+        for i, seg in enumerate(transcription["segments"][:-1]):
             for expected_keys in ["start", "end", "words", "avg_logprob"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
@@ -293,7 +314,7 @@ def format_transcription(transcription):
                             "start": round(word["start"], 2),
                             "end": round(word["end"], 2),
                             "conf": 1.0,
-                        } for word in seg["words"]
+                        } for word in seg.get("words", [])
                     ]
                 } for seg in transcription["segments"]
             ]
@@ -331,6 +352,26 @@ def format_transcription(transcription):
 
     raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
 
+def get_speakers(transcription):
+    all_speakers = set()
+    for seg in transcription["segments"]:
+        all_speakers.add(seg["spk_id"])
+    return list(all_speakers)
+
+def has_punctuation(transcription):
+    text = transcription["transcription_result"]
+    for c in ".,;:?!":
+        if c in text:
+            return True
+    return False
+
+def has_digit(transcription):
+    text = transcription["transcription_result"]
+    for c in text:
+        if c.isdigit():
+            return True
+    return False
+
 if __name__ == "__main__":
 
     import sys
@@ -347,6 +388,8 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--password", type=str, help="Password of the Conversation Manager account (can also be passed with environment variable CM_PASSWD)", default=None)
     parser.add_argument("--url", type=str, help="Conversation Manager url", default="https://alpha.linto.ai")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
+    parser.add_argument("-o", "--overwrite", action="store_true", help="Overwrite existing conversations with the same name")
+    parser.add_argument("--new", action="store_true", help="Do not post if the conversation already exists")
     args = parser.parse_args()
 
     if not args.url.endswith("cm-api"):
@@ -397,7 +440,13 @@ if __name__ == "__main__":
         s = "s" if len(conversations) > 1 else ""
         names = ", ".join(list(set([conv["name"] for conv in conversations])))
         print(f"Already found {len(conversations)} conversation{s} with name{s}: '{names}'")
-        x = "_"
+        if args.overwrite:
+            assert not args.new
+            x = "d"
+        elif args.new:
+            x = ""
+        else:
+            x = "_"
         while x.lower() not in ["", "i", "d"]:
             x = input(f"Do you want to ignore and continue (i), delete conversations and continue (d), or abort (default)?")
         if "i" in x.lower():
