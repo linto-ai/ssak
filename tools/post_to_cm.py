@@ -292,14 +292,14 @@ def format_transcription(transcription):
     # Whisper augmented with words
     if "text" in transcription and "segments" in transcription:
         for i, seg in enumerate(transcription["segments"][:-1]):
-            for expected_keys in ["start", "end", "words", "avg_logprob"]:
+            for expected_keys in ["start", "end", "words"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
         text = transcription["text"].strip()
         return {
             "transcription_result": text,
             "raw_transcription": text,
-            "confidence": np.mean([np.exp(seg["avg_logprob"]) for seg in transcription["segments"]]),
+            "confidence": np.mean([np.exp(seg.get("avg_logprob", 1)) for seg in transcription["segments"]]),
             "segments": [
                 {
                     "spk_id": None,
@@ -310,10 +310,10 @@ def format_transcription(transcription):
                     "segment": seg["text"].strip(),
                     "words": [
                         {
-                            "word": word["word"],
+                            "word": word["text"],
                             "start": round(word["start"], 2),
                             "end": round(word["end"], 2),
-                            "conf": 1.0,
+                            "conf": word.get("confidence", 1),
                         } for word in seg.get("words", [])
                     ]
                 } for seg in transcription["segments"]
