@@ -108,7 +108,17 @@ class AudioPlayer:
 _player = None
 _player_filename = None
 
-def play_audiofile(filename, start = None, end = None, ask_for_replay = False, precision = 0.01, can_cache = True):
+def play_audiofile(filename, start = None, end = None, ask_for_replay = False, precision = 0.01, can_cache = True, additional_commands = {}):
+
+    assert isinstance(additional_commands, dict)
+    if additional_commands:
+        ask_for_replay = True
+    if additional_commands:
+        assert "" not in additional_commands, "Empty string is not allowed as a key in additional_commands"
+        assert "r" not in additional_commands, "Key 'r' is reserved for replay"
+    
+    msg = "(Type 'r' to replay"+ (", "+", ".join(f"'{k}' to {v}" for k,v in additional_commands.items()) if additional_commands else "") +")"
+    keys = list(additional_commands.keys()) + ["r", ""]
 
     if start is None:
         start = 0
@@ -126,7 +136,7 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
         player = AudioPlayer(filename)
     try:
         x = "r"
-        while x.lower().startswith("r"):
+        while x == "r":
             player.seek(start)
             player.play()
             slept = 0
@@ -135,12 +145,16 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
                 slept += precision
             player.pause()
             if ask_for_replay:
-                x = input("(Type something starting with 'r' to replay)")
+                x = None
+                while x not in keys:
+                    x = input(msg)
             else:
                 x = ""
     finally:
         if not can_cache:
             player.close()
+
+    return x
     
 
 if __name__ == "__main__":
