@@ -66,6 +66,7 @@ def find_acronyms(text, ignore_first_upper_words = True):
 _ALL_ACRONYMS = []
 
 def format_text_fr(text,
+    lang = "fr",
     lower_case = True,
     keep_punc = False,
     remove_ligatures = True,
@@ -114,10 +115,38 @@ def format_text_fr(text,
 
         global _ALL_ACRONYMS
 
-        if re.search(r"[IVX]", text):
-            for k,v in _romans.items():
-                text = re.sub(r"\b" + k + r"\b", v, text)
+        # Reorder currencies (1,20€ -> 1 € 20)
+        coma = "," if lang in ["fr"] else "\."
+        for c in _currencies:
+            if c in text:
+                text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
+                            c, r"\1 " + c + r" \2", text)
 
+        # Roman digits
+        if re.search(r"[IVX]", text):
+            if lang == "en":
+                digits = re.findall(
+                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|st|nd|rd|th)?\b", text)
+                digits = ["".join(d) for d in digits]
+            elif lang == "fr":
+                digits = re.findall(
+                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|ème|eme|e|er|ère)?\b", text)
+                digits = ["".join(d) for d in digits]
+            else:
+                digits = re.findall(
+                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})\b", text)
+                digits = ["".join(d) for d in digits]
+            if digits:
+                digits = sorted(list(set(digits)), reverse=True,
+                                key=lambda x: (len(x), x))
+                for s in digits:
+                    filtered = re.sub("[a-zèº]", "", s)
+                    ordinal = filtered != s
+                    digit = roman_to_decimal(filtered)
+                    v = undigit(str(digit), lang=lang,
+                                to="ordinal" if ordinal else "cardinal")
+                    text = re.sub(r"\b" + s + r"\b", v, text)
+        
         if fid_acronyms is not None:
             acronyms = find_acronyms(text)
             for acronym in acronyms:
@@ -219,78 +248,110 @@ def format_text_fr(text,
         text = re.sub("(\d+)'",r"\1 minutes ",text)
         #text = re.sub("(\d+)°",r"\1 degrés ",text)
 
-        chiffres = re.findall(r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:ème|eme|e)\b", text)
-        chiffres = sorted(list(set(chiffres)), reverse=True, key=lambda x: (len(x), x))
-        for chiffre in chiffres:
-            word = undigit(re.findall(r"\d+", chiffre)[0], to= "ordinal")
-            text = re.sub(r'\b'+str(chiffre)+r'\b', word, text)
+        # Ordinal digits
+        if lang == "en":
+            digits = re.findall(
+                r"\b\d*1(?:st)|\d*2(?:nd)|\d*3(?:rd)|\d+(?:º|th)\b", text)
+        elif lang == "fr":
+            digits = re.findall(
+                r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
+        else:
+            logger.warn(
+                f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
+            digits = []
+        if digits:
+            digits = sorted(list(set(digits)), reverse=True,
+                            key=lambda x: (len(x), x))
+            for digit in digits:
+                word = undigit(re.findall(r"\d+", digit)
+                            [0], to="ordinal", lang=lang)
+                text = re.sub(r'\b'+str(digit)+r'\b', word, text)
 
-        text = re.sub(r"\b(\d+),(\d+)",r"\1 virgule \2", text)
-        text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 point \2", text)
+        text = re.sub(r"\b(\d+),(\d+)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
+        text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
         text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
         text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text) # space after digits
         text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
 
-        # Digits
-        chiffres = re.findall(r"(?:\-?\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\-?\d[/\d]*)",text)
-        chiffres = list(map(lambda s: s.strip(r"[/ ]"), chiffres))
-        chiffres = list(set(chiffres))
-        chiffres = chiffres + flatten([c.split() for c in chiffres if " " in c])
-        chiffres = chiffres + flatten([c.split("/") for c in chiffres if "/" in c])
-        #chiffres = sorted(chiffres, reverse=True, key=lambda x: ("/" in x, len(x)))
-        chiffres = sorted(chiffres, reverse=True, key=lambda x: (len(x), x))
-        for chiffre in chiffres:
-            chiffref = re.sub("/+", "/", chiffre)
-            if not chiffref:
+        # Cardinal digits
+        digits = re.findall(
+            r"(?:\-?\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\-?\d[/\d]*)", text)
+        digits = list(map(lambda s: s.strip(r"[/ ]"), digits))
+        digits = list(set(digits))
+        digits = digits + flatten([c.split() for c in digits if " " in c])
+        digits = digits + flatten([c.split("/") for c in digits if "/" in c])
+        digits = sorted(digits, reverse=True, key=lambda x: (len(x), x))
+        for digit in digits:
+            digitf = re.sub("/+", "/", digit)
+            if not digitf:
                 continue
-            numslash = len(re.findall("/", chiffref))
+            numslash = len(re.findall("/", digitf))
             if numslash == 0:
-                word = undigit(chiffref)
-            elif numslash == 1: # Fraction or date
-                i = chiffref.index("/")
+                word = undigit(digitf, lang=lang)
+            elif numslash == 1:  # Fraction or date
+                i = digitf.index("/")
                 is_date = False
-                if len(chiffref[i+1:]) == 2:
+                if len(digitf[i+1:]) == 2:
                     try:
-                        first = int(chiffref[:i])
-                        second = int(chiffref[i+1:])
+                        first = int(digitf[:i])
+                        second = int(digitf[i+1:])
                         is_date = first > 0 and first < 32 and second > 0 and second < 13
-                    except: pass
+                    except:
+                        pass
                 if is_date:
-                    first = undigit(chiffref[:i].lstrip("0"))
-                    if first == "un": first = "premier"
-                    second = _int_to_month[second]
+                    first = digitf[:i].lstrip("0")
+                    use_ordinal = (lang == "fr" and first == "1") or (
+                        lang != "fr" and first[-1] in ["1", "2", "3"])
+                    first = undigit(first, lang=lang,
+                                    to="ordinal" if use_ordinal else "cardinal")
+                    second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
                 else:
-                    first = undigit(chiffref[:i])
-                    second = undigit(chiffref[i+1:], to="denominator")
-                    if float(chiffref[:i]) > 2. and second[-1] != "s":
+                    first = undigit(digitf[:i], lang=lang)
+                    second = undigit(digitf[i+1:], to="denominator", lang=lang)
+                    if float(digitf[:i]) > 2. and second[-1] != "s":
                         second += "s"
                 word = first + " " + second
-            elif numslash == 2: # Maybe a date
-                i1 = chiffref.index("/")
-                i2 = chiffref.index("/", i1+1)
+            elif numslash == 2:  # Maybe a date
+                i1 = digitf.index("/")
+                i2 = digitf.index("/", i1+1)
                 is_date = False
-                if len(chiffref[i1+1:i2]) == 2 and len(chiffref[i2+1:]) == 4:
+                if len(digitf[i1+1:i2]) == 2 and len(digitf[i2+1:]) == 4:
                     try:
-                        first = int(chiffref[:i1])
-                        second = int(chiffref[i1+1:i2])
-                        third = int(chiffref[i2+1:])
+                        first = int(digitf[:i1])
+                        second = int(digitf[i1+1:i2])
+                        third = int(digitf[i2+1:])
                         is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
-                    except: pass
-                third = undigit(chiffref[i2+1:])
+                    except:
+                        pass
+                third = undigit(digitf[i2+1:], lang=lang)
                 if is_date:
-                    first = undigit(chiffref[:i1].lstrip("0"))
-                    if first == "un": first = "premier"
-                    second = _int_to_month[int(chiffref[i1+1:i2])]
+                    first = digitf[:i1].lstrip("0")
+                    use_ordinal = (lang == "fr" and first == "1") or (
+                        lang != "fr" and first[-1] in ["1", "2", "3"])
+                    first = undigit(first, lang=lang,
+                                    to="ordinal" if use_ordinal else "cardinal")
+                    second = _int_to_month.get(lang, {}).get(
+                        int(digitf[i1+1:i2]), digitf[i1+1:i2])
                     word = " ".join([first, second, third])
                 else:
-                    word = " / ".join([undigit(s) for s in chiffref.split('/')])
+                    word = " / ".join([undigit(s, lang=lang)
+                                    for s in digitf.split('/')])
             else:
-                word = " / ".join([undigit(s) for s in chiffref.split('/')])
-            # Replace
-            if " " in chiffre:
-                text = re.sub(r'\b'+str(chiffre)+r'\b', " "+word+" ", text)
+                word = " / ".join([undigit(s, lang=lang)
+                                for s in digitf.split('/')])
+            # text = replace_keeping_word_boundaries(digit, word, text)
+            if " " in digit:
+                text = re.sub(r'\b'+str(digit)+r'\b', " "+word+" ", text)
             else:
-                text = re.sub(str(chiffre), " "+word+" ", text)
+                text = re.sub(str(digit), " "+word+" ", text)
+
+        # Symbols (currencies, percent...)
+        symbol_table = _symbol_to_word.get(lang, {})
+        for k, v in symbol_table.items():
+            if lower_case:
+                k = k.lower()
+                v = v.lower()
+            text = replace_keeping_word_boundaries(k, v, text)
 
         if safety_checks:
             if re.findall(r"\d", text):
@@ -307,20 +368,14 @@ def format_text_fr(text,
                         # Replace all dashes by spaces
                         text = re.sub(r"\b"+word+r"\b", re.sub("-", " ", word), text)
 
-        # Fractions
-        text = re.sub(r"½", " un demi ", text)
-        text = re.sub(r"⅓", " un tiers ", text)
-        text = re.sub(r"⅔", " deux tiers ", text)
-        text = re.sub(r"¼", " un quart ", text)
-        text = re.sub(r"¾", " trois quarts ", text)
-        # Exponents
-        text = re.sub(r"\bm²", " mètres carrés ", text)
-        text = re.sub(r"\bm³", " mètres cubes ", text)
-        text = re.sub(r"²", " carrés ", text)
-        text = re.sub(r"³", " cubes ", text)
-        text = re.sub(r"⁵", " puissance cinq ", text)
-        text = re.sub(r"⁷", " puissance sept ", text)
+        for reg, replacement in _corrections_abbreviations_fr:
+            text = re.sub(reg, replacement, text)
 
+        for reg, replacement in _multi_spelling_words:
+            text = re.sub(reg, replacement, text)
+
+        # Special Symbols
+        text = re.sub(' - | -$|^- ','', text)
         text = re.sub(" '", " ", text)
         text = re.sub("'+", "'", text)
         text = re.sub('--+',' ', text)
@@ -337,43 +392,14 @@ def format_text_fr(text,
         text = re.sub('#+',' ', text)
         text = re.sub(" "," ",text)
         text = re.sub(' ', '  ',text)
-
         text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
         text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
-
-        for reg, replacement in _corrections_abbreviations_fr:
-            text = re.sub(reg, replacement, text)
-
-        for reg, replacement in _multi_spelling_words:
-            text = re.sub(reg, replacement, text)
-
-        # Symbols
-        text = re.sub(r"°c\b", "degrés", text)
-        text = re.sub("°", "degrés", text)
-        text = re.sub("&"," et ", text)
-        text = re.sub('%', ' pour cent ', text)
-        text = re.sub('‰', ' pour mille ', text)
-        text = re.sub("~"," environ ", text)
-        text = re.sub("µ"," micro ", text)
-        text = re.sub("μ"," micro ", text)
-        text = re.sub("§"," paragraphe ", text)
-        text = re.sub(r"[\+⁺]"," plus ", text)
-        text = re.sub(r"⁻"," moins ", text)
-        text = re.sub("±"," plus ou moins ", text)
         text = re.sub(r"ᵉʳ","er", text)
         text = re.sub(r"ᵉ","e", text)
         text = re.sub("·","", text)
-        # Currencies (TODO: decide plural or singular, manage 1.30 €)
-        text = re.sub('€', ' euros ', text)
-        text = re.sub('¥', ' yens ', text)
-        text = re.sub('£', ' livres ', text)
-        text = re.sub('\$', ' dollars ', text)
-        text = re.sub("¢"," cents ", text)
 
         if not keep_punc:
             text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
-
-        text = re.sub(' - | -$|^- ','', text)
 
         text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
 
@@ -391,50 +417,245 @@ def format_text_fr(text,
 
     return text
 
-def undigit(str, to="cardinal", lang = "fr"):
-    str = re.sub(" ","", str)
+def undigit(s, lang, to="cardinal"):
+    s = re.sub(" ", "", s)
     if to == "denominator":
-        assert lang == "fr"
-        if str == "2": return "demi"
-        if str == "3": return "tiers"
-        if str == "4": return "quart"
+        if lang == "fr":
+            if s == "2":
+                return "demi"
+            if s == "3":
+                return "tiers"
+            if s == "4":
+                return "quart"
+        elif lang == "en":
+            if s == "2":
+                return "half"
+            if s == "4":
+                return "quarter"
+        elif lang == "es":
+            if s == "2":
+                return "mitad"
+            if s == "3":
+                return "tercio"
         to = "ordinal"
-    if str.startswith("0") and to == "cardinal":
-        numZeros = len(re.findall(r"0+", str)[0])
-        if numZeros < len(str):
-            return numZeros * (my_num2words(0, lang=lang, to="cardinal")+" ") + my_num2words(float(str), lang=lang, to=to)
-    return my_num2words(float(str), lang=lang, to=to)
+    if s.startswith("0") and to == "cardinal":
+        numZeros = len(re.findall(r"0+", s)[0])
+        if numZeros < len(s):
+            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(float(s), lang=lang, to=to, orig=s)
+    return robust_num2words(float(s), lang=lang, to=to, orig=s)
 
-def my_num2words(x, lang = "fr", to = "cardinal"):
+def robust_num2words(x, lang, to="cardinal", orig=""):
     """
     Bugfix for num2words
     """
     try:
+        res = num2words(x, lang=lang, to=to)
         if lang == "fr" and to == "ordinal":
-            return num2words(x, lang=lang, to=to).replace("vingtsième", "vingtième")
-        else:
-            return num2words(x, lang=lang, to=to)
+            res = res.replace("vingtsième", "vingtième")
+        return res
     except OverflowError:
-        if x == math.inf: # !
-            return "infinité"
-        if x == -math.inf: # !
-            return "moins infinité"
+        if x == math.inf:  # !
+            return " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
+        if x == -math.inf:  # !
+            return "moins " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
         # TODO: print a warning
-        return my_num2words(x//10, lang=lang, to=to)
+        return robust_num2words(x//10, lang=lang, to=to)
+
+def roman_to_decimal(str):
+    def value(r):
+        if (r == 'I'):
+            return 1
+        if (r == 'V'):
+            return 5
+        if (r == 'X'):
+            return 10
+        if (r == 'L'):
+            return 50
+        if (r == 'C'):
+            return 100
+        if (r == 'D'):
+            return 500
+        if (r == 'M'):
+            return 1000
+        return -1
+
+    res = 0
+    i = 0
+    while (i < len(str)):
+        s1 = value(str[i])
+        if (i + 1 < len(str)):
+            s2 = value(str[i + 1])
+            if (s1 >= s2):
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s1
+                i = i + 1
+            else:
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s2 - s1
+                i = i + 2
+        else:
+            res = res + s1
+            i = i + 1
+    return res
+
+def replace_keeping_word_boundaries(orig, dest, text):
+    if orig in text:
+        _orig = text_unescape(orig)
+        text = re.sub(r"(\W)"+_orig+r"(\W)", r"\1"+dest+r"\2", text)
+        text = re.sub(_orig+r"(\W)", " "+dest+r"\1", text)
+        text = re.sub(r"(\W)"+_orig, r"\1"+dest+" ", text)
+        text = re.sub(_orig, " "+dest+" ", text)
+    return text
 
 _int_to_month = {
-    1: "janvier",
-    2: "février",
-    3: "mars",
-    4: "avril",
-    5: "mai",
-    6: "juin",
-    7: "juillet",
-    8: "août",
-    9: "septembre",
-    10: "octobre",
-    11: "novembre",
-    12: "décembre"
+    "fr": {
+        1: "janvier",
+        2: "février",
+        3: "mars",
+        4: "avril",
+        5: "mai",
+        6: "juin",
+        7: "juillet",
+        8: "août",
+        9: "septembre",
+        10: "octobre",
+        11: "novembre",
+        12: "décembre",
+    },
+    "en": {
+        1: "january",
+        2: "february",
+        3: "march",
+        4: "april",
+        5: "may",
+        6: "june",
+        7: "july",
+        8: "august",
+        9: "september",
+        10: "october",
+        11: "november",
+        12: "december",
+    }
+}
+
+_currencies = ["€", "$", "£", "¥"]
+
+_punct_to_word = {
+    "fr": {
+        ",": "virgule",
+        ".": "point",
+        ";": "point-virgule",
+        ":": "deux-points",
+        "?": "point d'interrogation",
+        "!": "point d'exclamation",
+    },"\+"
+    "en": {
+        ",": "comma",
+        ".": "dot",
+        ";": "semicolon",
+        ":": "colon",
+        "?": "question mark",
+        "!": "exclamation mark",
+    }
+}
+
+
+
+_symbol_to_word = {
+    "fr": {
+        "%": "pour cent",
+        "‰": "pour mille",
+        "~": "environ",
+        "÷": "divisé par",
+        "\*": "fois",  # ?
+        "×": "fois",
+        "±": "plus ou moins",
+        "+": "plus",
+        "⁺": "plus",
+        "⁻": "moins",
+        "&": "et",
+        "@": "arobase",
+        "µ": "micro",
+        "mm²": "millimètres carrés",
+        "mm³": "millimètres cubes",
+        "cm²": "centimètres carrés",
+        "cm³": "centimètres cubes",
+        "m²": "mètres carrés",
+        "m³": "mètres cubes",
+        "²": "au carré",
+        "³": "au cube",
+        "⁵": "à la puissance cinq",
+        "⁷": "à la puissance sept",
+        "½": "un demi",
+        "⅓": "un tiers",
+        "⅔": "deux tiers",
+        "¼": "un quart",
+        "¾": "trois quarts",
+        "§": "paragraphe",
+        "°C": "degrés Celsius",
+        "°F": "degrés Fahrenheit",
+        "°K": "kelvins",
+        "°": "degrés",
+        "€": "euros",
+        "¢": "cents",
+        "\$": "dollars",
+        "£": "livres",
+        "¥": "yens",
+        # Below: not in Whisper tokens
+        # "₩": "wons",
+        # "₽": "roubles",
+        # "₹": "roupies",
+        # "₺": "liras",
+        # "₪": "shekels",
+        # "₴": "hryvnias",
+        # "₮": "tugriks",
+        # "℃": "degrés Celsius",
+        # "℉": "degrés Fahrenheit",
+        # "Ω": "ohms",
+        # "Ω": "ohms",
+        # "K": "kelvins",
+        # "ℓ": "litres",
+    },
+    "en": {
+        "%": "percent",
+        "‰": "per mille",
+        "~": "about",
+        "÷": "divided by",
+        "\*": "times",  # ?
+        "×": "times",
+        "±": "plus or minus",
+        "+": "plus",
+        "⁺": "plus",
+        "⁻": "minus",
+        "&": "and",
+        "@": "at",
+        "µ": "micro",
+        "mm²": "square millimeters",
+        "mm³": "cubic millimeters",
+        "cm²": "square centimeters",
+        "cm³": "cubic centimeters",
+        "m²": "square meters",
+        "m³": "cubic meters",
+        "²": "squared",
+        "³": "cubed",
+        "⁵": "to the fifth power",
+        "⁷": "to the seventh power",
+        "½": "one half",
+        "⅓": "one third",
+        "⅔": "two thirds",
+        "¼": "one quarter",
+        "¾": "three quarters",
+        "§": "section",
+        "°C": "degrees Celsius",
+        "°F": "degrees Fahrenheit",
+        "°K": "kelvins",
+        "°": "degrees",
+        "€": "euros",
+        "¢": "cents",
+        "\$": "dollars",
+        "£": "pounds",
+        "¥": "yens",
+    }
 }
 
 #sorted(list(set([item for sublist in [w.split() for w in [num2words(i, lang='fr') for i in list(range(17)) + [i*10 for i in range(1,11)] + [1000**i for i in range(1,202)]]] for item in sublist])),key = len)
