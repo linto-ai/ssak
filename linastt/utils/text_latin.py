@@ -65,7 +65,7 @@ def find_acronyms(text, ignore_first_upper_words = True):
 
 _ALL_ACRONYMS = []
 
-def format_text_fr(text,
+def format_text_latin(text,
     lang = "fr",
     lower_case = True,
     keep_punc = False,
@@ -85,11 +85,11 @@ def format_text_fr(text,
 
         # Recursive call (list)
         if isinstance(text, list):
-            return [format_text_fr(t, **opts) for t in text]
+            return [format_text_latin(t, **opts) for t in text]
 
         # Recursive call (line breaks)
         if "\n" in text:
-            return "\n".join([format_text_fr(t, **opts) for t in text.split("\n")])
+            return "\n".join([format_text_latin(t, **opts) for t in text.split("\n")])
         
         # Recursive call (parenthesis)
         if extract_parenthesis and "(" in text and ")" in text:
@@ -101,7 +101,7 @@ def format_text_fr(text,
                 # assert without_parenthesis != text
                 if without_parenthesis != text: # Avoid infinite recursion
                     texts = [without_parenthesis] + in_parenthesis
-                    return "\n".join([format_text_fr(t, **opts) for t in texts])
+                    return "\n".join([format_text_latin(t, **opts) for t in texts])
 
         if remove_suspicious_entry:
             # Assuming no letter can be repeated 3 times in French
@@ -1266,6 +1266,6 @@ if __name__ == "__main__":
         with open(sys.argv[1], "r") as f:
             text = f.read()
             for line in text.splitlines():
-                print(format_text_fr(line))
+                print(format_text_latin(line))
     else:
-        print(format_text_fr(" ".join(sys.argv[1:])))
+        print(format_text_latin(" ".join(sys.argv[1:])))

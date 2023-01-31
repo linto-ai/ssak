@@ -49,7 +49,7 @@ if __name__ == "__main__":
     dir_out1 = args.output
     dir_out2 = args.output_formatted
     if dir_out2:
-        from linastt.utils.text import format_text_fr
+        from linastt.utils.text import format_text_latin
         os.makedirs(dir_out2, exist_ok = True)
     os.makedirs(dir_out1, exist_ok = True)
 
@@ -69,6 +69,6 @@ if __name__ == "__main__":
                 f.write(text)
             
             if dir_out2:
-                text = format_text_fr(text)
+                text = format_text_latin(text)
                 with open(os.path.join(dir_out2, filenametxt), "w") as f:
                     f.write(text)

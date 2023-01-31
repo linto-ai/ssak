@@ -1,6 +1,6 @@
 import os
 
-from linastt.utils.text import format_text_fr
+from linastt.utils.text import format_text_latin
 
 from .utils import Test
 
@@ -8,137 +8,137 @@ class TestFormatText(Test):
 
     def test_format_digits(self):
         self.assertEqual(
-            format_text_fr("Ma grand-mère version 2.0 ne connaît pas wav2vec. Commande1"),
+            format_text_latin("Ma grand-mère version 2.0 ne connaît pas wav2vec. Commande1"),
             "ma grand-mère version deux point zéro ne connaît pas wav to vec commande un"
         )
         self.assertEqual(
-            format_text_fr("Elle pesait 67,5kg en 1995, et + en 1996."),
+            format_text_latin("Elle pesait 67,5kg en 1995, et + en 1996."),
             "elle pesait soixante-sept virgule cinq kilogrammes en mille neuf cent quatre-vingt-quinze et plus en mille neuf cent quatre-vingt-seize"
         )
         self.assertEqual(
-            format_text_fr("¾ et 3/4 et 3 m² et 3m³ et 3.7cm² et 3,7 cm³"),
+            format_text_latin("¾ et 3/4 et 3 m² et 3m³ et 3.7cm² et 3,7 cm³"),
             "trois quarts et trois quarts et trois mètres carrés et trois mètres cubes et trois point sept centimètres carrés et trois virgule sept centimètres cubes"
         )
         self.assertEqual(
-            format_text_fr("10 000 et 100 000 000 ne sont pas pareils que 06 12 34 56 78"),
+            format_text_latin("10 000 et 100 000 000 ne sont pas pareils que 06 12 34 56 78"),
             "dix mille et cent millions ne sont pas pareils que zéro six douze trente-quatre cinquante-six soixante-dix-huit"
         )
 
         self.assertEqual(
-            format_text_fr("La Rochelle - CAUE 17 2003 2005 Inventaire du Pays"),
+            format_text_latin("La Rochelle - CAUE 17 2003 2005 Inventaire du Pays"),
             "la rochelle caue dix-sept deux mille trois deux mille cinq inventaire du pays"
             )
 
         self.assertEqual(
-            format_text_fr("Elle emploie 147 collaborateurs et dispose de 22 000 m² de surfaces d' entreposage situées Casablanca-Oukacha ( 4 000 m² ) , Had Soualem ( 4 100 m² ) et Ain Sebaâ ( 14 000m² )"),
+            format_text_latin("Elle emploie 147 collaborateurs et dispose de 22 000 m² de surfaces d' entreposage situées Casablanca-Oukacha ( 4 000 m² ) , Had Soualem ( 4 100 m² ) et Ain Sebaâ ( 14 000m² )"),
             "elle emploie cent quarante-sept collaborateurs et dispose de vingt-deux mille mètres carrés de surfaces d' entreposage situées casablanca-oukacha quatre mille mètres carrés had soualem quatre mille cent mètres carrés et ain sebaâ quatorze mille mètres carrés"
         )
 
         self.assertEqual(
-            format_text_fr("1 200 et 01 2002"),
+            format_text_latin("1 200 et 01 2002"),
             "mille deux cents et zéro un deux mille deux"
         )
 
         self.assertEqual(
-            format_text_fr("1 200 et 01 2002"),
+            format_text_latin("1 200 et 01 2002"),
             "mille deux cents et zéro un deux mille deux"
         )
 
         self.assertEqual(
-            format_text_fr("1/6 000 de seconde pour les  quelques 6 000 précieuses"),
+            format_text_latin("1/6 000 de seconde pour les  quelques 6 000 précieuses"),
             "un six millième de seconde pour les quelques six mille précieuses"
         )
 
         self.assertEqual(
-            format_text_fr("155/70-12 155/70-15 140/80-13"),
+            format_text_latin("155/70-12 155/70-15 140/80-13"),
             #"cent cinquante-cinq soixante-dixièmes douze mille cent cinquante-cinq soixante-dix quinze mille cent quarante quatre-vingts treize"
             "cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze mille cent quarante quatre-vingts treize"
         )
 
         self.assertEqual(
-            format_text_fr("Jeu 1 : 160/65-315  155/70-12 155/70-15"),
+            format_text_latin("Jeu 1 : 160/65-315  155/70-12 155/70-15"),
             "jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
         )
 
         self.assertEqual(
-            format_text_fr("98-151/16, 39-1/16"),
+            format_text_latin("98-151/16, 39-1/16"),
             "quatre-vingt-dix-huit mille cent cinquante et un seize trente-neuf un seizième"
         )
 
         self.assertEqual(
-            format_text_fr("Attentats du 21//07: le suspect extradé d'Italie inculpé à Londres. Nous sommes le 01/01/2019 à 10h00 Il fait -1°C."),
+            format_text_latin("Attentats du 21//07: le suspect extradé d'Italie inculpé à Londres. Nous sommes le 01/01/2019 à 10h00 Il fait -1°C."),
             "attentats du vingt et un juillet le suspect extradé d' italie inculpé à londres nous sommes le premier janvier deux mille dix-neuf à dix heures il fait moins un degrés celsius"
         )
 
         self.assertEqual(
-            format_text_fr("32/01/2019 31/13 "),
+            format_text_latin("32/01/2019 31/13 "),
             "trente-deux zéro un deux mille dix-neuf trente et un treizièmes"
         )
 
         self.assertEqual(
-            format_text_fr("Une quantité c' est un volume  Quand on divise un volume par une surface on obtient une hauteur Par exemple un 1 litre / m² = 1 000 000 mm3/1 000 000 mm² = 1mm"),
+            format_text_latin("Une quantité c' est un volume  Quand on divise un volume par une surface on obtient une hauteur Par exemple un 1 litre / m² = 1 000 000 mm3/1 000 000 mm² = 1mm"),
             "une quantité c' est un volume quand on divise un volume par une surface on obtient une hauteur par exemple un un litre mètres carrés un million millimètres trois un million millimètres carrés un millimètres"
         )
 
         text = "2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
         expected = text.replace("2", "deux ").strip()
         self.assertEqual(
-            format_text_fr(text),
+            format_text_latin(text),
             expected
         )
 
         text = "-1900190119021903190419051906190719081909191019111912191319141915191619171918191919201921192219231924192519261927192819291930193119321933193419351936193719381939194019411942194319441945194619471948194919501951195219531954195519561957195819591960196119621963196419651966196719681969197019711972197319741975197619771978197919801981198219831984198519861987198819891990199119921993199419951996199719981999200020012002200320042005200620072008200920102011201220132014201520162017"
         self.assertEqual(
-            format_text_fr(text),
-            "moins "+" ".join([format_text_fr(x) for x in text[1:]])
+            format_text_latin(text),
+            "moins "+" ".join([format_text_latin(x) for x in text[1:]])
         )
 
     def test_format_special_chars(self):
         self.assertEqual(
-            format_text_fr("L’état “from scratch”."),
+            format_text_latin("L’état “from scratch”."),
             "l' état from scratch"
         )
 
         self.assertEqual(
-            format_text_fr("``Elle veut nous faire croire qu'elle était complètement abrutie'', a affirmé l'avocat général notant cependant que l'ancienne prostituée -qui aurait dit dans la voiture ``Vas-y,allume-les!''-avait réussi sa reconversion après 1994."),
+            format_text_latin("``Elle veut nous faire croire qu'elle était complètement abrutie'', a affirmé l'avocat général notant cependant que l'ancienne prostituée -qui aurait dit dans la voiture ``Vas-y,allume-les!''-avait réussi sa reconversion après 1994."),
             "elle veut nous faire croire qu' elle était complètement abrutie a affirmé l' avocat général notant cependant que l' ancienne prostituée qui aurait dit dans la voiture vas-y allume-les avait réussi sa reconversion après mille neuf cent quatre-vingt-quatorze"
         )
 
         self.assertEqual(
-            format_text_fr("Hello aaaf-bearn-gascogne, belle-mère, rouge-gorge."),
+            format_text_latin("Hello aaaf-bearn-gascogne, belle-mère, rouge-gorge."),
             "hello aaaf bearn gascogne belle-mère rouge-gorge"
         )
 
     def test_websites(self):
         self.assertEqual(
-            format_text_fr("http://www.linagora.blah.com/page.html est un site / www.linagora.com en est un autre"),
+            format_text_latin("http://www.linagora.blah.com/page.html est un site / www.linagora.com en est un autre"),
             "http deux points slash slash www point linagora point blah point com slash page point html est un site www point linagora point com en est un autre"
         )
 
         self.assertEqual(
-            format_text_fr("www.len.com len.. ralenti"),
+            format_text_latin("www.len.com len.. ralenti"),
             "www point len point com len ralenti"
         )
 
     def test_abbr(self):
         self.assertEqual(
-            format_text_fr("M. Dupont, Mme. Dupont, Mlle. Dupont"),
+            format_text_latin("M. Dupont, Mme. Dupont, Mlle. Dupont"),
             "monsieur dupont madame dupont mademoiselle dupont"
         )
         self.assertEqual(
-            format_text_fr("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
+            format_text_latin("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
             "c' est la date est au format aaaa millimètres dd ça mesure trois millimètres" # Not the best...
         )
 
     def test_spelling(self):
         self.assertEqual(
-            format_text_fr("J'ai mis les clefs dans la serrure en revenant du bistrot, etc. Je suis un feignant et cætera."),
+            format_text_latin("J'ai mis les clefs dans la serrure en revenant du bistrot, etc. Je suis un feignant et cætera."),
             "j' ai mis les clés dans la serrure en revenant du bistro et cetera je suis un fainéant et cetera"
         )
 
     def test_misc(self):
         self.assertEqual(
-            format_text_fr("chef-d'oeuvre et- voilà - quoi"),
+            format_text_latin("chef-d'oeuvre et- voilà - quoi"),
             "chef-d' oeuvre et voilà quoi"
         )
 

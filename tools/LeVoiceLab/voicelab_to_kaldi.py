@@ -7,7 +7,7 @@ import zipfile
 from operator import itemgetter
 from linastt.utils.kaldi import check_kaldi_dir
 
-from linastt.utils.text import format_text_fr, transliterate
+from linastt.utils.text import format_text_latin, transliterate
 
 char_set_fr = "abcdefghijklmnopqrstuvwxyzàâçéèêëîïôûùüÿñæœ-' "
 
@@ -88,7 +88,7 @@ def convert(dirin, dirout, annotdir = None):
                 print("Warning: end <= start for", utt)
                 continue
             assert utt not in text, "Duplicate utterance: " + utt
-            text_formatted = format_text_fr(annot)
+            text_formatted = format_text_latin(annot)
             text[utt] = text_formatted
             for char in text_formatted:
                 all_chars.add(char)

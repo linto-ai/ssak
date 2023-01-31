@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from linastt.utils.text import format_text_fr
+from linastt.utils.text import format_text_latin
 
 if __name__ == "__main__":
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     try:
         for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
-            line = format_text_fr(line,
+            line = format_text_latin(line,
                 lower_case = not args.keep_case,
                 keep_punc = args.keep_punc,
                 extract_parenthesis = args.extract_parenthesis,
