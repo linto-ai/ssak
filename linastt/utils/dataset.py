@@ -635,8 +635,8 @@ def to_audio_batches(
             else:
                 yield [audio]
 
-        elif parse_input_file_with_start_end(input):
-            input, start, end = parse_input_file_with_start_end(input)
+        elif input_start_end := parse_input_file_with_start_end(input):
+            input, start, end = input_start_end
             audio = load_audio(input, start = start, end = end, sample_rate = sample_rate, mono = mono, return_format = return_format)
             if output_ids:
                 audio = (audio, os.path.basename(input))
@@ -644,6 +644,23 @@ def to_audio_batches(
                 yield audio
             else:
                 yield [audio]
+
+        elif input_starts_ends := parse_input_file_with_starts_ends(input):
+            input, starts_ends = input_starts_ends
+            batch = []
+            for (start, end) in starts_ends:
+                audio = load_audio(input, start, end, sample_rate = sample_rate, mono = mono, return_format = return_format)
+                if output_ids:
+                    audio = (audio, os.path.basename(input)+":"+str(start)+"-"+str(end))
+                if batch_size == 0:
+                    yield audio
+                else:
+                    batch.append(audio)
+                    if len(batch) == batch_size:
+                        yield batch
+                        batch = []
+            if len(batch) > 0:
+                yield batch
 
         else:
             raise ValueError(f"Cannot interpret {input} as an existing audio file, kaldi folder (or audiofile.wav:start-end)")
@@ -702,6 +719,33 @@ def parse_input_file_with_start_end(input_file):
             except ValueError:
                 return None
             return (input_file, start, end)
+    return None
+
+def parse_input_file_with_starts_ends(input_file):
+    """ 
+    Parse an input that is XXX.wav:start1-end1,start2-end2,...
+    Return None if it fails
+    """
+    if ":" in input_file:
+        f = input_file.split(":")
+        input_file = ":".join(f[:-1])
+        if not os.path.isfile(input_file):
+            logger.warning(f"Cannot find file {input_file}")
+            return None
+        starts_ends_str = f[-1].split(",")
+        starts_ends = []
+        for start_end in starts_ends_str:
+            start_end = start_end.split("-")
+            if len(start_end) != 2:
+                return None
+            start, end = start_end
+            try:
+                start = float(start)
+                end = float(end)
+            except ValueError:
+                return None
+            starts_ends.append((start, end))
+        return input_file, starts_ends
     return None
 
 def to_annotation_text(input):
