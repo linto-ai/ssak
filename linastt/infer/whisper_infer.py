@@ -76,7 +76,7 @@ def whisper_infer(
 
         pred = []
         for audio in batch:
-            res = model.transcribe(audio, language=language, fp16 = fp16,
+            res = model.transcribe(audio_minimum_padding(audio), language=language, fp16 = fp16,
                 beam_size = beam_size,
                 temperature = temperature, best_of = best_of,
                 condition_on_previous_text = condition_on_previous_text,
@@ -97,6 +97,10 @@ def whisper_infer(
         if log_memtime: gpu_mempeak()
     if log_memtime: toc("apply network", log_mem_usage = True)
 
+def audio_minimum_padding(audio):
+    if audio.shape[-1] <= 200:
+        return whisper.pad_or_trim(audio, 201)
+    return audio
 
 
 if __name__ == "__main__":
