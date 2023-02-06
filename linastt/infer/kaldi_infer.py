@@ -60,45 +60,44 @@ def kaldi_infer(
 
     try:
 
+        # Linto models
+        if modelname == "linSTT_fr-FR_v2.2.0":
+            modelname = "linSTT_AM_fr-FR_v2.2.0,decoding_graph_fr-FR_Big_v2.2.0"
+        elif modelname == "linSTT_en-US_v1.1.0":
+            modelname = "linSTT_AM_en-US_v1.0.0,decoding_graph_en-US_v1.1.0"
+        elif modelname == "linSTT_en-US_v1.2.0":
+            modelname = "linSTT_AM_en-US_v1.0.0,decoding_graph_en-US_Big_v1.2.0"
+        elif modelname == "linSTT_ar-AR_v1.1.0":
+            modelname = "linSTT_AM_ar-AR_v1.0.0,decoding_graph_ar-AR_v1.1.0"
+        elif modelname == "linSTT_ar-AR_v1.2.0":
+            modelname = "linSTT_AM_ar-AR_v1.0.0,decoding_graph_ar-AR_v1.2.0"
+            
+
         if "," in modelname:
             amdir, lmdir = modelname.split(",")
+
+            if not os.path.isdir(amdir):
+                if amdir == "linSTT_AM_fr-FR_v2.2.0":
+                    amdir = download_zipped_folder(urlpath_linto + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.2.0.zip", cache_dir)
+                elif amdir == "linSTT_AM_en-US_v1.0.0":
+                    amdir = download_zipped_folder(urlpath_linto + "acoustic-models/en-US/linSTT_AM_en-US_v1.0.0.zip", cache_dir)
+                elif amdir == "linSTT_AM_ar-AR_v1.0.0":
+                    amdir = download_zipped_folder(urlpath_linto + "acoustic-models/ar-AR/linSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
+
+            if not os.path.isdir(lmdir):
+                if lmdir.endswith("fr-FR_Big_v2.2.0"):
+                    lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
+                elif lmdir.endswith("en-US_v1.1.0"):
+                    lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/en-US/decoding_graph_en-US_v1.1.0.zip", cache_dir)
+                elif lmdir.endswith("en-US_v1.2.0"):
+                    lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/en-US/decoding_graph_en-US_Big_v1.2.0.zip", cache_dir)
+                elif lmdir.endswith("ar-AR_v1.1.0"):
+                    lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.1.0.zip", cache_dir)
+                elif lmdir.endswith("ar-AR_v1.2.0"):
+                    lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.2.0.zip", cache_dir)
+
             modeldir = linagora2vosk(amdir, lmdir)
             files_to_move.append((modeldir, None))
-
-        elif modelname == "linSTT_fr-FR_v2.2.0":
-
-            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/fr-FR/linSTT_AM_fr-FR_v2.2.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/fr-FR/decoding_graph_fr-FR_Big_v2.2.0.zip", cache_dir)
-            modeldir = linagora2vosk(amdir, lmdir)
-            files_to_move.append((modeldir, None))
-
-        elif modelname == "linSTT_en-US_v1.1.0":
-
-            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/en-US/linSTT_AM_en-US_v1.0.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/en-US/decoding_graph_en-US_v1.1.0.zip", cache_dir)
-            modeldir = linagora2vosk(amdir, lmdir)
-            files_to_move.append((modeldir, None))
-
-        elif modelname == "linSTT_en-US_v1.2.0":
-
-            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/en-US/linSTT_AM_en-US_v1.0.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/en-US/decoding_graph_en-US_Big_v1.2.0.zip", cache_dir)
-            modeldir = linagora2vosk(amdir, lmdir)
-            files_to_move.append((modeldir, None))
-
-        elif modelname == "linSTT_ar-AR_v1.1.0":
-
-            amdir = download_zipped_folder(urlpath_linto + "acoustic-models/ar-AR/linSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
-            lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.1.0.zip", cache_dir)
-            modeldir = linagora2vosk(amdir, lmdir)
-            files_to_move.append((modeldir, None))
-
-        # elif modelname == "linSTT_ar-AR_v1.2.0": # This one is too bad!
-
-        #     amdir = download_zipped_folder(urlpath_linto + "acoustic-models/ar-AR/LinSTT_AM_ar-AR_v1.0.0.zip", cache_dir)
-        #     lmdir = download_zipped_folder(urlpath_linto + "decoding-graphs/LVCSR/ar-AR/decoding_graph_ar-AR_v1.2.0.zip", cache_dir)
-        #     modeldir = linagora2vosk(amdir, lmdir)
-        #     files_to_move.append((modeldir, None))
 
         elif not os.path.isdir(modeldir):
             urlpath = "https://alphacephei.com/vosk/models/"
