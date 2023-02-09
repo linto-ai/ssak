@@ -1,6 +1,7 @@
 bs4
 certifi
 docx
+pymupdf
 pycurl
 python-slugify
 selenium
