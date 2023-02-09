@@ -17,6 +17,7 @@ def get_word_positions(
     model,
     output_ids = False,
     verbose = True,
+    plot = False,
     ):
 
     model = load_model(model)
@@ -29,7 +30,7 @@ def get_word_positions(
     )
 
     for audio, transcript in zip(audios, annotations):
-        labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = False)
+        labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = plot)
         ratio = len(audio) / (trellis.size(0) * sample_rate)
         all_words = transcript.split()
         assert len(all_words) == len(word_segments)
@@ -54,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', help="Acoustic model (Speechbrain or Transformer)", type=str, default = "speechbrain/asr-wav2vec2-commonvoice-fr")
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
+    parser.add_argument('--plot', help='To make intermediate plots.', default=False, action='store_true')
     args = parser.parse_args()
 
     audios = args.audios
@@ -98,6 +100,7 @@ if __name__ == "__main__":
     first = True
     for d in get_word_positions(audios, annotations,
         model = args.model,
+        plot = args.plot,
     ):
         if not first:
             print(",", file = args.output)
