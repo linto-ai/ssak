@@ -119,6 +119,8 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
     
     msg = "(Type 'r' to replay"+ (", "+", ".join(f"'{k}' to {v}" for k,v in additional_commands.items()) if additional_commands else "") +")"
     keys = list(additional_commands.keys()) + ["r", ""]
+    afford_float = max([isinstance(k, float) for k in keys])
+    afford_int = max([isinstance(k, int) for k in keys])
 
     if start is None:
         start = 0
@@ -148,6 +150,12 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
                 x = None
                 while x not in keys:
                     x = input(msg)
+                    if afford_int and x.isdigit():
+                        x = int(x)
+                        break
+                    if afford_float and is_float(x):
+                        x = float(x)
+                        break
             else:
                 x = ""
     finally:
@@ -156,6 +164,13 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
 
     return x
     
+
+def is_float(x):
+    try:
+        float(x)
+        return True
+    except:
+        return False
 
 if __name__ == "__main__":
 
