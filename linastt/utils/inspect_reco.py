@@ -4,11 +4,13 @@ from linastt.utils.text import transliterate
 from linastt.utils.viewer import PlayWav
 from linastt.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
 
+import matplotlib.pyplot as plt
+
 import torch
 import transformers
 from dataclasses import dataclass
 
-imshow_opts = dict(origin = "lower")
+imshow_opts = dict(origin = "lower", vmin = -500, vmax = -300)
 imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25)
 
 def get_trellis(emission, tokens, blank_id=0, use_max = False):
@@ -140,15 +142,17 @@ def plot_trellis_with_path(trellis, path):
     trellis_with_path = trellis.clone()
     for _, p in enumerate(path):
         trellis_with_path[p.time_index, p.token_index] = float("nan")
-    plt.imshow(trellis_with_path[1:, 1:].T, **imshow_opts)
+    plt.imshow(trellis_with_path.T, **imshow_opts)
 
 
 def plot_trellis_with_segments(trellis, segments, transcript, path):
     # To plot trellis with path, we take advantage of 'nan' value
     trellis_with_path = trellis.clone()
-    for i, seg in enumerate(segments):
-        if seg.label != "|":
-            trellis_with_path[seg.start + 1 : seg.end + 1, i + 1] = float("nan")
+    for _, p in enumerate(path):
+        trellis_with_path[p.time_index, p.token_index] = float("nan")
+    # for i, seg in enumerate(segments):
+    #     if seg.label != "|":
+    #         trellis_with_path[seg.start + 1 : seg.end + 1, i + 1] = float("nan")
 
     fig, [ax1, ax2] = plt.subplots(2, 1, figsize=(16, 9.5))
     ax1.set_title("Path, label and probability for each label")
@@ -156,8 +160,8 @@ def plot_trellis_with_segments(trellis, segments, transcript, path):
     ax1.set_xticks([])
 
     for i, seg in enumerate(segments):
-        ax1.annotate(seg.label, (seg.start + 0.7, i + 0.3), weight="bold")
-        ax1.annotate(f"{seg.score:.2f}", (seg.start - 0.3, i + 4.3))
+        ax1.annotate(seg.label, (seg.start, i), weight="bold", verticalalignment='center', horizontalalignment='right')
+        # ax1.annotate(f"{seg.score:.2f}", (seg.start + 1, i + 1), verticalalignment='bottom', horizontalalignment='right')
 
     ax2.set_title("Label probability with and without repetition")
     xs, hs, ws = [], [], []
@@ -331,7 +335,6 @@ if __name__ == "__main__":
     import os
     import sys
     import json
-    import matplotlib.pyplot as plt
     from linastt.utils.audio import load_audio
 
     audio_path = args.audio
