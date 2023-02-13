@@ -93,6 +93,8 @@ def linstt_transcribe(
         audio_file,
         url = "https://api.linto.ai/stt-french-generic",
         convert_numbers=True,
+        punctuation=True,
+        diarization=False,
         return_raw=True,
         wordsub={},
         verbose=False,
@@ -100,6 +102,21 @@ def linstt_transcribe(
         timeout_progress0 = 30, # For transcription that is never starting (seems to be a bug currently)
         ping_interval = 1,
     ):
+    """
+    Transcribe an audio file using the linstt service.
+    Args:
+        audio_file (str): Path to the audio file to transcribe.
+        url (str): URL of the linstt service.
+        convert_numbers (bool): Convert numbers to words.
+        punctuation (bool): Add punctuation to the transcription.
+        diarization (bool or int): Enable diarization. If int, set the number of speakers.
+        return_raw (bool): Return the raw response from the linstt service.
+        wordsub (dict): Dictionary of words to substitute.
+        verbose (bool): Print curl command.
+        timeout (int): Timeout in seconds.
+        timeout_progress0 (int): Timeout in seconds if the transcription is not starting.
+        ping_interval (int): Interval in seconds between two pings to the linstt service.
+    """
     assert os.path.isfile(audio_file), f"File {audio_file} does not exist."
     assert timeout > 0, f"Timeout must be > 0, got {timeout}"
 
@@ -113,13 +130,13 @@ def linstt_transcribe(
             "timestamps": "",
             "transcriptionConfig": {
                 "punctuationConfig": {
-                    "enablePunctuation": False,
+                    "enablePunctuation": punctuation,
                     "serviceName": None,
                 },
                 "diarizationConfig": {
-                    "enableDiarization": False,
-                    "numberOfSpeaker": None,
-                    "maxNumberOfSpeaker": None,
+                    "enableDiarization": True if diarization else False,
+                    "numberOfSpeaker": diarization if isinstance(diarization, int) else None,
+                    "maxNumberOfSpeaker": 50 if not isinstance(diarization, int) else None,
                     "serviceName": None,
                 }
             },
@@ -131,6 +148,9 @@ def linstt_transcribe(
     if "jobid" not in result and "text" in result:
         assert "words" in result, f"'words' not found in response: {result}"
         assert "confidence-score" in result, f"'confidence-score' not found in response: {result}"
+        
+        assert not convert_numbers, f"convert_numbers not supported for simple stt. Use transcription service"
+        assert not punctuation, f"convert_numbers not supported for simple stt. Use transcription service"
 
         text = result["text"]
         words = result["words"]
