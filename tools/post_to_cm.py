@@ -9,7 +9,7 @@ import numpy as np
 from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.curl import linstt_transcribe
 from linastt.utils.misc import hashmd5
-
+from linastt.utils.output_format import to_linstt_transcription as format_transcription
 
 ####################
 # Conversation Manager 
@@ -140,75 +140,6 @@ def cm_get_token(url, email, password, verbose=False):
 
 ####################
 # Format conversion
-
-def format_transcription(transcription):
-    assert isinstance(transcription, dict)
-
-    if "transcription_result" in transcription:
-        return transcription
-
-    # Whisper augmented with words
-    if "text" in transcription and "segments" in transcription:
-        for i, seg in enumerate(transcription["segments"][:-1]):
-            for expected_keys in ["start", "end", "words"]:
-                assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
-
-        text = transcription["text"].strip()
-        return {
-            "transcription_result": text,
-            "raw_transcription": text,
-            "confidence": np.mean([np.exp(seg.get("avg_logprob", 1)) for seg in transcription["segments"]]),
-            "segments": [
-                {
-                    "spk_id": None,
-                    "start": round(seg["start"], 2),
-                    "end": round(seg["end"], 2),
-                    "duration": round(seg["end"] - seg["start"], 2),
-                    "raw_segment": seg["text"].strip(),
-                    "segment": seg["text"].strip(),
-                    "words": [
-                        {
-                            "word": word["text"],
-                            "start": round(word["start"], 2),
-                            "end": round(word["end"], 2),
-                            "conf": word.get("confidence", 1),
-                        } for word in seg.get("words", [])
-                    ]
-                } for seg in transcription["segments"]
-            ]
-        }
-
-    # LinSTT isolated transcription (linto-platform-stt)
-    if "text" in transcription and "confidence-score" in transcription and "words" in transcription:
-        text = transcription["text"]
-        words = transcription["words"]
-        start = words[0]["start"]
-        end = words[-1]["end"]
-        return {
-            "transcription_result": text,
-            "raw_transcription": text,
-            "confidence": transcription["confidence-score"],
-            "segments": [
-                {
-                    "spk_id": None,
-                    "start": round(start, 2),
-                    "end": round(end, 2),
-                    "duration": round(end - start, 2),
-                    "raw_segment": text,
-                    "segment": text,
-                    "words": [
-                        {
-                            "word": word["word"],
-                            "start": round(word["start"], 2),
-                            "end": round(word["end"], 2),
-                            "conf": word["conf"],
-                        } for word in words
-                    ]
-                }
-            ]
-        }
-
-    raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
 
 def get_speakers(transcription):
     all_speakers = set()
