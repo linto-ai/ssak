@@ -1,4 +1,4 @@
-from linastt.utils.curl import linstt_transcribe
+from linastt.utils.linstt import linstt_transcribe
 
 if __name__ == "__main__":
 
@@ -16,10 +16,17 @@ if __name__ == "__main__":
         # default="https://alpha.api.linto.ai/stt-french-generic",
         default="https://api.linto.ai/stt-french-generic",
     )
+    parser.add_argument('--diarization_server', type=str, help='Diarization server', default= None)
+    parser.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
     parser.add_argument('--convert_numbers', default = True, action='store_true', help='Convert numbers to text')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     # parser.add_argument('--return_raw', default = True, action='store_true', help='Convert numbers to text')
     args = parser.parse_args()
+
+    if args.output_file and not os.path.isdir(os.path.dirname(args.output_file)):
+        os.makedirs(os.path.dirname(args.output_file))
+    if args.output_dir and not os.path.isdir(args.output_dir):
+        os.makedirs(args.output_dir)
 
     with (open(args.output_file, "w") if args.output_file else (sys.stdout if not args.output_dir else open(os.devnull,"w"))) as f:
 
@@ -28,7 +35,9 @@ if __name__ == "__main__":
             try:
                 result = linstt_transcribe(
                     audio_file,
-                    url=args.transcription_server,
+                    transcription_server=args.transcription_server,
+                    diarization_server=args.diarization_server,
+                    diarization=args.num_spearkers,
                     convert_numbers=args.convert_numbers,
                     verbose=args.verbose,
                 )

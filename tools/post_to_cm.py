@@ -7,7 +7,7 @@ import datetime
 import numpy as np
 
 from linastt.utils.curl import curl_post, curl_get, curl_delete
-from linastt.utils.curl import linstt_transcribe
+from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.misc import hashmd5
 from linastt.utils.output_format import to_linstt_transcription as format_transcription
 
