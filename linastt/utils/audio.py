@@ -51,36 +51,74 @@ def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True
     if verbose:
         print("Loading audio", path, start, end)
     
-    with suppress_stderr():
-        # stderr could print these harmless warnings:
-        # 1/ Could occur with sox.read
-        # mp3: MAD lost sync
-        # mp3: recoverable MAD error
-        # 2/ Could occur with sox.get_info
-        # wav: wave header missing extended part of fmt chunk
-        if start or end: # is not None:
-            start = float(start)
-            sr = sox.get_info(path)[0].rate
+    if return_format == 'torch':
+        if start or end:
+            start = float(start if start else 0)
+            sr = torchaudio.info(path).sample_rate
             offset = int(start * sr)
-            nframes = 0
-            if end: # is not None:
+            num_frames = -1
+            if end:
                 end = float(end)
-                nframes = int((end - start) * sr)
-            audio, sr = sox.read(path, offset = offset, nframes = nframes)
+                num_frames = int((end - start) * sr)
+            audio, sr = torchaudio.load(path, frame_offset=offset, num_frames=num_frames)
         else:
-            audio, sr = sox.read(path)
-    audio = np.float32(audio)
+            audio, sr = torchaudio.load(path)
+
+    else:
+
+        with suppress_stderr():
+            # stderr could print these harmless warnings:
+            # 1/ Could occur with sox.read
+            # mp3: MAD lost sync
+            # mp3: recoverable MAD error
+            # 2/ Could occur with sox.get_info
+            # wav: wave header missing extended part of fmt chunk
+            if start or end: # is not None:
+                start = float(start)
+                sr = sox.get_info(path)[0].rate
+                offset = int(start * sr)
+                nframes = 0
+                if end: # is not None:
+                    end = float(end)
+                    nframes = int((end - start) * sr)
+                audio, sr = sox.read(path, offset = offset, nframes = nframes)
+            else:
+                audio, sr = sox.read(path)
+
+        audio = np.float32(audio)
+
+    audio = conform_audio(audio, sr, sample_rate=sample_rate, mono=mono, return_format=return_format, verbose=verbose)
+
+    if verbose:
+        print("- Done", path, start, end)
+
+    if sample_rate is None:
+        return (audio, sr)
+    return audio
+
+def conform_audio(audio, sr, sample_rate=16_000, mono=True, return_format='array', verbose=False):
     if mono:
-        if verbose:
-            print("- Convert to mono")
-        if audio.shape[1] == 1:
-            audio = audio.reshape(audio.shape[0])
+        if len(audio.shape) == 1:
+            pass
+        elif len(audio.shape) > 2:
+            raise RuntimeError("Audio with more than 2 dimensions not supported")
+        elif min(audio.shape) == 1:
+            if verbose:
+                print("- Reshape to mono")
+            audio = audio.reshape(audio.shape[0] * audio.shape[1])
         else:
-            audio = librosa.to_mono(audio.transpose())
+            if verbose:
+                print(f"- Average to mono from shape {audio.shape}")
+            if isinstance(audio, torch.Tensor):
+                audio = audio.numpy()
+            else:
+                audio = audio.transpose()
+            audio = librosa.to_mono(audio)
     if sample_rate is not None and sr != sample_rate:
-        if verbose:
-            print("- Convert to Torch")
-        audio = torch.Tensor(audio)
+        if not isinstance(audio, torch.Tensor):
+            if verbose:
+                print("- Convert to Torch")
+            audio = torch.Tensor(audio)
         if verbose:
             print("- Resample from", sr, "to", sample_rate)
         # We don't use librosa here because there is a problem with multi-threading
@@ -94,15 +132,16 @@ def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True
     elif return_format != "torch":
         if isinstance(audio, torch.Tensor):
             if verbose:
-                print("- Convert to Numpy")
+                print("- Convert from Torch to Numpy")
             audio = audio.numpy()
         elif isinstance(audio, list):
+            if verbose:
+                print("- Convert from list to Numpy")
             audio = np.array(audio, dtype=np.float32)
         if return_format == "bytes":
+            if verbose:
+                print("- Convert to bytes")
             audio = array_to_bytes(audio)
-
-    if verbose:
-        print("- Done", path, start, end)
 
     return audio
 

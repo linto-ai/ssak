@@ -13,6 +13,8 @@ matplotlib
 num2words
 psutil
 py3nvml
+pyannote.audio
+pyannote.pipeline
 pyarabic
 pyctcdecode
 pypi-kenlm
