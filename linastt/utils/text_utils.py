@@ -1,4 +1,5 @@
 import re
+import string
 import unicodedata
 
 _whitespace_re = re.compile(r'[^\S\r\n]+')
@@ -77,3 +78,27 @@ def text_unescape(text):
         .replace("^","\^")\
         .replace("$","\$")\
         .replace("?","\?")
+
+_punctuation_strong = string.punctuation + "。，！？：”、…"
+_punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
+
+# Should we precompute?
+# _punctuation_strong = str.maketrans('', '', _punctuation_strong)
+# _punctuation = str.maketrans('', '', _punctuation)
+
+def remove_punctuations(text, strong = False):
+    if strong:
+        return text.translate(str.maketrans('', '', _punctuation_strong))
+    return text.translate(str.maketrans('', '', _punctuation))
+
+def split_around_apostrophe(text):
+    words = text.split("'")
+    words[:-1] = [w + "'" for w in words[:-1]]
+    return words
+
+def split_around_space_and_apostrophe(text):
+    # Note: re.split(r"[' ]", text) does not work (remove the apostrophe)
+    words = text.strip().split()
+    words = [split_around_apostrophe(w) for w in words if w]
+    words = [w for ws in words for w in ws]
+    return words
