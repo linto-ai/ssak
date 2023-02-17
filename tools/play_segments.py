@@ -24,7 +24,7 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False):
             print(f"Segment {i+1}/{len(results['segments'])}, word {iw+1}/{len(segment['words'])}")
             print(f'{word["word"]} : {start}-{end}')
             
-            x = play_audiofile(audio_file, start, end, additional_commands = {"q": "quit", "s": "skip segment", 20.05: "skip to 20.05"})
+            x = play_audiofile(audio_file, start, end, additional_commands = {"q": "quit", "s": "skip segment", 20.05: "skip forward (or rewind) to 20.05 sec"})
 
             if x == "q":
                 return
@@ -32,6 +32,9 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False):
                 break
             if isinstance(x, float|int):
                 min_sec = x
+                if min_sec < start:
+                    # Rewind
+                    return check_results(audio_file, results, min_sec=min_sec, play_segment=play_segment)
 
 if __name__ == "__main__":
 
