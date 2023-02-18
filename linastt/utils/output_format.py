@@ -282,6 +282,6 @@ if __name__ == "__main__":
         if not y.lower().endswith(".json"):
             y = os.path.splitext(y)[0]+".json"
         assert x != y, "Input and output files must be different"
-        transcription = to_linstt_transcription(transcription)
+        transcription = to_linstt_transcription(x)
         with open(y, "w", encoding="utf-8") as f:
             json.dump(transcription, f, indent=2, ensure_ascii=False)
