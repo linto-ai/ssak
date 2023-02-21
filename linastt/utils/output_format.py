@@ -25,12 +25,13 @@ def to_linstt_transcription(transcription):
 
     assert isinstance(transcription, dict)
 
+    # LinTO transcription service
     if "transcription_result" in transcription:
         return transcription
 
     # Whisper augmented with words
     # (whisper-timestamped or whisperX)
-    if "text" in transcription and "segments" in transcription:
+    if "language" in transcription and "segments" in transcription:
         for i, seg in enumerate(transcription["segments"]):
             for expected_keys in ["start", "end"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
@@ -58,7 +59,8 @@ def to_linstt_transcription(transcription):
                         if seg[key][j]["end"] is None:
                             seg[key][j]["end"] = seg["end"]
 
-        text = transcription["text"].strip()
+        text = transcription["text"] if "text" in transcription else " ".join([seg["text"] for seg in transcription["segments"]])
+        text = text.strip()
         return {
             "transcription_result": text,
             "raw_transcription": text,
@@ -83,7 +85,7 @@ def to_linstt_transcription(transcription):
             ]
         }
 
-    # LinSTT isolated transcription (linto-platform-stt)
+    # LinTO isolated transcription (linto-platform-stt)
     if "text" in transcription and "confidence-score" in transcription and "words" in transcription:
         text = transcription["text"]
         words = transcription["words"]
