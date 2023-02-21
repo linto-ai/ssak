@@ -144,7 +144,7 @@ def transformers_compute_logits(model, processor, batch, device = None, sample_r
     if device == None:
         device = model.device
 
-    processed_batch = processor(batch, sampling_rate = sample_rate)
+    processed_batch = processor(batch, sampling_rate = sample_rate, padding = "longest")
 
     padded_batch = processor.pad(
         processed_batch,
@@ -208,6 +208,7 @@ if __name__ == "__main__":
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
     parser.add_argument('--model', help="Path to trained folder, or name of a pretrained model",
         default = "Ilyes/wav2vec2-large-xlsr-53-french"
+
     )
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
