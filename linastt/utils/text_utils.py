@@ -118,7 +118,7 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
         if x == math.inf:  # !
             res = " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
         elif x == -math.inf:  # !
-            res = "moins " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
+            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
         else:
             raise RuntimeError(f"OverflowError on {x} {orig}")
     if lang == "fr" and to == "ordinal":
@@ -126,4 +126,51 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     elif lang == "ar":
         res = res.replace(",","فاصيله")
     return res
-    
+
+_minus = {
+    "en": "minus",
+    "fr": "moins",
+    "ar": "منها",
+    "de": "minus",
+    "es": "menos",
+    "it": "meno",
+    "pt": "menos",
+    "nl": "min",
+    "sv": "minus",
+    "da": "minus",
+    "nb": "minus",
+    "fi": "miinus",
+    "tr": "eksi",
+    "hu": "mínusz",
+    "pl": "minus",
+    "cs": "mínus",
+    "ru": "минус",
+    "uk": "мінус",
+    "el": "μείον",
+    "bg": "минус",
+    "lt": "minus",
+    "sl": "minus",
+    "hr": "minus",
+    "sk": "mínus",
+    "et": "miinus",
+    "lv": "mīnus",
+    "lt": "minus",
+    "ro": "minus",
+    "he": "מינוס",
+    "id": "kurang",
+    "vi": "trừ",
+    "th": "ลบ",
+    "zh": "减",
+    "ja": "マイナス",
+    "ko": "마이너스",
+    "hi": "घटाएं",
+    "bn": "কম",
+    "gu": "ઘટાવો",
+    "ta": "குறைக்க",
+    "te": "కనిపించు",
+    "kn": "ಕಡಿಮೆ",
+    "ml": "കുറയ്ക്കുക",
+    "mr": "कमी",
+    "pa": "ਘਟਾਓ",
+    "ur": "کم کریں",
+}    
