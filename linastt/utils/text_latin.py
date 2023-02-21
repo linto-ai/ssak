@@ -1216,49 +1216,6 @@ _multi_spelling_words = [(r'\b%s\b' % x[0], '%s' % x[1])
                     ("yoghourts", "yogourts"), # yaourt
                 ]]
 
-_romans = {
-    'I': 'un',
-    'II': 'deux',
-    'III': 'trois',
-    'IV': 'quatre',
-    'VII': 'sept',
-    'VIII': 'huit',
-    'IX': 'neuf',
-    'XI': 'onze',
-    'XII': 'douze',
-    'XIII': 'treize',
-    'XIV': 'quatorze',
-    'XV': 'quinze',
-    'XVI': 'seize',
-    'XVII': 'dix-sept',
-    'XVIII': 'dix-huit',
-    'XIX': 'dix-neuf',
-    'XX': 'vingt',
-    'XXI': 'vingt-et-un',
-    'XXII': 'vingt-deux',
-    'Ier': 'premier',
-    'Iere': 'première',
-    'Ière': 'première',
-    'IIe': 'deuxième',
-    'IIIe': 'troisième',
-    'IVe': 'quatrième',
-    'VIIe': 'septième',
-    'VIIIe': 'huitième',
-    'IXe': 'neuvième',
-    'XIe': 'onzième',
-    'XIIe': 'douzième',
-    'XIIIe': 'treizième',
-    'XIVe': 'quatorzième',
-    'XVe': 'quinzième',
-    'XVIe': 'seizième',
-    'XVIIe': 'dix-septième',
-    'XVIIIe': 'dix-huitième',
-    'XIXe': 'dix-neuvième',
-    'XXe': 'vingtième',
-    'XXIe': 'vingt-et-unième',
-    'XXIIe': 'vingt-deuxième',
-}
-
 if __name__ == "__main__":
 
     import sys, os
