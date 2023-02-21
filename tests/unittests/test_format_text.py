@@ -180,6 +180,8 @@ class TestFormatTextArabic(Test):
             'في الغة الإنجليزية ، يمكن لمرء أن يقول !'
         )
 
+        # TODO: Do not remove double "ll" in English
+
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
             'في الغة الإنجليزية يمكن لمرء أن يقول Helo world '
@@ -192,7 +194,20 @@ class TestFormatTextArabic(Test):
 
     def test_format_digits(self):
         
+        # TODO: is this correct?
+
         self.assertEqual(
-            format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
-            "TODO"
+            format_text_ar("بعض الأرقام: 01 و 314 و 315.5 و ۰۹ و ۹۰"),
+            'بعض الأرقام واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر فاصيله خمسون و تسعة و تسعون'
         )
+
+        self.assertEqual(
+            format_text_ar("بعض الأرقام: 01 و 314 و 315,5 و ۰۹ و ۹۰"),
+            'بعض الأرقام واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر و تسعة و تسعون'
+        )
+
+        # TODO: solve IP
+        # self.assertEqual(
+        #     format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
+        #     "TODO"
+        # )

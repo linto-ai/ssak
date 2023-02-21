@@ -1,6 +1,8 @@
 import re
 import string
 import unicodedata
+from num2words import num2words
+import math
 
 _whitespace_re = re.compile(r'[^\S\r\n]+')
 
@@ -102,3 +104,20 @@ def split_around_space_and_apostrophe(text):
     words = [split_around_apostrophe(w) for w in words if w]
     words = [w for ws in words for w in ws]
     return words
+
+def robust_num2words(x, lang, to="cardinal", orig=""):
+    """
+    Bugfix for num2words
+    """
+    try:
+        res = num2words(x, lang=lang, to=to)
+        if lang == "fr" and to == "ordinal":
+            res = res.replace("vingtsième", "vingtième")
+        return res
+    except OverflowError:
+        if x == math.inf:  # !
+            return " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
+        if x == -math.inf:  # !
+            return "moins " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
+        # TODO: print a warning
+        return robust_num2words(x//10, lang=lang, to=to)

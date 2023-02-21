@@ -1,8 +1,7 @@
 import re
 import math
-from num2words import num2words
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate, robust_num2words
 from linastt.utils.misc import flatten
 
 def remove_special_words(text,
@@ -444,22 +443,6 @@ def undigit(s, lang, to="cardinal"):
             return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(float(s), lang=lang, to=to, orig=s)
     return robust_num2words(float(s), lang=lang, to=to, orig=s)
 
-def robust_num2words(x, lang, to="cardinal", orig=""):
-    """
-    Bugfix for num2words
-    """
-    try:
-        res = num2words(x, lang=lang, to=to)
-        if lang == "fr" and to == "ordinal":
-            res = res.replace("vingtsième", "vingtième")
-        return res
-    except OverflowError:
-        if x == math.inf:  # !
-            return " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
-        if x == -math.inf:  # !
-            return "moins " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
-        # TODO: print a warning
-        return robust_num2words(x//10, lang=lang, to=to)
 
 def roman_to_decimal(str):
     def value(r):

@@ -1,7 +1,7 @@
 import re
 import string
 import re
-from num2words import num2words
+from linastt.utils.text_utils import robust_num2words
 
 # TODO: buckwalter
 # from lang_trans.arabic import buckwalter
@@ -28,7 +28,7 @@ def digit2word(text):
     numbers = re.findall(r"\b\d+[\.\d]+\b",text)
     numbers = sorted(list(set(numbers)), reverse=True, key=len)
     for n in numbers:
-        number_in_letter = num2words(float(n), lang="ar")
+        number_in_letter = robust_num2words(float(n), lang="ar")
         text = text.replace(n,number_in_letter.replace(","," فاصيله "))
     return text
 
