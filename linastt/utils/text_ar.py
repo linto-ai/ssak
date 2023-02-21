@@ -73,7 +73,7 @@ def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
 
 # this function can remove the repeating chars
 def remove_repeating_char(text):
-    return re.sub(r'(.)\1+', r'\1', text)
+    return re.sub(r'([ء-ي])\1+', r'\1', text)
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
