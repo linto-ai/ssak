@@ -1,10 +1,10 @@
 import os
 
-from linastt.utils.text import format_text_latin
+from linastt.utils.text import format_text_latin, format_text_ar
 
 from .utils import Test
 
-class TestFormatText(Test):
+class TestFormatTextLatin(Test):
 
     def test_format_digits(self):
         self.assertEqual(
@@ -163,3 +163,36 @@ class TestFormatText(Test):
         self.assertNonRegression(special_char_file, "format_text/special_chars.txt")
         for f in [output_file, acronym_file, special_char_file]:
             os.remove(f)
+
+class TestFormatTextArabic(Test):
+
+    def test_options(self):
+
+        sentence = "في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!"
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False),
+            'في الغة الإنجليزية يمكن لمرء أن يقول '
+        )
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
+            'في الغة الإنجليزية ، يمكن لمرء أن يقول !'
+        )
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
+            'في الغة الإنجليزية يمكن لمرء أن يقول Helo world '
+        )
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
+            'في الغة الإنجليزية ، يمكن لمرء أن يقول Helo world !'
+        )
+
+    def test_format_digits(self):
+        
+        self.assertEqual(
+            format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
+            "TODO"
+        )

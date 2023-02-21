@@ -1,97 +1,111 @@
 import re
 import string
+import re
+from num2words import num2words
 
 # TODO: buckwalter
 # from lang_trans.arabic import buckwalter
 # buckwalter.transliterate(text)
 # buckwalter.untransliterate(text)
 
-def format_text_ar(text):
-    text = remove_punctuations(text)
-    text = normalize_arabic(text)
-    text = remove_diacritics(text)
-    text = remove_repeating_char(text)
-    text = remove_emoji(text)
+def convert_hindi_numbers(text):
+    text = text.replace('۰', '0')
+    text = text.replace('۱', '1')
+    text = text.replace('۲', '2')
+    text = text.replace('۳', '3')
+    text = text.replace('٤', '4')
+    text = text.replace('۵', '5')
+    text = text.replace('٦', '6')
+    text = text.replace('۶', '6')
+    text = text.replace('۷', '7')
+    text = text.replace('۸', '8')
+    text = text.replace('۹', '9')
     return text
 
-arabic_punctuations = '''`https?://[A-Za-z./]*@[\w]*[^a-zA-Z#][a-zA-Z0-9][a-zA-Z0-9]|[:;]-?؟،،؛[()ODp][A-Z][a-z]+|\d+|[A-Z]+(?![a-z])^w^{<>_()*&^%][^`^l/:"^=.,'{}~+|!^`^}^`^`^|^`^s^`'''
-english_punctuations = string.punctuation
-latin_alphabic =  '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'''
-num = '''0123456789'''
-punctuations_list = arabic_punctuations + english_punctuations + latin_alphabic + num
-
-arabic_diacritics = re.compile("""
-                             ّ    | # Tashdid
-                             َ    | # Fatha
-                             ً    | # Tanwin Fath
-                             ُ    | # Damma
-                             ٌ    | # Tanwin Damm
-                             ِ    | # Kasra
-                             ٍ    | # Tanwin Kasr
-                             ْ    | # Sukun
-                             ـ     # Tatwil/Kashida
-                         """, re.VERBOSE)
-
-def normalize_arabic(text):
-    text = re.sub("[إأآا]", "ا", text) # alef
-    text = re.sub("ى", "ي", text) # yaa  
-    text = re.sub("ؤ", "ء", text) # ouu
-    text = re.sub("ئ", "ء", text) # ae
-    text = re.sub("ة", "ه", text) # taah
-    #text = re.sub("ت", "ه", text) # taah
-    text = re.sub("گ", "ك", text) # kaf
+# Convert digit to chars
+def digit2word(text):
+    text = convert_hindi_numbers(text)
+    numbers = re.findall(r"\b\d+[\.\d]+\b",text)
+    numbers = sorted(list(set(numbers)), reverse=True, key=len)
+    for n in numbers:
+        number_in_letter = num2words(float(n), lang="ar")
+        text = text.replace(n,number_in_letter.replace(","," فاصيله "))
     return text
 
-
-def remove_diacritics(text):
-    # import pyarabic.araby as araby
-    # return araby.strip_diacritics(text)
-    text = re.sub(arabic_diacritics, '', text)
+def normalize_punct(text):
+    text = re.sub("/"," أو ",text) # أو == or
+    text = re.sub("[;؛]",".",text)
+    text = re.sub("[:,]","،",text)
+    text = re.sub("[-_]","",text)
     return text
 
-def remove_punctuations(text):
-    translator = str.maketrans('', '', punctuations_list)
-    return text.translate(translator)
+def remove_url(text):
+    return re.sub('http://\S+|https://\S+', " ", text)
+     
+# this function can split sentences.
+def split_around(text, punctuation = '؟!،.?,'):
+    sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]|$)", text)
+    return ["".join(s).strip() for s in sentences]
 
+# this function can replace symbols with words.
+def symbols2name(text):
+    text = text.replace("$", " دولار ")
+    text = text.replace("€", " يورو ")
+    text = text.replace("£", " بوند ")
+    text = text.replace("¥", " يان ")
+    text = text.replace("₹", " روبل ")
+    text = text.replace("%", " بالمئة ")
+    text = text.replace("٪", " بالمئة ")
+    return text
+
+# this function can get only the arabic chars with/without punctuation.
+def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
+    if not keep_punc:
+        if keep_latin_chars:
+            return re.sub("[^ء-يa-zA-Z]+", " ", text)    
+        else:
+            return re.sub("[^ء-ي]+", " ", text) 
+    else:
+        if keep_latin_chars:
+            return re.sub("[^ء-ي.،!؟a-zA-Z]+", " ", text)    
+        else:
+            return re.sub("[^ء-ي.،!؟]+", " ", text)
+
+# this function can remove the repeating chars
 def remove_repeating_char(text):
     return re.sub(r'(.)\1+', r'\1', text)
 
-def remove_emoji(string):
-    emoji_pattern = re.compile("["
-                               u"\U0001F600-\U0001F64F"  # emoticons
-                               u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                               u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                               u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                               u"\U00002500-\U00002BEF"  # chinese char
-                               u"\U00002702-\U000027B0"
-                               u"\U00002702-\U000027B0"
-                               u"\U000024C2-\U0001F251"
-                               u"\U0001f926-\U0001f937"
-                               u"\U00010000-\U0010ffff"
-                               u"\u2640-\u2642"
-                               u"\u2600-\u2B55"
-                               u"\u200d"
-                               u"\u23cf"
-                               u"\u23e9"
-                               u"\u231a"
-                               u"\ufe0f"  # dingbats
-                               u"\u3030"
-                               "]+", flags=re.UNICODE)
-    return emoji_pattern.sub(r'', string)
-
-
-
+def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
+    line = remove_url(line)
+    line = normalize_punct(line)
+    line = symbols2name(line)
+    line = digit2word(line)
+    line = normalize_punct(line)
+    line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
+    line = remove_repeating_char(line)      
+    return line
+   
 if __name__ == '__main__':
 
+    import os
     import argparse
-    parser = argparse.ArgumentParser(description='Pre-process arabic text (remove '
-                                                'diacritics, punctuations, and repeating '
-                                                'characters).')
-
-    parser.add_argument('infile', type=argparse.FileType(mode='r', encoding='utf-8'), help='input file.')
-    parser.add_argument('outfile', type=argparse.FileType(mode='w', encoding='utf-8'), help='output file.')
-
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
+    parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
+    parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     args = parser.parse_args()
-    text = args.infile.read()
-    text = format_text_ar(text)
-    args.outfile.write(text)
+
+    input = args.input
+
+    kwargs = {
+        "keep_punc": args.keep_punc,
+        "keep_latin_chars": args.keep_latin_chars,
+    }
+
+    if len(input) == 2 and os.path.isfile(input):
+        with open(input, "r") as f:
+            text = f.read()
+            for line in text.splitlines():
+                print(format_text_ar(line, **kwargs))
+    else:
+        print(format_text_ar(" ".join(input), **kwargs))
