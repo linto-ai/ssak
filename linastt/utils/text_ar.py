@@ -29,7 +29,7 @@ def digit2word(text):
     numbers = sorted(list(set(numbers)), reverse=True, key=len)
     for n in numbers:
         number_in_letter = robust_num2words(float(n), lang="ar")
-        text = text.replace(n,number_in_letter.replace(","," فاصيله "))
+        text = text.replace(n, number_in_letter)
     return text
 
 def normalize_punct(text):
