@@ -1,7 +1,17 @@
 import re
 import string
 import re
-from linastt.utils.text_utils import robust_num2words
+from linastt.utils.text_utils import robust_num2words, text_unescape
+
+_regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
+_regex_latin_chars = "a-zA-Z" # TODO: improve me
+_arabic_punctuation = "؟!،.?,"
+_latin_punctuation = "!?.,:;"
+_all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
+# Need unescape for regex
+_regex_arabic_punctuation = text_unescape(_arabic_punctuation)
+_regex_latin_punctuation = text_unescape(_latin_punctuation)
+_regex_all_punctuation = text_unescape(_all_punctuation)
 
 # TODO: buckwalter
 # from lang_trans.arabic import buckwalter
@@ -43,7 +53,7 @@ def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
      
 # this function can split sentences.
-def split_around(text, punctuation = '؟!،.?,'):
+def split_around(text, punctuation = _regex_all_punctuation):
     sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]|$)", text)
     return ["".join(s).strip() for s in sentences]
 
@@ -60,20 +70,21 @@ def symbols2name(text):
 
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
+    
     if not keep_punc:
         if keep_latin_chars:
-            return re.sub("[^ء-يa-zA-Z]+", " ", text)    
+            return re.sub(r"[^"+_regex_arabic_chars+_regex_latin_chars+"]+", " ", text)    
         else:
-            return re.sub("[^ء-ي]+", " ", text) 
+            return re.sub(r"[^"+_regex_arabic_chars+"]+", " ", text) 
     else:
         if keep_latin_chars:
-            return re.sub("[^ء-ي.،!؟a-zA-Z]+", " ", text)    
+            return re.sub("[^"+_regex_arabic_punctuation+_regex_arabic_chars+_regex_latin_chars+"]+", " ", text)    
         else:
-            return re.sub("[^ء-ي.،!؟]+", " ", text)
+            return re.sub("[^"+_regex_arabic_punctuation+_regex_arabic_chars+"]+", " ", text)
 
 # this function can remove the repeating chars
 def remove_repeating_char(text):
-    return re.sub(r'([ء-ي])\1+', r'\1', text)
+    return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
