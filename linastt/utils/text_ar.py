@@ -70,17 +70,19 @@ def symbols2name(text):
 
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
+
+    what_to_keep = _regex_arabic_chars
     
-    if not keep_punc:
+    if keep_punc:
         if keep_latin_chars:
-            return re.sub(r"[^"+_regex_arabic_chars+_regex_latin_chars+"]+", " ", text)    
+            what_to_keep += _regex_all_punctuation
         else:
-            return re.sub(r"[^"+_regex_arabic_chars+"]+", " ", text) 
-    else:
-        if keep_latin_chars:
-            return re.sub("[^"+_regex_arabic_punctuation+_regex_arabic_chars+_regex_latin_chars+"]+", " ", text)    
-        else:
-            return re.sub("[^"+_regex_arabic_punctuation+_regex_arabic_chars+"]+", " ", text)
+            what_to_keep += _regex_arabic_punctuation
+    
+    if keep_latin_chars:
+        what_to_keep += _regex_latin_chars
+
+    return re.sub(r"[^"+what_to_keep+"]+", " ", text)
 
 # this function can remove the repeating chars
 def remove_repeating_char(text):
