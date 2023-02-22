@@ -36,7 +36,6 @@ if __name__ == "__main__":
     try:
         for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
             line = format_text_ar(line,
-                lower_case = not args.keep_case,
                 keep_punc = args.keep_punc,
                 keep_latin_chars = args.keep_latin_chars,
             )

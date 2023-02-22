@@ -172,24 +172,22 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=False),
-            'في الغة الإنجليزية يمكن لمرء أن يقول '
+            'في اللغة الإنجليزية يمكن للمرء أن يقول '
         )
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
-            'في الغة الإنجليزية ، يمكن لمرء أن يقول !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول !'
         )
-
-        # TODO: Do not remove double "ll" in English
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
-            'في الغة الإنجليزية يمكن لمرء أن يقول Helo world '
+            'في اللغة الإنجليزية يمكن للمرء أن يقول Hello world '
         )
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            'في الغة الإنجليزية ، يمكن لمرء أن يقول Helo world !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول Hello world !'
         )
 
     def test_format_digits(self):

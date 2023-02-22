@@ -107,17 +107,70 @@ def split_around_space_and_apostrophe(text):
 
 def robust_num2words(x, lang, to="cardinal", orig=""):
     """
-    Bugfix for num2words
+    Bugfixes for num2words
+    - 20th in French was wrong
+    - comma in Arabic
+    - avoid overflow error on big numbers
     """
     try:
         res = num2words(x, lang=lang, to=to)
-        if lang == "fr" and to == "ordinal":
-            res = res.replace("vingtsième", "vingtième")
-        return res
-    except OverflowError:
+    except OverflowError as err:
         if x == math.inf:  # !
-            return " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
-        if x == -math.inf:  # !
-            return "moins " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
-        # TODO: print a warning
-        return robust_num2words(x//10, lang=lang, to=to)
+            res = " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
+        elif x == -math.inf:  # !
+            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
+        else:
+            raise RuntimeError(f"OverflowError on {x} {orig}")
+    if lang == "fr" and to == "ordinal":
+        res = res.replace("vingtsième", "vingtième")
+    elif lang == "ar":
+        res = res.replace(",","فاصيله")
+    return res
+
+_minus = {
+    "en": "minus",
+    "fr": "moins",
+    "ar": "منها",
+    "de": "minus",
+    "es": "menos",
+    "it": "meno",
+    "pt": "menos",
+    "nl": "min",
+    "sv": "minus",
+    "da": "minus",
+    "nb": "minus",
+    "fi": "miinus",
+    "tr": "eksi",
+    "hu": "mínusz",
+    "pl": "minus",
+    "cs": "mínus",
+    "ru": "минус",
+    "uk": "мінус",
+    "el": "μείον",
+    "bg": "минус",
+    "lt": "minus",
+    "sl": "minus",
+    "hr": "minus",
+    "sk": "mínus",
+    "et": "miinus",
+    "lv": "mīnus",
+    "lt": "minus",
+    "ro": "minus",
+    "he": "מינוס",
+    "id": "kurang",
+    "vi": "trừ",
+    "th": "ลบ",
+    "zh": "减",
+    "ja": "マイナス",
+    "ko": "마이너스",
+    "hi": "घटाएं",
+    "bn": "কম",
+    "gu": "ઘટાવો",
+    "ta": "குறைக்க",
+    "te": "కనిపించు",
+    "kn": "ಕಡಿಮೆ",
+    "ml": "കുറയ്ക്കുക",
+    "mr": "कमी",
+    "pa": "ਘਟਾਓ",
+    "ur": "کم کریں",
+}    
