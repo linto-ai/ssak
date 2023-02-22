@@ -39,7 +39,6 @@ def digit2word(text):
     return text
 
 def normalize_punct(text):
-    text = re.sub("/"," أو ",text) # أو == or
     text = re.sub("[;؛]",".",text)
     text = re.sub("[:,]","،",text)
     text = re.sub("[-_]","",text)
@@ -60,8 +59,9 @@ def symbols2name(text):
     text = text.replace("£", " بوند ")
     text = text.replace("¥", " يان ")
     text = text.replace("₹", " روبل ")
-    text = text.replace("%", " بالمئة ")
-    text = text.replace("٪", " بالمئة ")
+    text = text.replace("%", " في المئة ")
+    text = text.replace("٪", " في المئة ")
+    text = text.replace("/"," أو ") # أو == or
     return text
 
 # this function can get only the arabic chars with/without punctuation.
@@ -87,9 +87,8 @@ def remove_repeating_char(text):
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
     line = normalize_punct(line)
-    line = symbols2name(line)
     line = digit2word(line)
-    line = normalize_punct(line)
+    line = symbols2name(line)
     line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
     line = remove_repeating_char(line)      
     return line
