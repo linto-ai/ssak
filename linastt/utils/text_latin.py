@@ -179,7 +179,7 @@ def format_text_latin(text,
 
         text = ' '+text+' '
 
-        numbers=re.findall("\d+[,.]000",text)
+        numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
         for n in numbers:
             text = re.sub(n,re.sub(r"[,.]","",n), text)
 

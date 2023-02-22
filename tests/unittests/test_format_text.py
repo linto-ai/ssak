@@ -25,6 +25,11 @@ class TestFormatTextLatin(Test):
         )
 
         self.assertEqual(
+            format_text_latin("10,000 et 100,000,000 et 1111,000,000"),
+            "dix mille et cent millions et un milliard cent onze millions"
+        )
+
+        self.assertEqual(
             format_text_latin("La Rochelle - CAUE 17 2003 2005 Inventaire du Pays"),
             "la rochelle caue dix-sept deux mille trois deux mille cinq inventaire du pays"
             )
