@@ -1,8 +1,7 @@
 import re
 import math
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate, robust_num2words
-from linastt.utils.misc import flatten
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate, undigit, cardinal_numbers_to_letters
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -266,83 +265,8 @@ def format_text_latin(text,
                             [0], to="ordinal", lang=lang)
                 text = re.sub(r'\b'+str(digit)+r'\b', word, text)
 
-        text = re.sub(r"\b(\d+),(\d+)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
-        text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
-        text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text) # wav2vec -> wav to vec
-        text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text) # space after digits
-        text = re.sub(r'(\d)-', r'\1 ', text) # For things like 40-MFCC
-
         # Cardinal digits
-        digits = re.findall(
-            r"(?:\-?\b[\d/]*\d+(?: \d\d\d)+\b)|(?:\-?\d[/\d]*)", text)
-        digits = list(map(lambda s: s.strip(r"[/ ]"), digits))
-        digits = list(set(digits))
-        digits = digits + flatten([c.split() for c in digits if " " in c])
-        digits = digits + flatten([c.split("/") for c in digits if "/" in c])
-        digits = sorted(digits, reverse=True, key=lambda x: (len(x), x))
-        for digit in digits:
-            digitf = re.sub("/+", "/", digit)
-            if not digitf:
-                continue
-            numslash = len(re.findall("/", digitf))
-            if numslash == 0:
-                word = undigit(digitf, lang=lang)
-            elif numslash == 1:  # Fraction or date
-                i = digitf.index("/")
-                is_date = False
-                if len(digitf[i+1:]) == 2:
-                    try:
-                        first = int(digitf[:i])
-                        second = int(digitf[i+1:])
-                        is_date = first > 0 and first < 32 and second > 0 and second < 13
-                    except:
-                        pass
-                if is_date:
-                    first = digitf[:i].lstrip("0")
-                    use_ordinal = (lang == "fr" and first == "1") or (
-                        lang != "fr" and first[-1] in ["1", "2", "3"])
-                    first = undigit(first, lang=lang,
-                                    to="ordinal" if use_ordinal else "cardinal")
-                    second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
-                else:
-                    first = undigit(digitf[:i], lang=lang)
-                    second = undigit(digitf[i+1:], to="denominator", lang=lang)
-                    if float(digitf[:i]) > 2. and second[-1] != "s":
-                        second += "s"
-                word = first + " " + second
-            elif numslash == 2:  # Maybe a date
-                i1 = digitf.index("/")
-                i2 = digitf.index("/", i1+1)
-                is_date = False
-                if len(digitf[i1+1:i2]) == 2 and len(digitf[i2+1:]) == 4:
-                    try:
-                        first = int(digitf[:i1])
-                        second = int(digitf[i1+1:i2])
-                        third = int(digitf[i2+1:])
-                        is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
-                    except:
-                        pass
-                third = undigit(digitf[i2+1:], lang=lang)
-                if is_date:
-                    first = digitf[:i1].lstrip("0")
-                    use_ordinal = (lang == "fr" and first == "1") or (
-                        lang != "fr" and first[-1] in ["1", "2", "3"])
-                    first = undigit(first, lang=lang,
-                                    to="ordinal" if use_ordinal else "cardinal")
-                    second = _int_to_month.get(lang, {}).get(
-                        int(digitf[i1+1:i2]), digitf[i1+1:i2])
-                    word = " ".join([first, second, third])
-                else:
-                    word = " / ".join([undigit(s, lang=lang)
-                                    for s in digitf.split('/')])
-            else:
-                word = " / ".join([undigit(s, lang=lang)
-                                for s in digitf.split('/')])
-            # text = replace_keeping_word_boundaries(digit, word, text)
-            if " " in digit:
-                text = re.sub(r'\b'+str(digit)+r'\b', " "+word+" ", text)
-            else:
-                text = re.sub(str(digit), " "+word+" ", text)
+        text = cardinal_numbers_to_letters(text, lang=lang)
 
         # Symbols (currencies, percent...)
         symbol_table = _symbol_to_word.get(lang, {})
@@ -416,34 +340,6 @@ def format_text_latin(text,
 
     return text
 
-def undigit(s, lang, to="cardinal"):
-    s = re.sub(" ", "", s)
-    if to == "denominator":
-        if lang == "fr":
-            if s == "2":
-                return "demi"
-            if s == "3":
-                return "tiers"
-            if s == "4":
-                return "quart"
-        elif lang == "en":
-            if s == "2":
-                return "half"
-            if s == "4":
-                return "quarter"
-        elif lang == "es":
-            if s == "2":
-                return "mitad"
-            if s == "3":
-                return "tercio"
-        to = "ordinal"
-    if s.startswith("0") and to == "cardinal":
-        numZeros = len(re.findall(r"0+", s)[0])
-        if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(float(s), lang=lang, to=to, orig=s)
-    return robust_num2words(float(s), lang=lang, to=to, orig=s)
-
-
 def roman_to_decimal(str):
     def value(r):
         if (r == 'I'):
@@ -490,59 +386,9 @@ def replace_keeping_word_boundaries(orig, dest, text):
         text = re.sub(_orig, " "+dest+" ", text)
     return text
 
-_int_to_month = {
-    "fr": {
-        1: "janvier",
-        2: "février",
-        3: "mars",
-        4: "avril",
-        5: "mai",
-        6: "juin",
-        7: "juillet",
-        8: "août",
-        9: "septembre",
-        10: "octobre",
-        11: "novembre",
-        12: "décembre",
-    },
-    "en": {
-        1: "january",
-        2: "february",
-        3: "march",
-        4: "april",
-        5: "may",
-        6: "june",
-        7: "july",
-        8: "august",
-        9: "september",
-        10: "october",
-        11: "november",
-        12: "december",
-    }
-}
+
 
 _currencies = ["€", "$", "£", "¥"]
-
-_punct_to_word = {
-    "fr": {
-        ",": "virgule",
-        ".": "point",
-        ";": "point-virgule",
-        ":": "deux-points",
-        "?": "point d'interrogation",
-        "!": "point d'exclamation",
-    },"\+"
-    "en": {
-        ",": "comma",
-        ".": "dot",
-        ";": "semicolon",
-        ":": "colon",
-        "?": "question mark",
-        "!": "exclamation mark",
-    }
-}
-
-
 
 _symbol_to_word = {
     "fr": {

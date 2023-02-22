@@ -1,7 +1,7 @@
 import re
 import string
 import re
-from linastt.utils.text_utils import robust_num2words, text_unescape
+from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -35,11 +35,7 @@ def convert_hindi_numbers(text):
 # Convert digit to chars
 def digit2word(text):
     text = convert_hindi_numbers(text)
-    numbers = re.findall("[0-9][.]*[0-9]",text)
-    numbers = sorted(list(set(numbers)), reverse=True, key=len)
-    for n in numbers:
-        number_in_letter = robust_num2words(float(n), lang="ar")
-        text = text.replace(n, number_in_letter)
+    text = cardinal_numbers_to_letters(text, lang="ar")
     return text
 
 def normalize_punct(text):
