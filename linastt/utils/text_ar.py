@@ -35,7 +35,7 @@ def convert_hindi_numbers(text):
 # Convert digit to chars
 def digit2word(text):
     text = convert_hindi_numbers(text)
-    numbers = re.findall(r"\b\d+[\.\d]+\b",text)
+    numbers = re.findall("[0-9][.]*[0-9]",text)
     numbers = sorted(list(set(numbers)), reverse=True, key=len)
     for n in numbers:
         number_in_letter = robust_num2words(float(n), lang="ar")
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         "keep_latin_chars": args.keep_latin_chars,
     }
 
-    if len(input) == 2 and os.path.isfile(input):
+    if os.path.isfile(input):
         with open(input, "r") as f:
             text = f.read()
             for line in text.splitlines():
