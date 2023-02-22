@@ -81,6 +81,7 @@ def cm_find_conversation(
         },
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
+        default={"conversations": []},
     )
 
     assert "conversations" in conversations, f"'conversations' not found in response: {conversations}"

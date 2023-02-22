@@ -26,16 +26,16 @@ def format_options_for_curl(options, c):
         (key, format_option_for_curl(value, c)) for key, value in (options.items() if isinstance(options, dict) else options)
     ]
 
-def curl_post(url, options, headers=[], verbose=False):
-    return _curl_do("POST", url, options=options, headers=headers, verbose=verbose)
+def curl_post(url, options, headers=[], default=None, verbose=False):
+    return _curl_do("POST", url, options=options, headers=headers, default=default, verbose=verbose)
 
-def curl_get(url, options={}, headers=[], verbose=False):
-    return _curl_do("GET", url, options=options, headers=headers, verbose=verbose)
+def curl_get(url, options={}, headers=[], default=None, verbose=False):
+    return _curl_do("GET", url, options=options, headers=headers, default=default, verbose=verbose)
 
-def curl_delete(url, headers=[], verbose=False):
-    return _curl_do("DELETE", url, options={}, headers=headers, verbose=verbose)
+def curl_delete(url, headers=[], default=None, verbose=False):
+    return _curl_do("DELETE", url, options={}, headers=headers, default=default, verbose=verbose)
 
-def _curl_do(action, url, options, headers=[], verbose=False):
+def _curl_do(action, url, options, headers=[], default=None, verbose=False):
     assert action in ["GET", "POST", "DELETE"], f"Unknown action {action}"
     c = pycurl.Curl()
 
@@ -77,11 +77,13 @@ def _curl_do(action, url, options, headers=[], verbose=False):
     c.close()
 
     response_body = buffer.getvalue().decode('utf-8')
-
-    try:
-        response_body = json.loads(response_body)
-    except json.decoder.JSONDecodeError:
-        raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
+    if not response_body and default:
+        response_body = default
+    else:
+        try:
+            response_body = json.loads(response_body)
+        except json.decoder.JSONDecodeError:
+            raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
 
     return response_body
     
