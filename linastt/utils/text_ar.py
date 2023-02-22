@@ -115,8 +115,8 @@ if __name__ == '__main__':
         "keep_latin_chars": args.keep_latin_chars,
     }
 
-    if os.path.isfile(input):
-        with open(input, "r") as f:
+    if len(input) == 1 and os.path.isfile(input[0]):
+        with open(input[0], "r") as f:
             text = f.read()
             for line in text.splitlines():
                 print(format_text_ar(line, **kwargs))
