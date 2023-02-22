@@ -4,13 +4,19 @@ import os
 import json
 import numpy as np
 
+from linastt.utils.text_utils import _punctuation
+
 EXTENSIONS = [
     ".json",
     ".TextGrid",
     ".txt",
 ]
 
-def to_linstt_transcription(transcription):
+def to_linstt_transcription(transcription,
+    contract_words=True,
+    include_punctuation_in_timestamp=False,
+    ):
+
     if isinstance(transcription, str):
         assert os.path.isfile(transcription), f"Could not find file {transcription}"
         if transcription.endswith(".TextGrid"):
@@ -32,32 +38,55 @@ def to_linstt_transcription(transcription):
     # Whisper augmented with words
     # (whisper-timestamped or whisperX)
     if "language" in transcription and "segments" in transcription:
+        word_keys = ["words", "word-level", "word_timestamps"]
+        word_key = None
         for i, seg in enumerate(transcription["segments"]):
             for expected_keys in ["start", "end"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
-            has_any = max([k in seg for k in ["words", "word-level"]])
-            if not has_any:
+            if word_key is None and max([k in seg for k in word_keys]):
+                for k in word_keys:
+                    if k in seg:
+                        word_key = k
+                        break
+            if word_key not in seg:
                 print(f"WARNING: could not find word-level information for segment {i}")
             else:
-                key = "words" if "words" in seg else "word-level"
-                for j, word in enumerate(seg[key]):
-                    for expected_keys in ["start", "end", "text"]:
-                        assert expected_keys in word, f"Missing '{expected_keys}' in word {j} of segment {i} (that has keys {list(word.keys())})"
+                new_words = []
+                for j, word in enumerate(seg[word_key]):
+                    for expected_key, canbe_key in {"start": "begin", "end": "end", "text": "word"}.items():
+                        if expected_key not in word and canbe_key in word:
+                            word[expected_key] = word.pop(canbe_key)
+                        assert expected_key in word, f"Missing '{expected_key}' in word {j} of segment {i} (that has keys {list(word.keys())})"
+                    
                     # WhisperX can have None for start/end (for digits...)
                     if word["start"] is None:
                         if j > 0:
-                            seg[key][j]["start"] = seg[key][j - 1]["end"]
+                            word["start"] = seg[word_key][j - 1]["end"]
                         else:
-                            seg[key][j]["start"] = seg["start"]
+                            word["start"] = seg["start"]
                     if word["end"] is None:
                         next = j + 1
-                        while next <= len(seg[key]) - 1:
-                            seg[key][j]["end"] = seg[key][j + 1]["start"]
-                            if seg[key][j]["end"] is not None:
+                        while next <= len(seg[word_key]) - 1:
+                            word["end"] = seg[word_key][j + 1]["start"]
+                            if word["end"] is not None:
                                 break
                             next += 1
-                        if seg[key][j]["end"] is None:
-                            seg[key][j]["end"] = seg["end"]
+                        if word["end"] is None:
+                            word["end"] = seg["end"]
+                    new_word = word["text"] = word["text"].strip()
+
+                    if not new_word:
+                        continue
+                    if contract_words and len(new_words):
+                        last_word = new_words[-1]
+                        if new_word in _punctuation or new_word[0] in "'-" or last_word["text"][-1] in "'-":
+                            if include_punctuation_in_timestamp or new_word not in _punctuation:
+                                last_word["end"] = word["end"]
+                            last_word["text"] += word["text"]
+                            continue
+                    new_words.append(word)
+
+                seg[word_key] = new_words
 
         text = transcription["text"] if "text" in transcription else " ".join([seg["text"] for seg in transcription["segments"]])
         text = text.strip()
@@ -79,7 +108,7 @@ def to_linstt_transcription(transcription):
                             "start": round(word["start"], 2),
                             "end": round(word["end"], 2),
                             "conf": word.get("confidence", 1),
-                        } for word in seg.get("words", seg.get("word-level", []))
+                        } for word in seg.get(word_key, [])
                     ]
                 } for seg in transcription["segments"]
             ]
