@@ -1,7 +1,7 @@
 import re
 import string
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape
+from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape,convert_symbols_to_words
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -54,15 +54,16 @@ def split_around(text, punctuation = _regex_all_punctuation):
 
 # this function can replace symbols with words.
 def symbols2name(text):
-    text = text.replace("$", " دولار ")
-    text = text.replace("€", " يورو ")
-    text = text.replace("£", " بوند ")
-    text = text.replace("¥", " يان ")
-    text = text.replace("₹", " روبل ")
-    text = text.replace("%", " في المئة ")
-    text = text.replace("٪", " في المئة ")
-    text = text.replace("/"," أو ") # أو == or
-    return text
+    lang="ar"    
+    # text = text.replace("$", " دولار ")
+    # text = text.replace("€", " يورو ")
+    # text = text.replace("£", " بوند ")
+    # text = text.replace("¥", " يان ")
+    # text = text.replace("₹", " روبل ")
+    # text = text.replace("%", " في المئة ")
+    # text = text.replace("٪", " في المئة ")
+    # text = text.replace("/"," أو ") # أو == or
+    return convert_symbols_to_words(lang,text)
 
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):

@@ -39,6 +39,223 @@ _special_characters_pattern = re.compile("["
                             u"\u3030"
                             "]+", flags=re.UNICODE)
 
+
+
+_symbol_to_word = {
+    "fr": {
+        "%": "pour cent",
+        "٪": "pour cent",
+        "‰": "pour mille",
+        "~": "environ",
+        "÷": "divisé par",
+        "\*": "fois",  # ?
+        "×": "fois",
+        "±": "plus ou moins",
+        "+": "plus",
+        "⁺": "plus",
+        "⁻": "moins",
+        "&": "et",
+        "@": "arobase",
+        "µ": "micro",
+        "mm²": "millimètres carrés",
+        "mm³": "millimètres cubes",
+        "cm²": "centimètres carrés",
+        "cm³": "centimètres cubes",
+        "m²": "mètres carrés",
+        "m³": "mètres cubes",
+        "²": "au carré",
+        "³": "au cube",
+        "⁵": "à la puissance cinq",
+        "⁷": "à la puissance sept",
+        "½": "un demi",
+        "⅓": "un tiers",
+        "⅔": "deux tiers",
+        "¼": "un quart",
+        "¾": "trois quarts",
+        "§": "paragraphe",
+        "°C": "degrés Celsius",
+        "°F": "degrés Fahrenheit",
+        "°K": "kelvins",
+        "°": "degrés",
+        "€": "euros",
+        "¢": "cents",
+        "\$": "dollars",
+        "£": "livres",
+        "¥": "yens",
+        "₹": "roupies",
+        # Below: not in Whisper tokens
+        # "₩": "wons",
+        # "₽": "roubles",
+        # "₺": "liras",
+        # "₪": "shekels",
+        # "₴": "hryvnias",
+        # "₮": "tugriks",
+        # "℃": "degrés Celsius",
+        # "℉": "degrés Fahrenheit",
+        # "Ω": "ohms",
+        # "Ω": "ohms",
+        # "K": "kelvins",
+        # "ℓ": "litres",
+    },
+    "en": {
+        "%": "percent",
+        "٪": "percent",
+        "‰": "per mille",
+        "~": "about",
+        "÷": "divided by",
+        "\*": "times",  # ?
+        "×": "times",
+        "±": "plus or minus",
+        "+": "plus",
+        "⁺": "plus",
+        "⁻": "minus",
+        "&": "and",
+        "@": "at",
+        "µ": "micro",
+        "mm²": "square millimeters",
+        "mm³": "cubic millimeters",
+        "cm²": "square centimeters",
+        "cm³": "cubic centimeters",
+        "m²": "square meters",
+        "m³": "cubic meters",
+        "²": "squared",
+        "³": "cubed",
+        "⁵": "to the fifth power",
+        "⁷": "to the seventh power",
+        "½": "one half",
+        "⅓": "one third",
+        "⅔": "two thirds",
+        "¼": "one quarter",
+        "¾": "three quarters",
+        "§": "section",
+        "°C": "degrees Celsius",
+        "°F": "degrees Fahrenheit",
+        "°K": "kelvins",
+        "°": "degrees",
+        "€": "euros",
+        "¢": "cents",
+        "\$": "dollars",
+        "£": "pounds",
+        "¥": "yens",
+        "₹": "rupees",
+    },
+    "ar": {
+        "%": "في المئة",
+        "٪": "في المئة",
+        "‰": "بالألف",
+        "~": "حوالي",
+        "÷": "مقسوما على",
+        "\*": "مضروبا بـ",  # ?
+        "×": "مضروبا بـ",
+        "±": "بالإضافة أو الطرح",
+        "+": "بالإضافة",
+        "⁺": "بالإضافة",
+        "⁻": "بالطرح",
+        "&": "و",
+        "@": "على",
+        "µ": "ميكرو",
+        "mm²": "مم مربع",
+        "مم²": "مم مربع",
+        "mm³": "مم مكعب",
+        "مم³": "مم مكعب",
+        "هـ":"هجري",
+        "ق.م": "قبل الميلاد",
+        "cm²": "سم مربع",
+        "cm³": "سم مكعب",
+        "سم²": "سم مربع",
+        "سم³": "سم مكعب",
+        "m²": "م مربع",
+        "m³": "م مكعب",
+        "م²": "م مربع",
+        "م³": "م مكعب",
+        "²": "مربع",
+        "³": "مكعب",
+        "⁵": "الخامسة",
+        "⁷": "السابعة",
+        "½": "نصف",
+        "⅓": "ثلث",
+        "⅔": "ثلثين",
+        "¼": "ربع",
+        "¾": "ربعين",
+        "§": "فقرة",
+        "°C": "درجة مئوية",
+        "°F": "درجة فهرنهايت",
+        "°K": "كيلفن",
+        "°": "درجة",
+        "\\":"أو",
+        "€": "يورو",
+        "¢": "سنت",
+        "\$": "دولار",
+        "£": "جنيه",
+        "¥": "ين",
+        "₹": "روبية هندية",
+        "₽": "روبل روسي",
+        "C$":"دولار كندي",
+        # all AR accurency 
+        "EGP":"جنيه مصري",
+        "ج.م":"جنيه مصري",
+        "IQD":"دينار عراقي",
+        "د.ع":"دينار عراقي",
+        "SYP":"ليرة سورية",
+        "ل.س":"ليرة سورية",
+        "ل.ل":"ليرة لبنانية",
+        "LBP":"ليرة لبنانية",
+        "JOD":"دينار أردني",
+        "د.ا":"دينار أردني",
+        "SAR":"ريال سعودي",
+        "ر.س":"ريال سعودي",
+        "YER":"ريال يمني",
+        "ر.ي":"ريال يمني",
+        "LYD":"دينار ليبي",
+        "د.ل":"دينار ليبي",
+        "SDG":"جنيه سوداني",
+        "ج.س":"جنيه سوداني",
+        "MAD":"درهم مغربي",
+        "د.م":"درهم مغربي",
+        "TND":"دينار تونسي",
+        "د.ت":"دينار تونسي",
+        "KWD":"دينار كويتي",
+        "د.ك":"دينار كويتي",
+        "DZD":"دينار جزائري",
+        "د.ج":"دينار جزائري",
+        "MRO":"أوقية موريتانية",
+        "أ.م":"أوقية موريتانية",
+        "BHD":"دينار بحريني",
+        "د.ب":"دينار بحريني",
+        "QAR":"ريال قطري",
+        "ر.ق":"ريال قطري",
+        "AED":"درهم إماراتي",
+        "د.إ":"درهم إماراتي",
+        "OMR":"ريال عماني",
+        "ر.ع":"ريال عماني",
+        "SOS":"شلن صومالي",
+        "ش.ص":"شلن صومالي",
+        "FDJ":"فرنك جيبوتي",
+        "ف.ج":"فرنك جيبوتي",
+        "KMF":"فرنك قمري",
+
+    },
+}
+def convert_symbols_to_words(lang,text):
+    symbol_table = _symbol_to_word.get(lang, {})
+    for k, v in symbol_table.items():
+        if lang == "ar":
+            return replace_keeping_word_boundaries(k, v, text)
+        if lang in ["en","fr"]:
+            if lower_case:
+                k = k.lower()
+                v = v.lower()
+            return replace_keeping_word_boundaries(k, v, text)
+
+def replace_keeping_word_boundaries(orig, dest, text):
+    if orig in text:
+        _orig = text_unescape(orig)
+        text = re.sub(r"(\W)"+_orig+r"(\W)", r"\1"+dest+r"\2", text)
+        text = re.sub(_orig+r"(\W)", " "+dest+r"\1", text)
+        text = re.sub(r"(\W)"+_orig, r"\1"+dest+" ", text)
+        text = re.sub(_orig, " "+dest+" ", text)
+    return text
+
 _not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
@@ -89,6 +306,7 @@ _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 # Should we precompute?
 # _punctuation_strong = str.maketrans('', '', _punctuation_strong)
 # _punctuation = str.maketrans('', '', _punctuation)
+
 
 def remove_punctuations(text, strong = False):
     if strong:
