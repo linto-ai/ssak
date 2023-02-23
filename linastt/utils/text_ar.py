@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape, convert_symbols_to_words, normalize_arabic_currencies
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -7,9 +7,9 @@ _arabic_punctuation = "؟!،.?,"
 _latin_punctuation = "!?.,:;"
 _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
 # Need unescape for regex
-_regex_arabic_punctuation = text_unescape(_arabic_punctuation)
-_regex_latin_punctuation = text_unescape(_latin_punctuation)
-_regex_all_punctuation = text_unescape(_all_punctuation)
+_regex_arabic_punctuation = regex_unescape(_arabic_punctuation)
+_regex_latin_punctuation = regex_unescape(_latin_punctuation)
+_regex_all_punctuation = regex_unescape(_all_punctuation)
 
 # TODO: buckwalter
 # from lang_trans.arabic import buckwalter

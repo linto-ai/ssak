@@ -1,7 +1,7 @@
 import re
 import math
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, text_unescape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, regex_unescape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -94,7 +94,7 @@ def format_text_latin(text,
             in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
             if len(in_parenthesis):
                 in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
-                regex = "("+")|(".join(["\("+text_unescape(p)+"\)" for p in in_parenthesis])+")"
+                regex = "("+")|(".join(["\("+regex_unescape(p)+"\)" for p in in_parenthesis])+")"
                 without_parenthesis = re.sub(regex, "", text)
                 # assert without_parenthesis != text
                 if without_parenthesis != text: # Avoid infinite recursion
@@ -117,6 +117,7 @@ def format_text_latin(text,
         coma = "," if lang in ["fr"] else "\."
         for c in _currencies:
             if c in text:
+                c = regex_unescape(c)
                 text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
                             c, r"\1 " + c + r" \2", text)
 

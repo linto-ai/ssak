@@ -98,6 +98,35 @@ class TestFormatTextLatin(Test):
             "moins "+" ".join([format_text_latin(x) for x in text[1:]])
         )
 
+    def test_format_currencies(self):
+
+        for text in [
+            "ça coute 1,20€",
+            "ça coute 1,20 €",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un euros vingt" # TODO: remove the s...
+            )
+
+        for text in [
+            "ça coute 1,20$",
+            "ça coute 1,20 $",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un dollars vingt" # TODO: remove the s...
+            )
+
+        for text in [
+            "ça coute 1.20$ * 6 mois",
+            "ça coute 1.20 $ * 6 mois",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un point vingt dollars six mois"
+            )
+
     def test_format_special_chars(self):
         self.assertEqual(
             format_text_latin("L’état “from scratch”."),

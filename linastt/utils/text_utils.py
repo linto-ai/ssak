@@ -48,7 +48,7 @@ _symbol_to_word = {
         "‰": "pour mille",
         "~": "environ",
         "÷": "divisé par",
-        "\*": "fois",  # ?
+        # "*": "fois",  # ?
         "×": "fois",
         "±": "plus ou moins",
         "+": "plus",
@@ -79,7 +79,7 @@ _symbol_to_word = {
         "°": "degrés",
         "€": "euros",
         "¢": "cents",
-        "\$": "dollars",
+        "$": "dollars",
         "£": "livres",
         "¥": "yens",
         "₹": "roupies",
@@ -103,7 +103,7 @@ _symbol_to_word = {
         "‰": "per mille",
         "~": "about",
         "÷": "divided by",
-        "\*": "times",  # ?
+        # "*": "times",  # ?
         "×": "times",
         "±": "plus or minus",
         "+": "plus",
@@ -134,7 +134,7 @@ _symbol_to_word = {
         "°": "degrees",
         "€": "euros",
         "¢": "cents",
-        "\$": "dollars",
+        "$": "dollars",
         "£": "pounds",
         "¥": "yens",
         "₹": "rupees",
@@ -146,7 +146,7 @@ _symbol_to_word = {
         "~": "حوالي",
         "=": "يساوي",
         "÷": "مقسوما على",
-        "*": "مضروبا بـ",  # ?
+        # "*": "مضروبا بـ",  # ?
         "×": "مضروبا بـ",
         "±": "بالإضافة أو الطرح",
         "+": "بالإضافة",
@@ -247,7 +247,7 @@ _ar_currencies = {
 
 def replace_keeping_word_boundaries(orig, dest, text):
     if orig in text:
-        _orig = text_unescape(orig)
+        _orig = regex_unescape(orig)
         text = re.sub(r"(\W)"+_orig+r"(\W)", r"\1"+dest+r"\2", text)
         text = re.sub(_orig+r"(\W)", " "+dest+r"\1", text)
         text = re.sub(r"(\W)"+_orig, r"\1"+dest+" ", text)
@@ -298,7 +298,7 @@ def remove_special_characters(
                 _ALL_SPECIAL_CHARACTERS.append(char)
     return output
 
-def text_unescape(text):
+def regex_unescape(text):
     return text.replace("\\","\\\\")\
         .replace("*","\*")\
         .replace(".","\.")\
