@@ -84,6 +84,11 @@ def to_linstt_transcription(transcription,
                                 last_word["end"] = word["end"]
                             last_word["text"] += word["text"]
                             continue
+
+                    if word["start"] >= word["end"]:
+                        print(f"WARNING: Ignoring word {j} of segment {i} (that has duration {word['end'] - word['start']})")
+                        continue
+
                     new_words.append(word)
 
                 seg[word_key] = new_words
