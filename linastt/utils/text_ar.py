@@ -1,7 +1,5 @@
 import re
-import string
-import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape,convert_symbols_to_words
+from linastt.utils.text_utils import cardinal_numbers_to_letters, text_unescape, convert_symbols_to_words, normalize_arabic_currencies
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -17,6 +15,25 @@ _regex_all_punctuation = text_unescape(_all_punctuation)
 # from lang_trans.arabic import buckwalter
 # buckwalter.transliterate(text)
 # buckwalter.untransliterate(text)
+
+# Islamic months
+_islamic_months={
+    "ar":{
+        "1":"المحرم",
+        "2":"صفر",
+        "3":"ربيع الأول",
+        "4":"ربيع الآخر",
+        "5":"جمادى الأولى",
+        "6":"جمادى الآخرة",
+        "7":"رجب",
+        "8":"شعبان",
+        "9":"رمضان",
+        "10":"شوال",
+        "11":"ذو القعدة",
+        "12":"ذو الحجة",
+    }
+}
+
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -38,32 +55,24 @@ def digit2word(text):
     text = cardinal_numbers_to_letters(text, lang="ar")
     return text
 
+
 def normalize_punct(text):
     text = re.sub("[;؛]",".",text)
     text = re.sub("[:,]","،",text)
     text = re.sub("[-_]","",text)
     return text
 
+
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
-     
+
+
 # this function can split sentences.
 def split_around(text, punctuation = _regex_all_punctuation):
     sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]|$)", text)
     return ["".join(s).strip() for s in sentences]
 
-# this function can replace symbols with words.
-def symbols2name(text):
-    lang="ar"    
-    # text = text.replace("$", " دولار ")
-    # text = text.replace("€", " يورو ")
-    # text = text.replace("£", " بوند ")
-    # text = text.replace("¥", " يان ")
-    # text = text.replace("₹", " روبل ")
-    # text = text.replace("%", " في المئة ")
-    # text = text.replace("٪", " في المئة ")
-    # text = text.replace("/"," أو ") # أو == or
-    return convert_symbols_to_words(lang,text)
+
 
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
@@ -81,15 +90,18 @@ def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
 
     return re.sub(r"[^"+what_to_keep+"]+", " ", text)
 
+
 # this function can remove the repeating chars
 def remove_repeating_char(text):
     return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
 
+
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
     line = normalize_punct(line)
+    line = normalize_arabic_currencies(line, lang="ar")
     line = digit2word(line)
-    line = symbols2name(line)
+    line = convert_symbols_to_words(line, lang="ar", lower_case=False)
     line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
     line = remove_repeating_char(line)      
     return line

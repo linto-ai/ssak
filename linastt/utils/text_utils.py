@@ -144,8 +144,9 @@ _symbol_to_word = {
         "٪": "في المئة",
         "‰": "بالألف",
         "~": "حوالي",
+        "=": "يساوي",
         "÷": "مقسوما على",
-        "\*": "مضروبا بـ",  # ?
+        "*": "مضروبا بـ",  # ?
         "×": "مضروبا بـ",
         "±": "بالإضافة أو الطرح",
         "+": "بالإضافة",
@@ -182,16 +183,21 @@ _symbol_to_word = {
         "°F": "درجة فهرنهايت",
         "°K": "كيلفن",
         "°": "درجة",
-        "\\":"أو",
+        # "/":"أو",
         "€": "يورو",
         "¢": "سنت",
-        "\$": "دولار",
+        "$": "دولار",
         "£": "جنيه",
         "¥": "ين",
         "₹": "روبية هندية",
         "₽": "روبل روسي",
         "C$":"دولار كندي",
-        # all AR accurency 
+
+    },
+}
+
+_ar_currencies = {
+    "ar":{
         "EGP":"جنيه مصري",
         "ج.م":"جنيه مصري",
         "IQD":"دينار عراقي",
@@ -233,19 +239,11 @@ _symbol_to_word = {
         "FDJ":"فرنك جيبوتي",
         "ف.ج":"فرنك جيبوتي",
         "KMF":"فرنك قمري",
+        "EUR":"يورو",
+        "USD":"دولار أمريكي",
 
-    },
+    }
 }
-def convert_symbols_to_words(lang,text):
-    symbol_table = _symbol_to_word.get(lang, {})
-    for k, v in symbol_table.items():
-        if lang == "ar":
-            return replace_keeping_word_boundaries(k, v, text)
-        if lang in ["en","fr"]:
-            if lower_case:
-                k = k.lower()
-                v = v.lower()
-            return replace_keeping_word_boundaries(k, v, text)
 
 def replace_keeping_word_boundaries(orig, dest, text):
     if orig in text:
@@ -255,6 +253,23 @@ def replace_keeping_word_boundaries(orig, dest, text):
         text = re.sub(r"(\W)"+_orig, r"\1"+dest+" ", text)
         text = re.sub(_orig, " "+dest+" ", text)
     return text
+
+def normalize_arabic_currencies(text, lang):
+    symbol_table = _ar_currencies.get(lang, {})
+    for k, v in symbol_table.items():
+         text = replace_keeping_word_boundaries(k, v, text)
+    return text
+
+def convert_symbols_to_words(text, lang, lower_case=True):
+    symbol_table = _symbol_to_word.get(lang, {})
+    for k, v in symbol_table.items():
+         if lower_case and lang not in "ar":
+             k = k.lower()
+             v = v.lower()
+         text = replace_keeping_word_boundaries(k, v, text)
+    return text
+
+
 
 _not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
 
