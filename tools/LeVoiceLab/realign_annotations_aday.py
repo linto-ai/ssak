@@ -6,6 +6,21 @@ from datetime import datetime
 from linastt.utils.align import find_best_position_dtw
 from linastt.utils.text import format_text_latin, split_around_space_and_apostrophe
 
+
+import time
+import datetime
+
+# Convert absolute timestamp to date time
+
+def concert_timestamp(t):
+    """
+    t = 1554180140
+    concert_timestamp(t) = "2019-04-02 06:42:20"
+    """
+    
+    dt = datetime.datetime.fromtimestamp(t)
+    return dt
+
 def realign_annotations(annot_file, word_strategy = True, plot = False, verbose = False):
 
     data = json.load(open(annot_file))
@@ -44,7 +59,7 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
     auto_transcript = ET.fromstring(extra["automatic_transcription"])
     auto_transcript_start = extra["transcription_start"]
     # convert '2019-03-14T07:11:00+01:00' to absolute timing
-    auto_transcript_start = datetime.strptime(auto_transcript_start, "%Y-%m-%dT%H:%M:%S+01:00")
+    auto_transcript_start = datetime.strptime(auto_transcript_start[:-6], "%Y-%m-%dT%H:%M:%S")
 
     new_transcripts = []
 
@@ -167,15 +182,20 @@ def save_annotation(annot, filename):
 
 if __name__ == "__main__":
 
+    import sys
+
     DIRIN="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_batch"
     DIROUT="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_new"
 
     for file_in in os.listdir(DIRIN):
 
+        if not file_in.endswith(".annotations.json"):
+            continue
+
         file_in = os.path.join(DIRIN, file_in)
         file_out = os.path.join(DIROUT, os.path.basename(file_in))
 
-        annot = realign_annotations(file_in, word_strategy = True, plot = False, verbose = True)
+        annot = realign_annotations(file_in, word_strategy = True, plot = "--plot" in sys.argv, verbose = True)
         save_annotation(annot, file_out)
 
 
