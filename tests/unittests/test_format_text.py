@@ -25,6 +25,11 @@ class TestFormatTextLatin(Test):
         )
 
         self.assertEqual(
+            format_text_latin("10,000 et 100,000,000 et 1111,000,000"),
+            "dix mille et cent millions et un milliard cent onze millions"
+        )
+
+        self.assertEqual(
             format_text_latin("La Rochelle - CAUE 17 2003 2005 Inventaire du Pays"),
             "la rochelle caue dix-sept deux mille trois deux mille cinq inventaire du pays"
             )
@@ -92,6 +97,35 @@ class TestFormatTextLatin(Test):
             format_text_latin(text),
             "moins "+" ".join([format_text_latin(x) for x in text[1:]])
         )
+
+    def test_format_currencies(self):
+
+        for text in [
+            "ça coute 1,20€",
+            "ça coute 1,20 €",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un euros vingt" # TODO: remove the s...
+            )
+
+        for text in [
+            "ça coute 1,20$",
+            "ça coute 1,20 $",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un dollars vingt" # TODO: remove the s...
+            )
+
+        for text in [
+            "ça coute 1.20$ * 6 mois",
+            "ça coute 1.20 $ * 6 mois",
+        ]:
+            self.assertEqual(
+                format_text_latin(text),
+                "ça coute un point vingt dollars six mois"
+            )
 
     def test_format_special_chars(self):
         self.assertEqual(
@@ -172,42 +206,59 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=False),
-            'في الغة الإنجليزية يمكن لمرء أن يقول '
+            'في اللغة الإنجليزية يمكن للمرء أن يقول '
         )
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
-            'في الغة الإنجليزية ، يمكن لمرء أن يقول !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول !'
         )
-
-        # TODO: Do not remove double "ll" in English
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
-            'في الغة الإنجليزية يمكن لمرء أن يقول Helo world '
+            'في اللغة الإنجليزية يمكن للمرء أن يقول Hello world '
         )
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            'في الغة الإنجليزية ، يمكن لمرء أن يقول Helo world !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول Hello world !'
         )
 
     def test_format_digits(self):
         
-        # TODO: is this correct?
-
         self.assertEqual(
             format_text_ar("بعض الأرقام: 01 و 314 و 315.5 و ۰۹ و ۹۰"),
-            'بعض الأرقام واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر فاصيله خمسون و تسعة و تسعون'
+            'بعض الأرقام صفر واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر فاصيله خمسة و صفر تسعة و تسعون '
         )
 
         self.assertEqual(
-            format_text_ar("بعض الأرقام: 01 و 314 و 315,5 و ۰۹ و ۹۰"),
-            'بعض الأرقام واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر و تسعة و تسعون'
+            format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
+            'يوجد عشرة آلاف شخص عنوان الخاص بي هو تسعمائة و واحد و خمسون فاصيله ثلاثمائة و سبعة و خمسون مائة و ثلاثة و عشرون ورقم هاتفي هو صفر ستة اثنا عشر أربعة و ثلاثون ستة و خمسون ثمانية و سبعون '
+        )
+                
+        self.assertEqual(
+            format_text_ar("وأغلق بسعر $45.06 للبرميل."),
+            'وأغلق بسعر دولار خمسة و أربعون فاصيله صفر ستة للبرميل '
         )
 
-        # TODO: solve IP
-        # self.assertEqual(
-        #     format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
-        #     "TODO"
-        # )
+        self.assertEqual(
+            format_text_ar("اليوم 22/03/2002"),
+            'اليوم اثنتان و عشرون مارس ألفان و اثنان '
+        )
+
+    def test_symbols_converting(self):
+        
+        self.assertEqual(
+            format_text_ar("للعام 1435/ 1436هـ"),
+            'للعام واحد ألف و أربعمائة و خمس و ثلاثون واحد ألف و أربعمائة و ست و ثلاثون هجري '
+        )
+
+        self.assertEqual(
+            format_text_ar("7 ق.م"),
+            ' سبع قبل الميلاد '
+        )
+
+        self.assertEqual(
+            format_text_ar("300¥ = 300$ = 300£ = 300₹"),
+            ' ثلاثمائة ين يساوي ثلاثمائة دولار يساوي ثلاثمائة جنيه يساوي ثلاثمائة روبية هندية '
+        )

@@ -1,12 +1,39 @@
 import re
-import string
-import re
-from linastt.utils.text_utils import robust_num2words
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
+
+_regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
+_regex_latin_chars = "a-zA-Z" # TODO: improve me
+_arabic_punctuation = "؟!،.?,"
+_latin_punctuation = "!?.,:;"
+_all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
+# Need unescape for regex
+_regex_arabic_punctuation = regex_unescape(_arabic_punctuation)
+_regex_latin_punctuation = regex_unescape(_latin_punctuation)
+_regex_all_punctuation = regex_unescape(_all_punctuation)
 
 # TODO: buckwalter
 # from lang_trans.arabic import buckwalter
 # buckwalter.transliterate(text)
 # buckwalter.untransliterate(text)
+
+# Islamic months
+_islamic_months={
+    "ar":{
+        "1":"المحرم",
+        "2":"صفر",
+        "3":"ربيع الأول",
+        "4":"ربيع الآخر",
+        "5":"جمادى الأولى",
+        "6":"جمادى الآخرة",
+        "7":"رجب",
+        "8":"شعبان",
+        "9":"رمضان",
+        "10":"شوال",
+        "11":"ذو القعدة",
+        "12":"ذو الحجة",
+    }
+}
+
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -25,62 +52,56 @@ def convert_hindi_numbers(text):
 # Convert digit to chars
 def digit2word(text):
     text = convert_hindi_numbers(text)
-    numbers = re.findall(r"\b\d+[\.\d]+\b",text)
-    numbers = sorted(list(set(numbers)), reverse=True, key=len)
-    for n in numbers:
-        number_in_letter = robust_num2words(float(n), lang="ar")
-        text = text.replace(n,number_in_letter.replace(","," فاصيله "))
+    text = cardinal_numbers_to_letters(text, lang="ar")
     return text
 
+
 def normalize_punct(text):
-    text = re.sub("/"," أو ",text) # أو == or
     text = re.sub("[;؛]",".",text)
     text = re.sub("[:,]","،",text)
     text = re.sub("[-_]","",text)
     return text
 
+
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
-     
+
+
 # this function can split sentences.
-def split_around(text, punctuation = '؟!،.?,'):
+def split_around(text, punctuation = _regex_all_punctuation):
     sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]|$)", text)
     return ["".join(s).strip() for s in sentences]
 
-# this function can replace symbols with words.
-def symbols2name(text):
-    text = text.replace("$", " دولار ")
-    text = text.replace("€", " يورو ")
-    text = text.replace("£", " بوند ")
-    text = text.replace("¥", " يان ")
-    text = text.replace("₹", " روبل ")
-    text = text.replace("%", " بالمئة ")
-    text = text.replace("٪", " بالمئة ")
-    return text
+
 
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
-    if not keep_punc:
+
+    what_to_keep = _regex_arabic_chars
+    
+    if keep_punc:
         if keep_latin_chars:
-            return re.sub("[^ء-يa-zA-Z]+", " ", text)    
+            what_to_keep += _regex_all_punctuation
         else:
-            return re.sub("[^ء-ي]+", " ", text) 
-    else:
-        if keep_latin_chars:
-            return re.sub("[^ء-ي.،!؟a-zA-Z]+", " ", text)    
-        else:
-            return re.sub("[^ء-ي.،!؟]+", " ", text)
+            what_to_keep += _regex_arabic_punctuation
+    
+    if keep_latin_chars:
+        what_to_keep += _regex_latin_chars
+
+    return re.sub(r"[^"+what_to_keep+"]+", " ", text)
+
 
 # this function can remove the repeating chars
 def remove_repeating_char(text):
-    return re.sub(r'(.)\1+', r'\1', text)
+    return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
+
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
     line = normalize_punct(line)
-    line = symbols2name(line)
+    line = normalize_arabic_currencies(line, lang="ar")
     line = digit2word(line)
-    line = normalize_punct(line)
+    line = convert_symbols_to_words(line, lang="ar", lower_case=False)
     line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
     line = remove_repeating_char(line)      
     return line
@@ -102,8 +123,8 @@ if __name__ == '__main__':
         "keep_latin_chars": args.keep_latin_chars,
     }
 
-    if len(input) == 2 and os.path.isfile(input):
-        with open(input, "r") as f:
+    if len(input) == 1 and os.path.isfile(input[0]):
+        with open(input[0], "r") as f:
             text = f.read()
             for line in text.splitlines():
                 print(format_text_ar(line, **kwargs))
