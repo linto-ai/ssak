@@ -15,6 +15,8 @@ EXTENSIONS = [
 def to_linstt_transcription(transcription,
     contract_words=True,
     include_punctuation_in_timestamp=False,
+    remove_empty_words=True,
+    recompute_text=True,
     ):
 
     if isinstance(transcription, str):
@@ -73,7 +75,12 @@ def to_linstt_transcription(transcription,
                             next += 1
                         if word["end"] is None:
                             word["end"] = seg["end"]
+
                     new_word = word["text"] = word["text"].strip()
+
+                    if remove_empty_words and word["end"] < word["start"]:
+                        print(f"WARNING: removing word {new_word} with duration {word['end']-word['start']}" )
+                        continue
 
                     if not new_word:
                         continue
@@ -84,16 +91,18 @@ def to_linstt_transcription(transcription,
                                 last_word["end"] = word["end"]
                             last_word["text"] += word["text"]
                             continue
-
-                    if word["start"] >= word["end"]:
-                        print(f"WARNING: Ignoring word {j} of segment {i} (that has duration {word['end'] - word['start']})")
-                        continue
-
                     new_words.append(word)
 
                 seg[word_key] = new_words
 
-        text = transcription["text"] if "text" in transcription else " ".join([seg["text"] for seg in transcription["segments"]])
+        if recompute_text:
+            for seg in transcription["segments"]:
+                new_text = " " + " ".join([word["text"] for word in seg[word_key]])
+                if new_text.strip() != seg["text"].strip():
+                    print(f"WARNING: recomputing text from words:\n<< {seg['text']}\n>> {new_text}")
+                seg["text"] = new_text.strip()
+
+        text = transcription["text"] if ("text" in transcription and not recompute_text) else " ".join([seg["text"] for seg in transcription["segments"]])
         text = text.strip()
         return {
             "transcription_result": text,
@@ -304,7 +313,7 @@ if __name__ == "__main__":
         raise RuntimeError(f"Could not find {args.input}")
     
     if os.path.isdir(args.input):
-        input_files = [f for f in os.listdir(args.input) if max([f.endswith(e) for e in EXTENSIONS])]
+        input_files = [f for f in os.listdir(args.input) if max([f.endswith(e) for e in EXTENSIONS]) and os.path.splitext(f)[0] not in "README"]
         output_files = [os.path.join(args.output, f) for f in input_files]
         input_files = [os.path.join(args.input, f) for f in input_files]
         if not os.path.isdir(args.output):
