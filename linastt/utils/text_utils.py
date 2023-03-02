@@ -395,6 +395,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             i1 = digitf.index("/")
             i2 = digitf.index("/", i1+1)
             is_date = False
+            is_islamic_date = False
             if len(digitf[i1+1:i2]) == 2 and len(digitf[i2+1:]) == 4:
                 try:
                     first = int(digitf[:i1])
@@ -403,6 +404,14 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
                 except:
                     pass
+            if len(digitf[:i1]) == 4 and len(digitf[i1+1:i2]) in [1,2]:
+                try:
+                    first = int(digitf[:i1])
+                    second = int(digitf[i1+1:i2])
+                    third = int(digitf[i2+1])
+                    is_islamic_date = first > 1000 and first < 1600 and second > 0 and second < 13 and third > 0 and third < 32
+                except:
+                    pass 
             third = undigit(digitf[i2+1:], lang=lang)
             if is_date:
                 first = digitf[:i1].lstrip("0")
@@ -411,6 +420,13 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                 first = undigit(first, lang=lang,
                                 to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(
+                    int(digitf[i1+1:i2]), digitf[i1+1:i2])
+                word = " ".join([first, second, third])
+            elif is_islamic_date:
+                first = digitf[:i1].lstrip("0")
+                use_ordinal = (lang == 'ar' and first[-1] in ["1","2","3"])
+                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
+                second = _ar_months.get(lang, {}).get(
                     int(digitf[i1+1:i2]), digitf[i1+1:i2])
                 word = " ".join([first, second, third])
             else:
@@ -523,6 +539,22 @@ _int_to_month = {
     
 }
 
+_ar_months = {
+    "ar" : {
+        1: "محرم",
+        2: "صفر",
+        3: "ربيع الأول",
+        4: "ربيع الآخر",
+        5: "جمادى الأولى",
+        6: "جمادى الآخرة",
+        7: "رجب",
+        8: "شعبان",
+        9: "رمضان",
+        10: "شوال",
+        11: "ذو القعدة",
+        12: "ذو الحجة",
+    }
+}
 _punct_to_word = {
     "fr": {
         ",": "virgule",

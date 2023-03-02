@@ -16,25 +16,6 @@ _regex_all_punctuation = regex_unescape(_all_punctuation)
 # buckwalter.transliterate(text)
 # buckwalter.untransliterate(text)
 
-# Islamic months
-_islamic_months={
-    "ar":{
-        "1":"المحرم",
-        "2":"صفر",
-        "3":"ربيع الأول",
-        "4":"ربيع الآخر",
-        "5":"جمادى الأولى",
-        "6":"جمادى الآخرة",
-        "7":"رجب",
-        "8":"شعبان",
-        "9":"رمضان",
-        "10":"شوال",
-        "11":"ذو القعدة",
-        "12":"ذو الحجة",
-    }
-}
-
-
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
     text = text.replace('۱', '1')

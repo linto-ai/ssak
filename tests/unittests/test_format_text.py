@@ -262,3 +262,8 @@ class TestFormatTextArabic(Test):
             format_text_ar("300¥ = 300$ = 300£ = 300₹"),
             ' ثلاثمائة ين يساوي ثلاثمائة دولار يساوي ثلاثمائة جنيه يساوي ثلاثمائة روبية هندية '
         )
+    def test_date_is_islamic(self):
+        self.assertEqual(
+            format_text_ar("هجري 1437/01/20"),
+            'هجري واحد ألف و أربعمائة و سبعة و ثلاثون محرم عشرون ' 
+        )
