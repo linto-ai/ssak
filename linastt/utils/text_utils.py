@@ -371,7 +371,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
         elif numslash == 1:  # Fraction or date
             i = digitf.index("/")
             is_date = False
-            if len(digitf[i+1:]) == 2:
+            if len(digitf[i+1:]) in [1,2]:
                 try:
                     first = int(digitf[:i])
                     second = int(digitf[i+1:])
@@ -396,7 +396,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             i2 = digitf.index("/", i1+1)
             is_date = False
             is_islamic_date = False
-            if len(digitf[i1+1:i2]) == 2 and len(digitf[i2+1:]) == 4:
+            if len(digitf[i1+1:i2]) in [1,2] and len(digitf[i2+1:]) == 4:
                 try:
                     first = int(digitf[:i1])
                     second = int(digitf[i1+1:i2])
