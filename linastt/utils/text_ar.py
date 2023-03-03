@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies, remove_diacritics
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -79,6 +79,7 @@ def remove_repeating_char(text):
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
+    line = remove_diacritics(line)
     line = normalize_punct(line)
     line = normalize_arabic_currencies(line, lang="ar")
     line = digit2word(line)
