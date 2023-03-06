@@ -38,6 +38,13 @@ def cm_import(
 
     datestr = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d - %H:%M:%S")
 
+    organization = curl_get(
+        url + "/api/organizations/user",
+        headers=[f"Authorization: Bearer {token}"],
+    )
+    assert len(organization) >= 1, "No organization found."
+    organizationId = organization[0]["_id"]
+
     result = curl_post(
         url + "/api/conversations/import?type=transcription",
         {
@@ -54,7 +61,7 @@ def cm_import(
                                                           'serviceName': 'Custom' if has_speaker else None},
                                     'enableNormalization': has_digit(transcription)},
             "description": f"Audio: {os.path.basename(audio_file)} / Transcription: {hashmd5(transcription)} / Import: {datestr}",
-            "organizationId": "63989a54e9b3c20019dcae7d", # NOCOMMIT
+            "organizationId": organizationId,
             "membersRight": "0",
         },
         headers=[f"Authorization: Bearer {token}"],
