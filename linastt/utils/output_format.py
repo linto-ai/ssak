@@ -42,9 +42,15 @@ def to_linstt_transcription(transcription,
     if "language" in transcription and "segments" in transcription:
         word_keys = ["words", "word-level", "word_timestamps"]
         word_key = None
+        new_segments = []
         for i, seg in enumerate(transcription["segments"]):
             for expected_keys in ["start", "end"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
+
+            if remove_empty_words and format_timestamp(seg["end"]) <= format_timestamp(seg["start"]):
+                print(f"WARNING: removing segment with duration {seg['end']-seg['start']}" )
+                continue
+
             if word_key is None and max([k in seg for k in word_keys]):
                 for k in word_keys:
                     if k in seg:
@@ -78,7 +84,7 @@ def to_linstt_transcription(transcription,
 
                     new_word = word["text"] = word["text"].strip()
 
-                    if remove_empty_words and word["end"] < word["start"]:
+                    if remove_empty_words and format_timestamp(word["end"]) <= format_timestamp(word["start"]):
                         print(f"WARNING: removing word {new_word} with duration {word['end']-word['start']}" )
                         continue
 
@@ -94,6 +100,9 @@ def to_linstt_transcription(transcription,
                     new_words.append(word)
 
                 seg[word_key] = new_words
+            new_segments.append(seg)
+
+        transcription["segments"] = new_segments
 
         if recompute_text:
             for seg in transcription["segments"]:
@@ -111,16 +120,16 @@ def to_linstt_transcription(transcription,
             "segments": [
                 {
                     "spk_id": None,
-                    "start": round(seg["start"], 2),
-                    "end": round(seg["end"], 2),
-                    "duration": round(seg["end"] - seg["start"], 2),
+                    "start": format_timestamp(seg["start"]),
+                    "end": format_timestamp(seg["end"]),
+                    "duration": format_timestamp(seg["end"] - seg["start"]),
                     "raw_segment": seg["text"].strip(),
                     "segment": seg["text"].strip(),
                     "words": [
                         {
                             "word": word["text"],
-                            "start": round(word["start"], 2),
-                            "end": round(word["end"], 2),
+                            "start": format_timestamp(word["start"]),
+                            "end": format_timestamp(word["end"]),
                             "conf": word.get("confidence", 1),
                         } for word in seg.get(word_key, [])
                     ]
@@ -141,16 +150,16 @@ def to_linstt_transcription(transcription,
             "segments": [
                 {
                     "spk_id": None,
-                    "start": round(start, 2),
-                    "end": round(end, 2),
-                    "duration": round(end - start, 2),
+                    "start": format_timestamp(start),
+                    "end": format_timestamp(end),
+                    "duration": format_timestamp(end - start),
                     "raw_segment": text,
                     "segment": text,
                     "words": [
                         {
                             "word": word["word"],
-                            "start": round(word["start"], 2),
-                            "end": round(word["end"], 2),
+                            "start": format_timestamp(word["start"]),
+                            "end": format_timestamp(word["end"]),
                             "conf": word["conf"],
                         } for word in words
                     ]
@@ -159,6 +168,9 @@ def to_linstt_transcription(transcription,
         }
 
     raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
+
+def format_timestamp(t):
+    return round(t, 2)
 
 def read_text_grid(file,
     word_tag = "S-token",
