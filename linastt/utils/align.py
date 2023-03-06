@@ -29,9 +29,9 @@ def find_best_position_dtw(subsequence, sequence,
     l2 = len(sequence)
 
     if plot:
-        plt.figure()
+        figure1 = plt.figure()
         plt.imshow(distances, aspect="auto", origin='lower') #, cmap='gray', interpolation='nearest')
-        plt.figure()
+        figure2 = plt.figure()
         plt.imshow(distances, aspect="auto", origin='lower') #, cmap='gray', interpolation='nearest')
         plt.plot(alignment.index2s, alignment.index1s, color="red")
         # plt.show()
@@ -101,7 +101,7 @@ def find_best_position_dtw(subsequence, sequence,
             index1s, index2s = np.array(index1s), np.array(index2s)
 
         if plot:
-            plt.figure()
+            figure3 = plt.figure()
             plt.imshow(distances, aspect="auto", origin='lower') #, cmap='gray', interpolation='nearest')
             plt.plot(index2s - start, index1s + 1 if pad else 0, color="red")
 
@@ -156,9 +156,12 @@ def find_best_position_dtw(subsequence, sequence,
         import pdb; pdb.set_trace()
         raise RuntimeError("Unexpected situation")
 
-    if plot:
+    if isinstance(plot, str):
+        figure1.savefig(plot+"_1.png")
+        figure2.savefig(plot+"_2.png")
+        figure3.savefig(plot+"_3.png")
+    elif plot:
         plt.show()
-        #_step_pattern.plot()
 
     return {
         "indices": indices,

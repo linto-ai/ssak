@@ -8,8 +8,6 @@ from linastt.utils.text import format_text_latin, split_around_space_and_apostro
 
 
 import time
-import datetime
-
 # Convert absolute timestamp to date time
 
 def concert_timestamp(t):
@@ -18,10 +16,16 @@ def concert_timestamp(t):
     concert_timestamp(t) = "2019-04-02 06:42:20"
     """
     
-    dt = datetime.datetime.fromtimestamp(t)
+    dt = datetime.fromtimestamp(t)
     return dt
 
 def realign_annotations(annot_file, word_strategy = True, plot = False, verbose = False):
+
+    if plot:
+        outdir = "plots"
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+        plot = os.path.join(outdir, os.path.basename(annot_file))
 
     data = json.load(open(annot_file))
     transcripts = data["transcripts"]
@@ -59,7 +63,10 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
     auto_transcript = ET.fromstring(extra["automatic_transcription"])
     auto_transcript_start = extra["transcription_start"]
     # convert '2019-03-14T07:11:00+01:00' to absolute timing
-    auto_transcript_start = datetime.strptime(auto_transcript_start[:-6], "%Y-%m-%dT%H:%M:%S")
+    if isinstance(auto_transcript_start, int):
+        auto_transcript_start = auto_transcript_start
+    else:
+        auto_transcript_start = datetime.strptime(auto_transcript_start[:-6], "%Y-%m-%dT%H:%M:%S")
 
     new_transcripts = []
 
@@ -67,19 +74,41 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
     auto_words = []
     auto_starts = []
     for elt in auto_transcript:
-        assert elt.tag == "s2t"
-        word = elt.text
-        start = elt.get("datetime")
-        # convert '2019-03-14T07:12:00.410000' to absolute timing
-        try:
-            start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S.%f")
-        except ValueError:
-            start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S")
-        delta = start - auto_transcript_start
-        # concert datetime.timedelta to seconds
-        start = delta.total_seconds()
-        auto_words.append(word)
-        auto_starts.append(start)
+        words = [elt.text]
+        if elt.tag == "s2t":
+            start = elt.get("datetime")
+            # convert '2019-03-14T07:12:00.410000' to absolute timing
+            try:
+                import pdb; pdb.set_trace()
+                start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S.%f")
+            except ValueError:
+                start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S")
+            starts = [start]
+        elif elt.tag == "term":
+            starts = [elt.get("start")]
+        elif elt.tag == "speech":
+            words = []
+            starts = []
+            for word in elt:
+                assert word.tag == "term"
+                words.append(word.text)
+                start = word.get("start")
+                assert start is not None
+                if isinstance(start, str):
+                    start = float(start)
+                starts.append(start)
+        else:
+            raise ValueError(f"Unknown tag {elt.tag}")
+        for start, word in zip(starts, words):
+            assert start is not None
+            delta = start - auto_transcript_start
+            # concert datetime.timedelta to seconds
+            if isinstance(start, datetime):
+                start = delta.total_seconds()
+            auto_words.append(word)
+            auto_starts.append(start)
+
+    assert len(auto_words) > 0, "No words in automatic transcript"
 
     for transcript in transcripts:
 
@@ -186,6 +215,7 @@ if __name__ == "__main__":
 
     DIRIN="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_batch"
     DIROUT="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_new"
+    
 
     for file_in in os.listdir(DIRIN):
 
