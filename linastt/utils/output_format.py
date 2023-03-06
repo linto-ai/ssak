@@ -166,6 +166,34 @@ def to_linstt_transcription(transcription,
                 }
             ]
         }
+    
+    if "transcripts" in transcription:
+        # LeVoiceLab format
+        segments = []
+        full_text = ""
+        for seg in transcription["transcripts"]:
+            start = seg["timestamp_start_milliseconds"] / 1000.
+            end = seg["timestamp_end_milliseconds"] / 1000.
+            text = seg["transcript"]
+            if full_text:
+                full_text += " "
+            full_text += text
+            segments.append({
+                "spk_id": None,
+                "start": format_timestamp(start),
+                "end": format_timestamp(end),
+                "duration": format_timestamp(end - start),
+                "raw_segment": text,
+                "segment": text,
+                "words": []
+            })
+        return {
+            "transcription_result": full_text,
+            "raw_transcription": full_text,
+            "confidence": 1.0,
+            "segments": segments
+        }
+
 
     raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
 

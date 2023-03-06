@@ -19,8 +19,21 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False, play_s
         if play_segment:
             segment["words"] = [segment]
 
+        text_key = None
+
         for iw, word in enumerate(segment["words"]):
 
+            if text_key is None:
+                if "text" in word:
+                    text_key = "text"
+                elif "segment" in word:
+                    text_key = "segment"
+                elif "word" in word:
+                    text_key = "word"
+                else:
+                    raise ValueError(f"Cannot find text key in {word}")
+
+            txt = word[text_key]
             start = word["start"]
             end = word["end"]
             if end < min_sec:
@@ -36,7 +49,7 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False, play_s
 
             if x not in ["q", "s"] and not isinstance(x, float|int):
                 print(f"Segment {i+1}/{len(results['segments'])}, word {iw+1}/{len(segment['words'])}")
-                print(f'{word["word"]} : {start}-{end}')
+                print(f'{txt} : {start}-{end}')
                 
                 x = play_audiofile(audio_file, start, end, additional_commands = additional_commands)
 
