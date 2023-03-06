@@ -101,10 +101,10 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             raise ValueError(f"Unknown tag {elt.tag}")
         for start, word in zip(starts, words):
             assert start is not None
-            delta = start - auto_transcript_start
+            start = start - auto_transcript_start
             # concert datetime.timedelta to seconds
             if isinstance(start, datetime):
-                start = delta.total_seconds()
+                start = start.total_seconds()
             auto_words.append(word)
             auto_starts.append(start)
 
@@ -173,6 +173,10 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
         # import pdb; pdb.set_trace()
         # print(indices, auto_starts, auto_words)
 
+        if current_segment is not None:
+            # Malformed transcript?
+            print("WARNING: TRANSCRIPTION LOOKS WRONG")
+            return 
         assert current_segment is None
 
     return new_transcripts
@@ -217,7 +221,7 @@ if __name__ == "__main__":
     DIROUT="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_new"
     
 
-    for file_in in os.listdir(DIRIN):
+    for file_in in sorted(os.listdir(DIRIN)):
 
         if not file_in.endswith(".annotations.json"):
             continue
@@ -225,7 +229,16 @@ if __name__ == "__main__":
         file_in = os.path.join(DIRIN, file_in)
         file_out = os.path.join(DIROUT, os.path.basename(file_in))
 
-        annot = realign_annotations(file_in, word_strategy = True, plot = "--plot" in sys.argv, verbose = True)
+        if os.path.isfile(file_out):
+            print(f"WARNING: file already exists: {file_out}")
+            continue
+
+        print("================================")
+        print(file_in)
+        annot = realign_annotations(file_in, word_strategy = True, plot = "--plot" in sys.argv, verbose = False)
+        if annot is None:
+            print("WARNING: SOMETHING WENT WRONG")
+            continue
         save_annotation(annot, file_out)
 
 
