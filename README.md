@@ -35,7 +35,8 @@ This repository focus on the following features:
 │   └── utils/          : Helpers
 ├── tools/           : Scripts to cope with audio data (data curation, ...)
 │   ├── kaldi/utils/    : Scripts to check and complete kaldi's data folders (.sh and .pl scripts)
-│   └── LeVoiceLab/     : Scripts to convert data from/to LeVoiceLab format (see https://speech-data-hub.levoicelab.org/)
+│   ├── LeVoiceLab/     : Scripts to convert data from/to LeVoiceLab format (see https://speech-data-hub.levoicelab.org/)
+│   └── scraping/       : Scripts to scrape a collection of documents (docx, pdf...) or the web
 ├── docker/          : Docker environment
 └── tests/           : Unittest suite
     ├── data/           : Data to run the tests
