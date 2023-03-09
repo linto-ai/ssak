@@ -233,6 +233,7 @@ if __name__ == "__main__":
         url=args.url, email=args.email, password=args.password,
         verbose=args.verbose,
     )
+    conversations = [c for c in conversations if c["name"] == name]
     if len(conversations):
         s = "s" if len(conversations) > 1 else ""
         names = ", ".join(list(set([conv["name"] for conv in conversations])))
@@ -249,13 +250,14 @@ if __name__ == "__main__":
         if "i" in x.lower():
             pass
         elif "d" in x.lower():
+            print("Delete other conversation.")
             for conv in conversations:
                 cm_delete_conversation(conv,
                     url=args.url, email=args.email, password=args.password,
                     verbose=args.verbose,
                 )
         else:
-            print("Aborting.")
+            print("Abort.")
             sys.exit(0)
 
     cm_import(
