@@ -11,6 +11,7 @@ lang-trans
 librosa
 matplotlib
 num2words
+onnxruntime
 psutil
 py3nvml
 pyannote.audio
