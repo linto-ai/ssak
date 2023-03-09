@@ -152,5 +152,8 @@ def save_audio(path, audio, sample_rate = 16_000):
     """ 
     Save an audio signal into a wav file.
     """
+    if isinstance(audio, torch.Tensor):
+        audio = audio.numpy()
+        audio = audio.transpose()
     sox.write(path, audio, sample_rate)
 
