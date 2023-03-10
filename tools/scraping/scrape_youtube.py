@@ -80,16 +80,21 @@ def is_automatic(language):
     # example: "Français (générés automatiquement)"
     return "auto" in language
 
+def norm_language_code(language_code):
+    if len(language_code) > 2 and "-" in language_code:
+        return language_code.split("-")[0]
+    return language_code
+
 def get_transcripts_if(vid, if_lang="fr", verbose=True):
     transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
-    has_auto = max([t.language_code == if_lang and is_automatic(t.language) for t in transcripts])
-    has_language = max([t.language_code == if_lang and not is_automatic(t.language) for t in transcripts])
+    has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
+    has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
     if not has_language or (not has_auto and not only_has_language):
         if verbose:
             print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
         return {}
-    return {t.language_code if not is_automatic(t.language) else t.language_code+"_auto": t.fetch() for t in transcripts}
+    return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
 
 if __name__ == '__main__':
 
