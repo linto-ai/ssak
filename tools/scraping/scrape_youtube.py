@@ -43,9 +43,10 @@ def write_transcriptions(video_ids, path, lang):
 
 if __name__ == '__main__':
 
+    import os
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--language', help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
+    parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
     parser.add_argument('--api_key', help= "The API key you obtained from the Google Cloud Console in order to authenticate your requests to the YouTube Data API.", type=str)
     parser.add_argument('--path', help= "The path where you want to save the CSV files containing the transcripts.", type=str)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. This can be any string, and the script will return the top search results for that query.", type=str)
@@ -56,6 +57,8 @@ if __name__ == '__main__':
     search_query = args.search_query
     path = args.path
 
+    if not os.path.isdir(path):
+         os.makedirs(path)
 
     try:
 
