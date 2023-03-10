@@ -3,7 +3,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from youtube_transcript_api import YouTubeTranscriptApi
 from pytube import YouTube
-import pandas as pd
 
 def get_searched_stats(youtube, search_query):
     search_results = youtube.search().list(

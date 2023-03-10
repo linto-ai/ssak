@@ -5,3 +5,6 @@ pymupdf
 pycurl
 python-slugify
 selenium
+google-api-python-client
+youtube_transcript_api
+pytube
