@@ -22,7 +22,10 @@ def get_videos_ids(youtube, search_res, lang):
                 part='snippet',
                 videoId=video_id,
                 fields='items(id,snippet)',
-                ).execute()        
+                ).execute()
+                if len(captions['items']) == 0:
+                    print('No captions found for video %s' % video_id)
+                    continue      
                 for i in captions['items']:
                         if lang == i['snippet']['language']:
                                 vidio_ids.append(i['snippet']['videoId'])
@@ -32,9 +35,9 @@ def get_videos_ids(youtube, search_res, lang):
 def write_transcriptions(video_ids, path, lang):
     for vid in video_ids:
         video = YouTube(f'https://www.youtube.com/watch?v={vid}')
-        video_title = video.title
+        # video_title = video.title
         transcript = YouTubeTranscriptApi.get_transcript(vid, languages=[lang])
-        with open(f'{path}/{video_title}.csv', 'w') as f:
+        with open(f'{path}/{vid}.csv', 'w') as f:
             f.write('text;start;duration\n')  # Add header
             for line in transcript:
                 f.write(line['text'] + ';' + str(line['start']) + ';' + str(line['duration']) + '\n')
