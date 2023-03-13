@@ -3,8 +3,37 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from youtube_transcript_api import YouTubeTranscriptApi
 from pytube import YouTube
+import os
 
-def get_searched_stats(youtube, search_query, max_results):
+
+def save_ids(video_ids, path):
+     with open(f'{path}/videos_ids.txt','a') as f:
+        for id in video_ids:
+            f.write(id+'\n')
+            
+def is_automatic(language):
+    # example: "Français (générés automatiquement)"
+    return "auto" in language
+
+def norm_language_code(language_code):
+    if len(language_code) > 2 and "-" in language_code:
+        return language_code.split("-")[0]
+    return language_code
+
+def get_transcripts_if(vid, if_lang="fr", verbose=True):
+    transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
+    has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
+    has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
+    only_has_language = has_language and len(transcripts) == 1
+    if not has_language or (not has_auto and not only_has_language):
+        if verbose:
+            print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
+        return {}
+    return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
+
+
+def get_searched_stats(youtube, search_query, lang, max_results):
+    video_ids = []
     search_results = youtube.search().list(
         q=search_query,
         type='video',
@@ -12,39 +41,35 @@ def get_searched_stats(youtube, search_query, max_results):
         fields='items(id(videoId))',
         maxResults=max_results,
         ).execute()
-    return search_results
-
-def get_videos_ids(youtube, search_res, lang, verbose=True):
-        video_ids = []
-        for search_result in search_res['items']:
-                video_id = search_result['id']['videoId']
-                captions = youtube.captions().list(
+    for vid in search_results['items']:
+        video_id = vid['id']['videoId']
+        captions = youtube.captions().list(
                 part='snippet',
                 videoId=video_id,
                 fields='items(id,snippet)',
                 ).execute()
-                if len(captions['items']) == 0:
-                    print('No captions found for video %s' % video_id)
-                    continue      
-                for i in captions['items']:
-                        if lang == i['snippet']['language']:
-                                video_ids.append(i['snippet']['videoId'])
-                                break
-                        
-        if verbose:
-            print(f"{len(video_ids)} videos selected / {len(search_res['items'])}")
 
-        return video_ids
+        if len(captions['items']) == 0:
+            print('No captions found for video %s' % video_id)
+            continue   
+
+        for i in captions['items']:
+            if lang == i['snippet']['language']:
+                video_ids.append(i['snippet']['videoId'])
+                break
+    return video_ids
+
 
 def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=True):
     output_video_dir = f"{path}/vids"
     if not os.path.isdir(output_video_dir):
         os.makedirs(output_video_dir)
-
+   
+    # save a videos_ids in a file
+    save_ids(video_ids,path)
     
     for vid in video_ids:
-
-        output_video_file = f"{output_video_dir}/{vid}.mp4"
+        output_video_file = f"{output_video_dir}/{vid}.mp3"
         if skip_if_exists and os.path.isfile(output_video_file):
             if verbose:
                print(f"Video {vid} skipped (already extracted)")
@@ -66,35 +91,10 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
                 for line in transcript:
                     f.write(line['text'] + ';' + str(line['start']) + ';' + str(line['duration']) + '\n')
 
-        # Download and save video
+        # Download and save audio
         video = YouTube(f'https://www.youtube.com/watch?v={vid}')
-        video_title = video.title
-        stream = video.streams.get_highest_resolution()
-        stream.download(output_video_dir)
-        output_video_file_tmp = f"{output_video_dir}/{video_title}.mp4"
-        os.rename(output_video_file_tmp, output_video_file)
-        
-        # TODO: extract audio and remove video
-
-def is_automatic(language):
-    # example: "Français (générés automatiquement)"
-    return "auto" in language
-
-def norm_language_code(language_code):
-    if len(language_code) > 2 and "-" in language_code:
-        return language_code.split("-")[0]
-    return language_code
-
-def get_transcripts_if(vid, if_lang="fr", verbose=True):
-    transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
-    has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
-    has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
-    only_has_language = has_language and len(transcripts) == 1
-    if not has_language or (not has_auto and not only_has_language):
-        if verbose:
-            print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
-        return {}
-    return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
+        stream = video.streams.filter(only_audio=True).first()
+        stream.download(output_path=output_video_dir, filename=f'{vid}.mp3')
 
 if __name__ == '__main__':
 
@@ -117,8 +117,7 @@ if __name__ == '__main__':
 
         # Set up the API client
         youtube = build('youtube', 'v3', developerKey=api_key)
-        search_res = get_searched_stats(youtube, search_query, max_results=args.max_results)
-        video_ids = get_videos_ids(youtube, search_res, lang)
+        video_ids = get_searched_stats(youtube, search_query, lang, max_results=args.max_results)
         write_transcriptions(video_ids, path, lang)
 
     except HttpError as e:
