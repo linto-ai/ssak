@@ -39,7 +39,7 @@ def to_linstt_transcription(transcription,
 
     # Whisper augmented with words
     # (whisper-timestamped or whisperX)
-    if "language" in transcription and "segments" in transcription:
+    if "text" in transcription and "segments" in transcription:
         word_keys = ["words", "word-level", "word_timestamps"]
         word_key = None
         new_segments = []

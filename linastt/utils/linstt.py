@@ -54,8 +54,9 @@ def linstt_transcribe(
                 to_be_deleted.append(converted_file)
         audio_file = converted_file
 
-    numberOfSpeaker = diarization if isinstance(diarization, int) else None
-    maxNumberOfSpeaker = 50 if not isinstance(diarization, int) else None
+    performDiarization = isinstance(diarization, int) and diarization > 1
+    numberOfSpeaker = diarization if performDiarization else None
+    maxNumberOfSpeaker = 50 if not performDiarization else None
         
     result = curl_post(
         transcription_server + "/transcribe",
