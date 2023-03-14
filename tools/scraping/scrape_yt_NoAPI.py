@@ -6,9 +6,10 @@ import urllib.parse
 from selenium import webdriver
 import time
 import re
-from webdriver_manager.chrome import ChromeDriverManager
-
 import csv
+
+from google_ngram_downloader import readline_google_store
+
 
 ALL_IDS = {}
 
@@ -136,6 +137,32 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
         stream = video.streams.filter(only_audio=True).first()
         stream.download(output_path=output_audio_dir, filename=f'{vid}.mp3')
 
+def generate_ngram(n, lan, min_match_count=10000):
+    lang = {
+        "en": "eng",
+        "fr": "fre",
+    }.get(lan)
+    if not lang:
+        raise ValueError(f"Unknown language {lan}")
+    current_word = None
+
+    letters = list("abcdefghijklmnopqrstuvwxyz")
+    # make all possible 2-grams of letters
+    letters = [l1+l2 for l1 in letters for l2 in letters]
+
+    for fname, url, records in readline_google_store(ngram_len=n, lang=lang, indices=letters):
+        for record in records:
+            if record.match_count < min_match_count:
+                continue
+            if record.ngram == current_word:
+                continue
+            current_word = record.ngram
+            text = record.ngram
+            text = re.sub("_[^ ]*", "", text)
+            text = re.sub(" +", " ", text)
+            if re.match("^[a-zA-Z]", text):
+                yield text
+
 if __name__ == '__main__':
 
     import os
@@ -148,17 +175,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     lang = args.language
-    search_query = args.search_query
-    video_ids = args.video_ids
+    queries = [args.search_query] if args.search_query else [None] if args.video_ids else generate_ngram(3, lang)
     path = args.path
 
     # Set up the API client
-    if video_ids:
-        assert not search_query, "--search_query should not be specified when --video_ids is specified"
-        video_ids = video_ids.split(",")
-    else:
-        assert search_query, "--search_query must be specified"
-        print('==================== get videos id ====================')
-        video_ids = search_videos_ids(search_query)
-    print(f'========== get subtitles for videos in {lang} =========')
-    write_transcriptions(video_ids, path, lang)
+    for query in queries:
+        
+        if args.video_ids:
+            assert query is None, "--search_query should not be specified when --video_ids is specified"
+            video_ids = args.video_ids.split(",")
+        else:
+            assert query is not None
+            print(f'========== get videos id for query: \"{query}\" =========')
+            video_ids = search_videos_ids(query)
+        print(f'========== get subtitles for videos in {lang} =========')
+        write_transcriptions(video_ids, path, lang)
