@@ -1,7 +1,7 @@
 # Import the necessary libraries
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
 from pytube import YouTube
 import os
 
@@ -21,7 +21,12 @@ def norm_language_code(language_code):
     return language_code
 
 def get_transcripts_if(vid, if_lang="fr", verbose=True):
-    transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
+    try:
+        transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
+    except TranscriptsDisabled:
+        # TODO: print a warning, store that error somewhere
+        print("WARNING: subtitles disabled for video %s" % vid)
+        return {}
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
