@@ -27,42 +27,42 @@ def scrape_20minutes(outfolder, **kwargs):
 
     return scrape(
         "https://www.20minutes.fr/",
-        [
+        click_buttons = [
             {"id": "didomi-notice-agree-button"}, # Accept cookies
             {"id": "open-menu-button"}, # Click on the Menu button to see all categories
         ],
-        ("ul", "menu-list"),
-        [("a",), ("article", {"class_":"box preview list-item preview-stretch"})],
-        [None],
-        outfolder, **kwargs
+        category_section = ("ul", "header-nav-list"),
+        article_section = [("a",), ("article", {"class_":"box preview list-item preview-stretch"})],
+        paragraph_classes = [None],
+        outfolder = outfolder, **kwargs
     )
 
 def scrape_huffingtonpost(outfolder, **kwargs):
 
     return scrape(
         "https://www.huffingtonpost.fr/",
-        [
+        click_buttons = [
             {"class": "gdpr-hfp-button gdpr-hfp-button--big gdpr-hfp-button--main"}, # Accept cookies
             {"id": "batchsdk-ui-alert__buttons_negative"}, # Refuse to receive information
         ],
-        ("a", "subNavLeft-categoriesTitle"), # Top menu
-        [("a", {"class_": "item-image"})], # Articles in a page
-        [['article-chapo'], ['asset', 'asset-text']], # Paragraph classes in articles
-        outfolder, **kwargs
+        category_section = ("a", "subNavLeft-categoriesTitle"), # Top menu
+        article_section = [("a", {"class_": "item-image"})], # Articles in a page
+        paragraph_classes = [['article-chapo'], ['asset', 'asset-text']], # Paragraph classes in articles
+        outfolder = outfolder, **kwargs
     )
 
 def scrape_leparisien(outfolder, **kwargs):
 
     return scrape(
         "https://www.leparisien.fr/",
-        [
+        click_buttons = [
             {"id": "didomi-notice-agree-button"}, # Accept cookies
             {"id": "batchsdk-ui-alert__buttons_negative"}, # Do not able notifications
         ],
-        ("a", lambda cl:cl.get("class") in (['nav__link', 'is-active'], ['nav__link'])), # Top Menu
-        [("a", {"class_": "no-decorate no-active title_sm"})], # Articles in a page
-        [['paragraph', 'text_align_left']], # Paragraph classes in articles
-        outfolder, 
+        category_section = ("a", lambda cl:cl.get("class") in (['nav__link', 'is-active'], ['nav__link'])), # Top Menu
+        article_section = [("a", {"class_": "no-decorate no-active title_sm"})], # Articles in a page
+        paragraph_classes = [['paragraph', 'text_align_left']], # Paragraph classes in articles
+        outfolder = outfolder, 
         ignore_article_if = lambda x: x.text.startswith("Abonnés"),
         **kwargs
     )
@@ -71,13 +71,13 @@ def scrape_actu(outfolder, **kwargs):
 
     return scrape(
         "https://actu.fr/",
-        [
+        click_buttons = [
             {"id": "didomi-notice-agree-button"}, # Accept cookies
         ],
-        ("a", ""), # Top menu
-        [("a")], # Articles in a page
-        [None], # Paragraph classes in articles
-        outfolder,
+        category_section = ("a", ""), # Top menu
+        article_section = [("a")], # Articles in a page
+        paragraph_classes = [None], # Paragraph classes in articles
+        outfolder = outfolder,
         ignore_article_if = lambda x: x.get("data-trk") is None,
         **kwargs
     )
@@ -86,26 +86,26 @@ def scrape_numerama(outfolder, **kwargs):
     
     return scrape(
         "https://www.numerama.com/",
-        [
+        click_buttons = [
             {"class": "sd-cmp-JnaLO"}, # Accept cookies
         ],
-        ("a", "is-hidden-menu-open is-flex is-align-items-center is-active"), # Top Menu
-        None, # Articles in a page
-        [None], # Paragraph classes in articles
-        outfolder, **kwargs
+        category_section = ("a", "is-hidden-menu-open is-flex is-align-items-center is-active"), # Top Menu
+        article_section = None, # Articles in a page
+        paragraph_classes = [None], # Paragraph classes in articles
+        outfolder = outfolder, **kwargs
     )
 
 def scrape_lemonde(outfolder, **kwargs):
     
     return scrape(
         "https://www.lemonde.fr/",
-        [
+        click_buttons = [
             {"class": "gdpr-lmd-button gdpr-lmd-button--big gdpr-lmd-button--main"}, # Accept cookies
         ],
-        ("a", "js-actu-tag"), # Top Menu
-        [("a", {"class": "teaser__link"})],  # Articles in a page
-        [['post__live-container--answer-text', 'post__space-node'], ['article__paragraph'], ['article__paragraph', 'article__paragraph--lf']], # Paragraph classes in articles
-        outfolder, 
+        category_section = ("a", "js-actu-tag"), # Top Menu
+        article_section = [("a", {"class": "teaser__link"})],  # Articles in a page
+        paragraph_classes = [['post__live-container--answer-text', 'post__space-node'], ['article__paragraph'], ['article__paragraph', 'article__paragraph--lf']], # Paragraph classes in articles
+        outfolder = outfolder, 
         ignore_article_if = lambda x: x.text.lstrip().startswith("Article réservé à nos abonnés"),
         **kwargs
     )
@@ -114,13 +114,13 @@ def scrape_nouvelobs(outfolder, **kwargs):
 
     return scrape(
         "https://www.nouvelobs.com/",
-        [
+        click_buttons = [
             {"class": "gdpr-glm-button gdpr-glm-button--standard"}, # Accept cookies
         ],
-        ("a", "menu__main"), # Top Menu
-        None,  # Articles in a page
-        [None], # Paragraph classes in articles
-        outfolder, **kwargs
+        category_section = ("a", "menu__main"), # Top Menu
+        article_section = None,  # Articles in a page
+        paragraph_classes = [None], # Paragraph classes in articles
+        outfolder = outfolder, **kwargs
     )
 
 def scrape_lesechos(outfolder, **kwargs):
@@ -137,13 +137,13 @@ def scrape_lesechos(outfolder, **kwargs):
 
     return scrape(
         "https://www.lesechos.fr/",
-        [
+        click_buttons = [
             {"id": "didomi-notice-agree-button"}, # Accept cookies
         ],
-        ("a", is_top_menu), # Top Menu
-        [("a", is_article)],  # Articles in a page
-        [['sc-14kwckt-6', 'dbPXmO']], # Paragraph classes in articles
-        outfolder, **kwargs
+        category_section = ("a", is_top_menu), # Top Menu
+        article_section = [("a", is_article)],  # Articles in a page
+        paragraph_classes = [['sc-14kwckt-6', 'dbPXmO']], # Paragraph classes in articles
+        outfolder = outfolder, **kwargs
     )
 
 def scrape_slate(outfolder, **kwargs):
@@ -193,13 +193,13 @@ def scrape_slate(outfolder, **kwargs):
 
     return scrape(
         "https://www.slate.fr/",
-        [
+        click_buttons = [
             {"class": "sd-cmp-JnaLO"}, # Accept cookies
         ],
-        categories, # Top Menu
-        [("a", is_article)],  # Articles in a page
-        [None, ['Corps']], # Paragraph classes in articles
-        outfolder, **kwargs
+        category_section = categories, # Top Menu
+        article_section = [("a", is_article)],  # Articles in a page
+        paragraph_classes = [None, ['Corps']], # Paragraph classes in articles
+        outfolder = outfolder, **kwargs
     )
 
 # def scrape_lefigaro(outfolder, verbose = VERBOSE_DEFAULT, max_pages = None):
@@ -266,6 +266,7 @@ def scrape(
     verbose = VERBOSE_DEFAULT,
     ignore_article_if = None,
     close_at_the_end = True,
+    check_article = False,
     ):
 
     print("Scrapping", website)
@@ -378,7 +379,6 @@ def scrape(
                 # Get all the articles
                 soup = BeautifulSoup(driver.page_source, "html.parser")
 
-                
                 if article_section is None:
                     # Default simple strategy
                     articles = soup.find_all("a", {"href": lambda x: x and x.endswith("html")})
@@ -403,7 +403,10 @@ def scrape(
 
                     sublink = absolute_link(sublink, (link if double_embedding else website))
                     start = website.rstrip("/")+"/"
-                    assert sublink.startswith(start)
+                    if not sublink.startswith(start):
+                        print(f"WARNING: got link {sublink} outside of website {start}")
+                        continue
+                    assert sublink.startswith(start), f"{sublink} not starting with {start}"
                     title = sublink[len(start):]
 
                     filename = os.path.join(outfolder, title+".txt")
@@ -488,11 +491,14 @@ def scrape(
         except: pass
         print(e)
 
+        print("Number of pages", num_pages)
+        if check_article:
+            assert num_pages > 0, "No article found"
+
     finally:
-        if close_at_the_end:
+        if close_at_the_end and (not check_article or num_pages > 0):
             driver.close()
 
-    print("Number of pages", num_pages)
     return num_pages
 
 if __name__ == "__main__":
@@ -519,13 +525,14 @@ export DISPLAY=:99\n\
 
     outputfolder = args.output
 
+    TEST_MODE = args.max_articles_per_website is not None
+
     kwargs = {
         "close_at_the_end" : not args.no_close,
-        "verbose" : 2 if args.verbose else 1,
-        "max_pages" : args.max_articles_per_website
+        "verbose" : 2 if args.verbose or TEST_MODE else 1,
+        "max_pages" : args.max_articles_per_website,
+        "check_article": TEST_MODE,
     }
-
-    TEST_MODE = args.max_articles_per_website is not None
 
     # Scrape in a random order
     import random
@@ -562,9 +569,6 @@ export DISPLAY=:99\n\
                 n = scrape_lesechos(outputfolder+"/lesechos", **kwargs)
             elif i==8:
                 n = scrape_slate(outputfolder+"/slate", **kwargs)
-
-            if TEST_MODE:
-                assert n > 0, "No article found"
 
         if args.loop:
             time.sleep(60*60*6) # wait 6 hours
