@@ -1,11 +1,12 @@
 from youtube_transcript_api import YouTubeTranscriptApi
 from pytube import YouTube
 import os
+import urllib.parse
 
 from selenium import webdriver
 import time
 import re
-from webdriver_manager.firefox import GeckoDriverManager
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 def save_ids(video_ids, path):
@@ -30,22 +31,22 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
     try:
         if not has_language or (not has_auto and not only_has_language):
             if verbose:
-                print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
-            return {}
+                print(f"Video {vid} discarded. Languages: {', '.join(t.language for t in transcripts)}")      
     except:
-        pass
+        return {}
     return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
+
 
 
 # scrape the ids using a search query
 def selenium_get_ids_with_subtitles(search_query):
     # Set up Firefox driver
-    options = webdriver.FirefoxOptions()
-    options.headless = True
-    driver = webdriver.Firefox(options=options, executable_path=GeckoDriverManager().install())
+    options = webdriver.ChromeOptions()
+    options.set_headless()
+    driver = webdriver.Chrome(options=options, executable_path=ChromeDriverManager().install())
 
     # Navigate to YouTube and search for videos with subtitles
-    driver.get('https://www.youtube.com/results?search_query=' + search_query)
+    driver.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
 
     # Scroll down the page to load more videos
     SCROLL_PAUSE_TIME = 2
@@ -63,34 +64,6 @@ def selenium_get_ids_with_subtitles(search_query):
     print(f'Found {len(video_ids)} video IDs')
 
     return video_ids
-
-def get_subtitles_video_only(video_ids):
-    # Check if subtitles are available for each video and store ids for videos with subtitles
-    Subt_videos_ids = []
-    # Set up Firefox driver
-    options = webdriver.FirefoxOptions()
-    options.headless = True
-    driver = webdriver.Firefox(options=options, executable_path=GeckoDriverManager().install())
-    for vid in video_ids:
-        driver.get(f"https://www.youtube.com/watch?v={vid}")
-        try:
-            # Check if the subtitle button is present
-            subtitle_button = driver.find_element_by_css_selector("button.ytp-subtitles-button")
-            # Check if the subtitle button is active
-            # if subtitle_button.get_attribute("aria-pressed") == "true" or subtitle_button.get_attribute("aria-pressed") =="false":
-            is_has_sub = (subtitle_button.get_attribute("title") == "Subtitles/closed captions (c)" and subtitle_button.get_attribute("aria-pressed") == 'true') or( subtitle_button.get_attribute("data-title-no-tooltip") == "Subtitles/closed captions" and subtitle_button.get_attribute("aria-pressed") == 'false')
-            if is_has_sub:
-                print(f'{vid} has subtitles')
-                Subt_videos_ids.append(vid)
-            else:
-                print(f'{vid} does not have subtitles')
-        except :
-            print(f'{vid} does not have subtitles')
-            pass
-    print(f'[ Found {len(Subt_videos_ids)} video ids with subtitles ]')
-            
-    driver.quit()
-    return Subt_videos_ids
 
 
 def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=True):
@@ -146,9 +119,10 @@ if __name__ == '__main__':
     try:
 
         # Set up the API client
+        print('==================== get videos id ====================')
         video_ids = selenium_get_ids_with_subtitles(search_query)
-        subtitles_video_ids = get_subtitles_video_only(video_ids)
-        write_transcriptions(subtitles_video_ids, path, lang)
+        print('========== get audio  id for subtitles videos =========')
+        write_transcriptions(video_ids, path, lang)
 
     except:
         pass
