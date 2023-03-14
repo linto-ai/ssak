@@ -1,9 +1,11 @@
-# Import the necessary libraries
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from youtube_transcript_api import YouTubeTranscriptApi
 from pytube import YouTube
 import os
+
+from selenium import webdriver
+import time
+import re
+from webdriver_manager.firefox import GeckoDriverManager
 
 
 def save_ids(video_ids, path):
@@ -25,39 +27,70 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
-    if not has_language or (not has_auto and not only_has_language):
-        if verbose:
-            print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
-        return {}
+    try:
+        if not has_language or (not has_auto and not only_has_language):
+            if verbose:
+                print(f"Video {vid} dicarded. Languages: {', '.join(t.language for t in transcripts)}")
+            return {}
+    except:
+        pass
     return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
 
 
-def get_searched_stats(youtube, search_query, lang, max_results):
-    video_ids = []
-    search_results = youtube.search().list(
-        q=search_query,
-        type='video',
-        part='id',
-        fields='items(id(videoId))',
-        maxResults=max_results,
-        ).execute()
-    for vid in search_results['items']:
-        video_id = vid['id']['videoId']
-        captions = youtube.captions().list(
-                part='snippet',
-                videoId=video_id,
-                fields='items(id,snippet)',
-                ).execute()
+# scrape the ids using a search query
+def selenium_get_ids_with_subtitles(search_query):
+    # Set up Firefox driver
+    options = webdriver.FirefoxOptions()
+    options.headless = True
+    driver = webdriver.Firefox(options=options, executable_path=GeckoDriverManager().install())
 
-        if len(captions['items']) == 0:
-            print('No captions found for video %s' % video_id)
-            continue   
+    # Navigate to YouTube and search for videos with subtitles
+    driver.get('https://www.youtube.com/results?search_query=' + search_query)
 
-        for i in captions['items']:
-            if lang == i['snippet']['language']:
-                video_ids.append(i['snippet']['videoId'])
-                break
+    # Scroll down the page to load more videos
+    SCROLL_PAUSE_TIME = 2
+    last_height = driver.execute_script("return document.documentElement.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+        time.sleep(SCROLL_PAUSE_TIME)
+        new_height = driver.execute_script("return document.documentElement.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    # Extract video IDs from search results
+    video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(driver.page_source)))))
+    print(f'Found {len(video_ids)} video IDs')
+
     return video_ids
+
+def get_subtitles_video_only(video_ids):
+    # Check if subtitles are available for each video and store ids for videos with subtitles
+    Subt_videos_ids = []
+    # Set up Firefox driver
+    options = webdriver.FirefoxOptions()
+    options.headless = True
+    driver = webdriver.Firefox(options=options, executable_path=GeckoDriverManager().install())
+    for vid in video_ids:
+        driver.get(f"https://www.youtube.com/watch?v={vid}")
+        try:
+            # Check if the subtitle button is present
+            subtitle_button = driver.find_element_by_css_selector("button.ytp-subtitles-button")
+            # Check if the subtitle button is active
+            # if subtitle_button.get_attribute("aria-pressed") == "true" or subtitle_button.get_attribute("aria-pressed") =="false":
+            is_has_sub = (subtitle_button.get_attribute("title") == "Subtitles/closed captions (c)" and subtitle_button.get_attribute("aria-pressed") == 'true') or( subtitle_button.get_attribute("data-title-no-tooltip") == "Subtitles/closed captions" and subtitle_button.get_attribute("aria-pressed") == 'false')
+            if is_has_sub:
+                print(f'{vid} has subtitles')
+                Subt_videos_ids.append(vid)
+            else:
+                print(f'{vid} does not have subtitles')
+        except :
+            print(f'{vid} does not have subtitles')
+            pass
+    print(f'[ Found {len(Subt_videos_ids)} video ids with subtitles ]')
+            
+    driver.quit()
+    return Subt_videos_ids
 
 
 def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=True):
@@ -92,7 +125,6 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
                     f.write(line['text'] + ';' + str(line['start']) + ';' + str(line['duration']) + '\n')
 
         # Download and save audio
-        print("Processing", vid)
         video = YouTube(f'https://www.youtube.com/watch?v={vid}')
         stream = video.streams.filter(only_audio=True).first()
         stream.download(output_path=output_video_dir, filename=f'{vid}.mp3')
@@ -103,13 +135,10 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
-    parser.add_argument('--api_key', help= "The API key you obtained from the Google Cloud Console in order to authenticate your requests to the YouTube Data API.", type=str)
     parser.add_argument('--path', help= "The path where you want to save the CSV files containing the transcripts.", type=str)
-    parser.add_argument('--max_results', help= "The maximum number of results to the query.", default=5)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. This can be any string, and the script will return the top search results for that query.", type=str)
     args = parser.parse_args()
 
-    api_key = args.api_key
     lang = args.language
     search_query = args.search_query
     path = args.path
@@ -117,9 +146,9 @@ if __name__ == '__main__':
     try:
 
         # Set up the API client
-        youtube = build('youtube', 'v3', developerKey=api_key)
-        video_ids = get_searched_stats(youtube, search_query, lang, max_results=args.max_results)
-        write_transcriptions(video_ids, path, lang)
+        video_ids = selenium_get_ids_with_subtitles(search_query)
+        subtitles_video_ids = get_subtitles_video_only(video_ids)
+        write_transcriptions(subtitles_video_ids, path, lang)
 
-    except HttpError as e:
-        print('An error occurred: %s' % e)
+    except:
+        pass
