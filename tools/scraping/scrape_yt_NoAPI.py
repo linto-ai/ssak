@@ -175,11 +175,29 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     lang = args.language
-    queries = [args.search_query] if args.search_query else [None] if args.video_ids else generate_ngram(3, lang)
+    if not args.search_query and not args.video_ids:
+        auto_queries = True
+        queries = generate_ngram(3, lang)
+    else:
+        auto_queries = False
+        queries = [args.search_query] if args.search_query else [None]
     path = args.path
+
+    already_done_queries = []
 
     # Set up the API client
     for query in queries:
+
+        if query:
+            # Log to avoid doing twice the same query
+            log_file = f"{path}/queries.log"
+            if not already_done_queries:
+                if os.path.isfile(log_file):
+                    with open(log_file, 'r') as f:
+                        already_done_queries = f.read().splitlines()
+            if query in already_done_queries:
+                if auto_queries:
+                    continue
         
         if args.video_ids:
             assert query is None, "--search_query should not be specified when --video_ids is specified"
@@ -190,3 +208,8 @@ if __name__ == '__main__':
             video_ids = search_videos_ids(query)
         print(f'========== get subtitles for videos in {lang} =========')
         write_transcriptions(video_ids, path, lang)
+
+        if query in already_done_queries:
+            already_done_queries.append(query)
+            with open(log_file, 'a') as f:
+                f.write(query + "\n")
