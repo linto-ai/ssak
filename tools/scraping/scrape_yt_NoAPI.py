@@ -198,9 +198,9 @@ if __name__ == '__main__':
                 if os.path.isfile(log_file):
                     with open(log_file, 'r') as f:
                         already_done_queries = f.read().splitlines()
-            if query in already_done_queries:
-                if auto_queries:
-                    continue
+            if auto_queries:
+                if query in already_done_queries:
+                        continue
         
         if args.video_ids:
             assert query is None, "--search_query should not be specified when --video_ids is specified"
@@ -212,7 +212,7 @@ if __name__ == '__main__':
         print(f'========== get subtitles for videos in {lang} =========')
         write_transcriptions(video_ids, path, lang)
 
-        if query in already_done_queries:
+        if query and query not in already_done_queries:
             already_done_queries.append(query)
             with open(log_file, 'a') as f:
                 f.write(query + "\n")
