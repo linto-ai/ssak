@@ -135,7 +135,10 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
         # Download and save audio
         video = YouTube(f'https://www.youtube.com/watch?v={vid}')
         stream = video.streams.filter(only_audio=True).first()
-        stream.download(output_path=output_audio_dir, filename=f'{vid}.mp3')
+        file_tmp = stream.download(output_path=output_audio_dir)
+        file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
+        if file_tmp != file_withid:
+            os.rename(file_tmp, file_withid)
 
 def generate_ngram(n, lan, min_match_count=10000):
     lang = {
