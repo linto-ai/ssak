@@ -67,9 +67,8 @@ def search_videos_ids(search_query):
     # options = webdriver.FirefoxOptions()
     # options.set_headless()
     
-     # , executable_path=GeckoDriverManager().install()), executable_path=ChromeDriverManager().install())
+    driver = webdriver.Firefox() # , executable_path=GeckoDriverManager().install())
     try:
-        driver = webdriver.Firefox()
         # Navigate to YouTube and search for videos with subtitles
         driver.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
 
@@ -179,26 +178,22 @@ if __name__ == '__main__':
 
     lang = args.language
     if not args.search_query and not args.video_ids:
-        auto_queries = True
         queries = generate_ngram(3, lang)
     else:
-        auto_queries = False
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
 
-    if not os.path.isdir(f'{path}/queries'):
-        os.makedirs(f'{path}/queries')
+    os.makedirs(f'{path}/queries', exist_ok=True)
 
     # Set up the API client
-
     for query in queries:
         if query:
             # Log to avoid doing twice the same query
-            
             query = query.strip()
-            lockfile = f"{path}/{hashmd5(query)}"
+            lockfile = f"{path}/queries/{hashmd5(query)}"
 
             if os.path.isfile(lockfile):
+                print(f"Skipping (already done) query \"{query}\"")
                 continue
 
             with open(lockfile, 'w', encoding="utf8") as f:
@@ -206,6 +201,7 @@ if __name__ == '__main__':
                 
         try:
             isok = False
+
             if args.video_ids:
                 assert query is None, "--search_query should not be specified when --video_ids is specified"
                 video_ids = args.video_ids.split(",")
@@ -216,8 +212,14 @@ if __name__ == '__main__':
 
             print(f'========== get subtitles for videos in {lang} =========')
             write_transcriptions(video_ids, path, lang)
+
             isok = True
+        
         finally:
-            if query and not isok:
-                os.remove(lockfile)
+            if query:
+                if isok:
+                    with open(f"{path}/queries/all.txt", 'a') as f:
+                        f.write(query+"\n")
+                else:
+                    os.remove(lockfile)
                 
