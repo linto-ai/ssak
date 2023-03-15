@@ -12,6 +12,8 @@ if __name__ == '__main__':
         if filename.endswith(".mp4"):
             video = os.path.join(input_, filename)
             output_filename = os.path.splitext(filename)[0] + ".mp3"
+            if os.path.isfile(output_filename):
+                continue
             if not os.path.exists(output_):
                 os.makedirs(output_)
             audio = os.path.join(output_, output_filename)
