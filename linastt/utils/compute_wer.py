@@ -40,10 +40,10 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     ids = [id for id in common_ids]
 
     if debug:
-        with open("debug", 'w+') if isinstance(debug, str) else sys.stdout as f:
+        with open(debug, 'w+') if isinstance(debug, str) else sys.stdout as f:
             for i in range(len(refs)):
                 if refs[i] != preds[i]:
-                    f.write("ids: [ " + ids[i] + " ] doesn't match.\n")
+                    f.write("ids: [ " + str(ids[i]) + " ] doesn't match.\n")
                     f.write("---\n")
                     f.write("ref: " + refs[i] + "\n")
                     f.write("pred: " + preds[i] + "\n")
@@ -70,6 +70,12 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
 
     return score_details
 
+def str2bool(string):
+    str2val = {"true": True, "false": False}
+    if string in str2val:
+        return str2val[string.lower()]
+    else:
+        raise ValueError(f"Expected True or False")
 
 
 if __name__ == "__main__":
@@ -79,8 +85,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('Ref', help= " Input the Reference text ", type=str)
     parser.add_argument('pred', help= " Input the kaldi text", type=str)
-    parser.add_argument('--use_ids', help= " if uses ids in computing wer ", default=True)
-    parser.add_argument('--debug', help=" Output file to save debug information ", default=False)
+    parser.add_argument('--use_ids', help= " if uses ids in computing wer ", default=True, type=str2bool)
+    parser.add_argument('--debug', help=" Output file to save debug information ", type=str)
     args = parser.parse_args()
 
     target_test = args.Ref
