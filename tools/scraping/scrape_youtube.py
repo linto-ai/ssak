@@ -64,10 +64,10 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
 # scrape the ids using a search query
 def search_videos_ids(search_query):
     # Set up Firefox driver
-    # options = webdriver.FirefoxOptions()
-    # options.set_headless()
-    
-    driver = webdriver.Firefox() # , executable_path=GeckoDriverManager().install())
+    options = webdriver.FirefoxOptions()
+    options.add_argument("--headless")
+
+    driver = webdriver.Firefox(options=options) # , executable_path=GeckoDriverManager().install())
     try:
         # Navigate to YouTube and search for videos with subtitles
         driver.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
@@ -75,6 +75,7 @@ def search_videos_ids(search_query):
         # Scroll down the page to load more videos
         SCROLL_PAUSE_TIME = 2
         last_height = driver.execute_script("return document.documentElement.scrollHeight")
+        num_scrolls = 0
         while True:
             driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
             time.sleep(SCROLL_PAUSE_TIME)
@@ -82,10 +83,12 @@ def search_videos_ids(search_query):
             if new_height == last_height:
                 break
             last_height = new_height
+            num_scrolls += 1
+            print(f"Scrolled {num_scrolls} time{'s' if num_scrolls>1 else ''} for query \"{search_query}\"...")
 
         # Extract video IDs from search results
         video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(driver.page_source)))))
-        print(f'Found {len(video_ids)} video IDs')
+        print(f'Found {len(video_ids)} video IDs for query \"{search_query}\"')
         
     finally:
         driver.close()   
@@ -132,14 +135,21 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
                     csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
 
         # Download and save audio
-        video = YouTube(f'https://www.youtube.com/watch?v={vid}')
-        stream = video.streams.filter(only_audio=True).first()
-        file_tmp = stream.download(output_path=output_audio_dir)
-        file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
-        if file_tmp != file_withid:
-            os.rename(file_tmp, file_withid)
+        for _ in range(3): # This can fail so we might try again (up to 3 times)
+            video = YouTube(f'https://www.youtube.com/watch?v={vid}')
+            try:
+                stream = video.streams.filter(only_audio=True).first()
+            except AttributeError:
+                print("WARNING: got an error trying to extract the video. Retrying...")
+                time.sleep(1)
+                continue
+            file_tmp = stream.download(output_path=output_audio_dir)
+            file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
+            if file_tmp != file_withid:
+                os.rename(file_tmp, file_withid)
+            break
 
-def generate_ngram(n, lan, min_match_count=10000):
+def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     lang = {
         "en": "eng",
         "fr": "fre",
@@ -148,9 +158,12 @@ def generate_ngram(n, lan, min_match_count=10000):
         raise ValueError(f"Unknown language {lan}")
     current_word = None
 
+    # Make all possible 2-grams of letters
+    # Note: this should be changed for languages with different alphabet (e.g. Arabic, Chinese, ...)
     letters = list("abcdefghijklmnopqrstuvwxyz")
-    # make all possible 2-grams of letters
     letters = [l1+l2 for l1 in letters for l2 in letters]
+    if index_start:
+        letters = [l for l in letters if l >= index_start]
 
     for fname, url, records in readline_google_store(ngram_len=n, lang=lang, indices=letters):
         for record in records:
@@ -161,9 +174,33 @@ def generate_ngram(n, lan, min_match_count=10000):
             current_word = record.ngram
             text = record.ngram
             text = re.sub("_[^ ]*", "", text)
-            text = re.sub(" +", " ", text)
+            text = re.sub(" +", " ", text).strip()
             if re.match("^[a-zA-Z]", text):
                 yield text
+
+def robust_generate_ngram(n, lan, min_match_count=10000, index_start=None):
+    """
+    Avoid this error:
+
+Traceback (most recent call last):
+  File "/home/jlouradour/src/stt-end2end-expes_hedi/tools/scraping/scrape_youtube.py", line 189, in <module>
+    for query in queries:
+  File "/home/jlouradour/src/stt-end2end-expes_hedi/tools/scraping/scrape_youtube.py", line 156, in generate_ngram
+    for record in records:
+  File "/usr/local/lib/python3.9/site-packages/google_ngram_downloader/util.py", line 53, in lines
+    assert not last
+AssertionError    
+    """
+
+    current_index_start = ""
+    try:
+        for text in generate_ngram(n, lan, min_match_count=min_match_count, index_start=index_start):
+            current_index_start = max(current_index_start, text[:2].lower())
+            yield text
+    except AssertionError:
+        print("WARNING: Google NGram failed. Retrying...")
+        for text in robust_generate_ngram(n, lan, min_match_count=min_match_count, index_start=current_index_start):
+            yield text
 
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
@@ -171,17 +208,21 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
-    parser.add_argument('--path', help= "The path where you want to save the CSV files containing the transcripts.", type=str)
-    parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. This can be any string, and the script will return the top search results for that query.", type=str)
+    parser.add_argument('--path', help= "Output folder path where audio and annotations will be saved.", type=str)
+    parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. If neither --search_query nor --video_ids are specified, a series of queries will be generated automatically.", type=str)
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
+    parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     args = parser.parse_args()
 
     lang = args.language
     if not args.search_query and not args.video_ids:
-        queries = generate_ngram(3, lang)
+        queries = robust_generate_ngram(3, lang, index_start= args.query_index_start)
     else:
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
+    if not path:
+        # YouTubeEn, YouTubeFr, etc.
+        path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
 
     os.makedirs(f'{path}/queries', exist_ok=True)
 
