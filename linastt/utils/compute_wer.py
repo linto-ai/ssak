@@ -4,8 +4,8 @@ from jiwer import compute_measures
 def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
     # Open the test dataset human translation file
     with open(target_test, 'r') as test , open(target_pred, 'r') as pred:
-        refs  = test.readlines()
-        preds = pred.readlines()
+        refs  = [line.strip().split(" ",1)[1] for line in test.readlines()]
+        preds = [line.strip().split(" ",1)[1] for line in pred.readlines()]
 
     if output_debug:
         with open(output_debug, 'w+') as f:
@@ -13,15 +13,15 @@ def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
                 if refs[i] != preds[i]:
                     f.write("Line " + str(i+1) + " doesn't match.\n")
                     f.write("------------------------\n")
-                    f.write("ref: " + refs[i])
-                    f.write("pred: " + preds[i])
+                    f.write("ref: " + refs[i] + "\n")
+                    f.write("pred: " + preds[i]+ "\n")
     elif output_debug is None and debug:
         for i in range(len(refs)):
             if refs[i] != preds[i]:
                 print("Line " + str(i+1) + " doesn't match.")
                 print("------------------------")
-                print("ref: " + refs[i])
-                print("pred: " + preds[i])
+                print("ref: " + refs[i]+ "\n")
+                print("pred: " + preds[i]+ "\n")
     
     # Calculate WER for the whole corpus
     measures = compute_measures(refs, preds)
