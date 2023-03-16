@@ -5,7 +5,7 @@ def get_parser_dict(file_name):
         res_dict = {}
         for line in f:
             line = line.strip().split(maxsplit=1)
-            res_dict[line[0]] = line[1]
+            res_dict[line[0]] = line[-1]
     return res_dict
 
 def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
