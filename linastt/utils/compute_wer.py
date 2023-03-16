@@ -1,28 +1,31 @@
 import jiwer
+import sys
 
-def get_parser_dict(file_name):
+def parse_text_with_ids(file_name):
     with open(file_name, 'r') as f:
         res_dict = {}
         for line in f:
             line = line.strip().split(maxsplit=1)
-            res_dict[line[0]] = line[-1]
+            id = line[0]
+            text = line[1] if len(line)>1 else ""
+            if id in res_dict and res_dict[id] != text:
+               raise ValueError(f"Id {id} is not unique in {file_name}")
+            res_dict[id] = text
     return res_dict
 
-def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
+def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     # Open the test dataset human translation file
-    refs_dict = get_parser_dict(target_test)
-    preds_dict = get_parser_dict(target_pred)
-    
-    if len(refs_dict) != len(set(refs_dict)):
-        raise ValueError("Reference ids are not unique")
-    if len(preds_dict) != len(set(preds_dict)):
-        raise ValueError("Prediction ids are not unique")
-    
+    if use_ids: 
+        refs_dict = parse_text_with_ids(filename_ref)
+        preds_dict = parse_text_with_ids(filename_pred)
+    else:
+        refs_dict = dict(enumerate([l.strip() for l in open(filename_ref).readlines()]))
+        preds_dict = dict(enumerate([l.strip() for l in open(filename_pred).readlines()]))
+        
     # Get the intersection of the ids (dictionary keys)
     common_ids = set(refs_dict.keys()) & set(preds_dict.keys())
     union_ids = set(refs_dict.keys()) | set(preds_dict.keys())
-    
-    
+
     # Print a warning if intersection is not the same as the union
     if common_ids != union_ids and common_ids:
         print("Warning: ids in reference and/or prediction files are missing or different.")
@@ -31,14 +34,13 @@ def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
     if not common_ids and common_ids != union_ids:
         raise ValueError("No common ids between reference and prediction files")
     
-        
     # Reconstruct two lists of pred/ref with the intersection of ids
     refs = [refs_dict[id] for id in common_ids]
     preds = [preds_dict[id] for id in common_ids]
     ids = [id for id in common_ids]
 
-    if output_debug:
-        with open(output_debug, 'w+') as f:
+    if debug:
+        with open("debug", 'w+') if isinstance(debug, str) else sys.stdout as f:
             for i in range(len(refs)):
                 if refs[i] != preds[i]:
                     f.write("ids: [ " + ids[i] + " ] doesn't match.\n")
@@ -46,16 +48,9 @@ def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
                     f.write("ref: " + refs[i] + "\n")
                     f.write("pred: " + preds[i] + "\n")
                     f.write("------------------------------------------------------------------------\n")
-    elif output_debug is None and debug:
-        for i in range(len(refs)):
-            if refs[i] != preds[i]:
-                print("ids: [ " + ids[i] + " ] doesn't match.\n")
-                print("---")
-                print("ref: " + refs[i] + "\n")
-                print("pred: " + preds[i] + "\n")
-                print("------------------------------------------------------------------------\n")
     
     # Calculate WER for the whole corpus
+    
     measures = jiwer.compute_measures(refs, preds)
     
     wer_score = measures['wer'] * 100
@@ -84,16 +79,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('Ref', help= " Input the Reference text ", type=str)
     parser.add_argument('pred', help= " Input the kaldi text", type=str)
-    parser.add_argument('--output_debug', help="Output file to save debug information")
-    parser.add_argument('--debug', help="Whether to keep punctuations", default= False, action="store_true")
+    parser.add_argument('--use_ids', help= " if uses ids in computing wer ", default=True)
+    parser.add_argument('--debug', help=" Output file to save debug information ", default=False)
     args = parser.parse_args()
 
     target_test = args.Ref
     target_pred = args.pred
-    output_debug=args.output_debug
     debug = args.debug
+    use_ids = args.use_ids
 
-    result = compute_wer(target_test ,target_pred , debug=debug, output_debug=output_debug)
+    result = compute_wer(target_test ,target_pred , debug=debug ,use_ids=use_ids)
     print(' ------------------------------------------------------------------------------------------------------- ')
     print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(result['wer'], result['dele'], result['ins'], result['sub'], result['count']))
     print(' ------------------------------------------------------------------------------------------------------- ')
