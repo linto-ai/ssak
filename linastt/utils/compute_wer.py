@@ -1,33 +1,62 @@
-from jiwer import compute_measures
+import jiwer
 
+def get_parser_dict(file_name):
+    with open(file_name, 'r') as f:
+        res_dict = {}
+        for line in f:
+            line = line.strip().split(maxsplit=1)
+            res_dict[line[0]] = line[1]
+    return res_dict
 
 def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
     # Open the test dataset human translation file
-    with open(target_test, 'r') as test , open(target_pred, 'r') as pred:
-        refs_1  = [line.strip().split(" ",1)[-1] for line in test.readlines()]
-        preds_1 = [line.strip().split(" ",1)[-1] for line in pred.readlines()]
+    refs_dict = get_parser_dict(target_test)
+    preds_dict = get_parser_dict(target_pred)
+    
+    if len(refs_dict) != len(set(refs_dict)):
+        raise ValueError("Reference ids are not unique")
+    if len(preds_dict) != len(set(preds_dict)):
+        raise ValueError("Prediction ids are not unique")
+    
+    # Get the intersection of the ids (dictionary keys)
+    common_ids = set(refs_dict.keys()) & set(preds_dict.keys())
+    union_ids = set(refs_dict.keys()) | set(preds_dict.keys())
+    
+    
+    # Print a warning if intersection is not the same as the union
+    if common_ids != union_ids and common_ids:
+        print("Warning: ids in reference and/or prediction files are missing or different.")
+    
+    # Fail if intersection is empty
+    if not common_ids and common_ids != union_ids:
+        raise ValueError("No common ids between reference and prediction files")
+    
         
-        refs = [line.strip() for line in refs_1]
-        preds = [line.strip() for line in preds_1]
-        
+    # Reconstruct two lists of pred/ref with the intersection of ids
+    refs = [refs_dict[id] for id in common_ids]
+    preds = [preds_dict[id] for id in common_ids]
+    ids = [id for id in common_ids]
+
     if output_debug:
         with open(output_debug, 'w+') as f:
             for i in range(len(refs)):
                 if refs[i] != preds[i]:
-                    f.write("Line " + str(i+1) + " doesn't match.\n")
-                    f.write("------------------------\n")
+                    f.write("ids: [ " + ids[i] + " ] doesn't match.\n")
+                    f.write("---\n")
                     f.write("ref: " + refs[i] + "\n")
-                    f.write("pred: " + preds[i]+ "\n")
+                    f.write("pred: " + preds[i] + "\n")
+                    f.write("------------------------------------------------------------------------\n")
     elif output_debug is None and debug:
         for i in range(len(refs)):
             if refs[i] != preds[i]:
-                print("Line " + str(i+1) + " doesn't match.")
-                print("------------------------")
-                print("ref: " + refs[i]+ "\n")
-                print("pred: " + preds[i]+ "\n")
+                print("ids: [ " + ids[i] + " ] doesn't match.\n")
+                print("---")
+                print("ref: " + refs[i] + "\n")
+                print("pred: " + preds[i] + "\n")
+                print("------------------------------------------------------------------------\n")
     
     # Calculate WER for the whole corpus
-    measures = compute_measures(refs, preds)
+    measures = jiwer.compute_measures(refs, preds)
     
     wer_score = measures['wer'] * 100
     sub_score = measures['substitutions']
@@ -44,12 +73,10 @@ def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
         'count': count,
     }
 
-    
     return score_details
-    
 
 
-    
+
 if __name__ == "__main__":
     
     import argparse
