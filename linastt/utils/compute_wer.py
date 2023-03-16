@@ -4,9 +4,11 @@ from jiwer import compute_measures
 def compute_wer(target_test ,target_pred , debug=False, output_debug=None):
     # Open the test dataset human translation file
     with open(target_test, 'r') as test , open(target_pred, 'r') as pred:
-        refs  = [line.strip().split(" ",1)[1] for line in test.readlines()]
-        preds = [line.strip().split(" ",1)[1] for line in pred.readlines()]
-
+        refs  = [line.strip().split(" ",1)[-1] for line in test.readlines()]
+        preds = [line.strip().split(" ",1)[-1] for line in pred.readlines()]
+        refs = refs.strip()
+        preds = preds.strip()
+        
     if output_debug:
         with open(output_debug, 'w+') as f:
             for i in range(len(refs)):
