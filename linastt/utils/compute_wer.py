@@ -47,7 +47,7 @@ def compute_wer(filename_ref, filename_pred, use_ids=True, debug=False):
                 if refs[i] != preds[i]:
                     f.write(f"Line {i} with id [ {ids[i]} ] doesn't match.\n")
                     f.write("---\n")
-                    f.write("ref: " + refs[i] + "\n")
+                    f.write("ref.: " + refs[i] + "\n")
                     f.write("pred: " + preds[i] + "\n")
                     f.write(
                         "------------------------------------------------------------------------\n")
