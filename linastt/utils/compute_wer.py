@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import jiwer
-import sys
+
 
 def parse_text_with_ids(file_name):
     with open(file_name, 'r') as f:
@@ -9,20 +9,23 @@ def parse_text_with_ids(file_name):
         for line in f:
             line = line.strip().split(maxsplit=1)
             id = line[0]
-            text = line[1] if len(line)>1 else ""
+            text = line[1] if len(line) > 1 else ""
             if id in res_dict and res_dict[id] != text:
-               raise ValueError(f"Id {id} is not unique in {file_name}")
+                raise ValueError(f"Id {id} is not unique in {file_name}")
             res_dict[id] = text
     return res_dict
 
-def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
+
+def compute_wer(filename_ref, filename_pred, use_ids=True, debug=False):
     # Open the test dataset human translation file
-    if use_ids: 
+    if use_ids:
         refs_dict = parse_text_with_ids(filename_ref)
         preds_dict = parse_text_with_ids(filename_pred)
     else:
-        refs_dict = dict(enumerate([l.strip() for l in open(filename_ref).readlines()]))
-        preds_dict = dict(enumerate([l.strip() for l in open(filename_pred).readlines()]))
+        refs_dict = dict(enumerate([l.strip()
+                         for l in open(filename_ref).readlines()]))
+        preds_dict = dict(enumerate([l.strip()
+                          for l in open(filename_pred).readlines()]))
 
     # Reconstruct two lists of pred/ref with the intersection of ids
     ids = [id for id in refs_dict.keys() if id in preds_dict]
@@ -32,7 +35,8 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
             raise ValueError("Reference file is empty")
         if len(preds_dict) == 0:
             raise ValueError("Prediction file is empty")
-        raise ValueError("No common ids between reference and prediction files")
+        raise ValueError(
+            "No common ids between reference and prediction files")
     if len(ids) != len(refs_dict) or len(ids) != len(preds_dict):
         print("WARNING: ids in reference and/or prediction files are missing or different.")
 
@@ -47,28 +51,30 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
                     f.write("---\n")
                     f.write("ref: " + refs[i] + "\n")
                     f.write("pred: " + preds[i] + "\n")
-                    f.write("------------------------------------------------------------------------\n")
-    
+                    f.write(
+                        "------------------------------------------------------------------------\n")
+
     # Calculate WER for the whole corpus
-    
+
     measures = jiwer.compute_measures(refs, preds)
-    
+
     wer_score = measures['wer']
     sub_score = measures['substitutions']
     del_score = measures['deletions']
     hits_score = measures['hits']
-    ins_score = measures['insertions']   
-    count = hits_score + del_score + sub_score 
-    
+    ins_score = measures['insertions']
+    count = hits_score + del_score + sub_score
+
     score_details = {
-        'wer'  : wer_score,
-        'del' : (float(del_score) / count),
-        'ins'  : (float(ins_score) / count),
-        'sub'  : (float(sub_score) / count),
+        'wer': wer_score,
+        'del': (float(del_score) / count),
+        'ins': (float(ins_score) / count),
+        'sub': (float(sub_score) / count),
         'count': count,
     }
 
     return score_details
+
 
 def str2bool(string):
     str2val = {"true": True, "false": False}
@@ -80,7 +86,7 @@ def str2bool(string):
 
 
 if __name__ == "__main__":
-    
+
     import argparse
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -97,7 +103,7 @@ if __name__ == "__main__":
         debug = eval(debug.title())
     use_ids = args.use_ids
 
-    result = compute_wer(target_test ,target_pred , debug=debug ,use_ids=use_ids)
+    result = compute_wer(target_test, target_pred, use_ids=use_ids, debug=debug)
     print(' ------------------------------------------------------------------------------------------------------- ')
     print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(
         result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
