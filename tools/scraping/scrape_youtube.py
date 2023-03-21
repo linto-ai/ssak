@@ -159,7 +159,6 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if
                     traceback.print_exc()
                     print(f"WARNING: got an error trying to extract the video {vid}. Retrying...")
                     time.sleep(1)
-                    import pdb; pdb.set_trace()
                     continue
                 file_tmp = stream.download(output_path=output_audio_dir)
                 file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
