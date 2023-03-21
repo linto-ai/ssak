@@ -2,6 +2,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
 from pytube import YouTube
 import os
 import urllib.parse
+import requests
 
 from selenium import webdriver
 import time
@@ -14,17 +15,20 @@ from google_ngram_downloader import readline_google_store
 
 ALL_IDS = {}
 
-def get_new_ids(video_ids, path):
+def get_new_ids(video_ids, path, subpath):
     if path in ALL_IDS:
         all_video_ids = ALL_IDS[path]
     else:
         all_video_ids = []
-        if os.path.isdir(f'{path}/audio'):
-            all_video_ids += [os.path.splitext(f)[0] for f in os.listdir(f'{path}/audio')]
+        if os.path.isdir(f'{path}/{subpath}'):
+            all_video_ids += [os.path.splitext(f)[0] for f in os.listdir(f'{path}/{subpath}')]
         if os.path.isdir(f'{path}/discarded'):
             all_video_ids += [os.path.splitext(f)[0] for f in os.listdir(f'{path}/discarded')]
         ALL_IDS[path] = all_video_ids
-    return [id for id in video_ids if id not in all_video_ids]
+    res = [id for id in video_ids if id not in all_video_ids]
+    for id in res:
+        all_video_ids.append(id)
+    return res
 
 def register_discarded_id(video_id, path, reason = ''):
     path = f'{path}/discarded'
@@ -50,6 +54,14 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
         if verbose:
             print(msg)
         return msg
+    except Exception as e: # (requests.exceptions.HTTPError) as e:
+        # The most common error here is "Too many requests" (because the YouTube API is rate-limited)
+        # We don't catch a specific exception because scraping script should seldom fail
+        # This could cause an infinite loop if the error always occurs, but then it should print a message every 2 minutes
+        print("WARNING: Error", str(e))
+        print("Waiting 120 seconds...")
+        time.sleep(120)
+        return get_transcripts_if(vid, if_lang=if_lang, verbose=verbose)
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
@@ -62,10 +74,11 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
 
 
 # scrape the ids using a search query
-def search_videos_ids(search_query):
+def search_videos_ids(search_query, open_browser=False):
     # Set up Firefox driver
     options = webdriver.FirefoxOptions()
-    options.add_argument("--headless")
+    if not open_browser:
+        options.add_argument("--headless")
 
     driver = webdriver.Firefox(options=options) # , executable_path=GeckoDriverManager().install())
     try:
@@ -95,14 +108,14 @@ def search_videos_ids(search_query):
     return video_ids
 
 
-def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=True):
-    output_audio_dir = f"{path}/audio"
+def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if_exists=True, verbose=True):
+    output_audio_dir = f"{path}/mp4"
     if not os.path.isdir(output_audio_dir):
         os.makedirs(output_audio_dir)
    
     # save a videos_ids in a file
     n = len(video_ids)
-    video_ids = get_new_ids(video_ids, path)
+    video_ids = get_new_ids(video_ids, path, "mp4" if extract_audio else if_lang)
     print(f"Got {len(video_ids)} new video ids / {n}")
     
     for vid in video_ids:
@@ -134,20 +147,29 @@ def write_transcriptions(video_ids, path, if_lang, skip_if_exists=True, verbose=
                 for line in transcript:
                     csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
 
-        # Download and save audio
-        for _ in range(3): # This can fail so we might try again (up to 3 times)
-            video = YouTube(f'https://www.youtube.com/watch?v={vid}')
-            try:
-                stream = video.streams.filter(only_audio=True).first()
-            except AttributeError:
-                print("WARNING: got an error trying to extract the video. Retrying...")
-                time.sleep(1)
-                continue
-            file_tmp = stream.download(output_path=output_audio_dir)
-            file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
-            if file_tmp != file_withid:
-                os.rename(file_tmp, file_withid)
-            break
+        if extract_audio:
+            # Download and save audio
+            isok = False
+            for _ in range(3): # This can fail so we might try again (up to 3 times)
+                video = YouTube(f'https://www.youtube.com/watch?v={vid}')
+                try:
+                    stream = video.streams.filter(only_audio=True).first()
+                except (AttributeError, KeyError) as err:
+                    import traceback
+                    traceback.print_exc()
+                    print(f"WARNING: got an error trying to extract the video {vid}. Retrying...")
+                    time.sleep(1)
+                    import pdb; pdb.set_trace()
+                    continue
+                file_tmp = stream.download(output_path=output_audio_dir)
+                file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
+                if file_tmp != file_withid:
+                    os.rename(file_tmp, file_withid)
+                isok = True
+                break
+
+            if not isok:
+                print(f"WARNING: could not get video {vid}")
 
 def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     lang = {
@@ -180,7 +202,7 @@ def generate_ngram(n, lan, min_match_count=10000, index_start=None):
 
 def robust_generate_ngram(n, lan, min_match_count=10000, index_start=None):
     """
-    Avoid this error:
+    Avoid this kind of errors:
 
 Traceback (most recent call last):
   File "/home/jlouradour/src/stt-end2end-expes_hedi/tools/scraping/scrape_youtube.py", line 189, in <module>
@@ -197,7 +219,8 @@ AssertionError
         for text in generate_ngram(n, lan, min_match_count=min_match_count, index_start=index_start):
             current_index_start = max(current_index_start, text[:2].lower())
             yield text
-    except AssertionError:
+    except (AssertionError, requests.exceptions.ChunkedEncodingError) as e:
+        print(e)
         print("WARNING: Google NGram failed. Retrying...")
         for text in robust_generate_ngram(n, lan, min_match_count=min_match_count, index_start=current_index_start):
             yield text
@@ -206,12 +229,17 @@ if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
     import os
     import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='Scrape YouTube subtitled videos in a given language, extracting transcripts, and possibly audio.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
     parser.add_argument('--path', help= "Output folder path where audio and annotations will be saved.", type=str)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. If neither --search_query nor --video_ids are specified, a series of queries will be generated automatically.", type=str)
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
+    parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
+    parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
     args = parser.parse_args()
 
     lang = args.language
@@ -249,10 +277,10 @@ if __name__ == '__main__':
             else:
                 assert query is not None
                 print(f'========== get videos id for query: \"{query}\" =========')
-                video_ids = search_videos_ids(query)
+                video_ids = search_videos_ids(query, open_browser=args.open_browser)
 
             print(f'========== get subtitles for videos in {lang} =========')
-            write_transcriptions(video_ids, path, lang)
+            scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio)
 
             isok = True
         
