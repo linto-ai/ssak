@@ -84,10 +84,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('references', help= " Input the Reference text ", type=str)
-    parser.add_argument('predictions', help= " Predicted text (by an ASR system)", type=str)
-    parser.add_argument('--use_ids', help= " If uses ids in computing wer ", default=True, type=str2bool)
-    parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False)
+    parser.add_argument('references', help="File with reference text lines (ground-truth)", type=str)
+    parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
+    parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
+    parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
     args = parser.parse_args()
 
     target_test = args.references
