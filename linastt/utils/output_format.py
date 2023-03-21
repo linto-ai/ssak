@@ -2,6 +2,7 @@
 
 import os
 import json
+import csv
 import numpy as np
 
 from linastt.utils.text_utils import _punctuation
@@ -25,6 +26,8 @@ def to_linstt_transcription(transcription,
             transcription = read_text_grid(transcription)
         elif transcription.lower().endswith(".txt"):
             transcription = read_simple_txt(transcription)
+        elif transcription.lower().endswith(".csv"):
+            transcription = read_simple_csv(transcription)
         elif transcription.lower().endswith(".json"):
             with open(transcription, 'r') as f:
                 transcription = json.load(f)
@@ -48,7 +51,7 @@ def to_linstt_transcription(transcription,
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
             if remove_empty_words and format_timestamp(seg["end"]) <= format_timestamp(seg["start"]):
-                print(f"WARNING: removing segment with duration {seg['end']-seg['start']}" )
+                print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
                 continue
 
             if word_key is None and max([k in seg for k in word_keys]):
@@ -104,8 +107,11 @@ def to_linstt_transcription(transcription,
 
         transcription["segments"] = new_segments
 
-        if recompute_text:
+        if recompute_text and word_key is not None:
             for seg in transcription["segments"]:
+                if word_key not in seg:
+                    assert not seg["text"], f"Got segment with empty words but non-empty text: {seg}"
+                    continue
                 new_text = " " + " ".join([word["text"] for word in seg[word_key]])
                 if new_text.strip() != seg["text"].strip():
                     print(f"WARNING: recomputing text from words:\n<< {seg['text']}\n>> {new_text}")
@@ -198,6 +204,9 @@ def to_linstt_transcription(transcription,
     raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
 
 def format_timestamp(t):
+    if isinstance(t, list):
+        assert min(t) == max(t), f"Got unexpected list of timestamps: {t}"
+        return format_timestamp(min(t))
     return round(t, 2)
 
 def read_text_grid(file,
@@ -338,6 +347,56 @@ def read_simple_txt(file):
     }
 
 
+def read_simple_csv(transcription, delimiter=","):
+
+    with open(transcription, 'r', encoding="utf8") as f:
+        csvreader = csv.reader(f, delimiter=delimiter)
+        segments = []
+        for i, row in enumerate(csvreader):
+            if i == 0:
+                # Read CSV Header
+                if len(row) == 1:
+                    delimiters = [s for s in [";", "\t"] if s in row[0]]
+                    if len(delimiters) == 0:
+                        raise ValueError(f"Could not find delimiter in {transcription}")
+                    delimiter = delimiters[0]
+                    f.close()
+                    return read_simple_csv(transcription, delimiter=delimiter)
+                lrow = [r.lower() for r in row]
+
+                itext = lrow.index("text")
+                func_text = lambda x: x[itext].strip()
+
+                istart = lrow.index("start")
+                func_start = lambda x: float(x[istart])
+                if "end" in lrow:
+                    iend = lrow.index("end")
+                    func_end = lambda x: float(x[iend])
+                elif "duration" in lrow:
+                    iduration = lrow.index("duration")
+                    func_end = lambda x: float(x[istart]) + float(x[iduration])
+                else:
+                    raise ValueError(f"Could not find end or duration in {transcription}")
+            else:
+                # Read CSV Line
+                text = func_text(row)
+                start = func_start(row)
+                end = func_end(row)
+                segments.append({
+                    "text": text,
+                    "start": start,
+                    "end": end,
+                })
+    return {
+        "text": " ".join([s["text"] for s in segments]),
+        "segments": segments,
+    }
+
+
+
+
+
+
 if __name__ == "__main__":
     
     import argparse
@@ -367,6 +426,11 @@ if __name__ == "__main__":
         if not y.lower().endswith(".json"):
             y = os.path.splitext(y)[0]+".json"
         assert x != y, "Input and output files must be different"
-        transcription = to_linstt_transcription(x)
+        try:
+            transcription = to_linstt_transcription(x)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise RuntimeError(f"Could not convert {x}")
         with open(y, "w", encoding="utf-8") as f:
             json.dump(transcription, f, indent=2, ensure_ascii=False)
