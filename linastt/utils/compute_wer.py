@@ -90,8 +90,8 @@ if __name__ == "__main__":
     parser.add_argument('--debug', help=" Output file to save debug information ", type=str)
     args = parser.parse_args()
 
-    target_test = args.Ref
-    target_pred = args.pred
+    target_test = args.references
+    target_pred = args.predictions
     debug = args.debug
     use_ids = args.use_ids
 
