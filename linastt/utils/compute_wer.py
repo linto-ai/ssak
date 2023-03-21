@@ -35,15 +35,15 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
         raise ValueError("No common ids between reference and prediction files")
     
     # Reconstruct two lists of pred/ref with the intersection of ids
+    ids = [id for id in refs_dict.keys() if id in preds_dict]
     refs = [refs_dict[id] for id in common_ids]
     preds = [preds_dict[id] for id in common_ids]
-    ids = [id for id in common_ids]
 
     if debug:
         with open(debug, 'w+') if isinstance(debug, str) else sys.stdout as f:
             for i in range(len(refs)):
                 if refs[i] != preds[i]:
-                    f.write("ids: [ " + str(ids[i]) + " ] doesn't match.\n")
+                    f.write(f"Line {i} with id [ {ids[i]} ] doesn't match.\n")
                     f.write("---\n")
                     f.write("ref: " + refs[i] + "\n")
                     f.write("pred: " + preds[i] + "\n")
