@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import jiwer
 import sys
 
@@ -40,7 +42,7 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     preds = [preds_dict[id] for id in ids]
 
     if debug:
-        with open(debug, 'w+') if isinstance(debug, str) else sys.stdout as f:
+        with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
             for i in range(len(refs)):
                 if refs[i] != preds[i]:
                     f.write(f"Line {i} with id [ {ids[i]} ] doesn't match.\n")
@@ -53,7 +55,7 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     
     measures = jiwer.compute_measures(refs, preds)
     
-    wer_score = measures['wer'] * 100
+    wer_score = measures['wer']
     sub_score = measures['substitutions']
     del_score = measures['deletions']
     hits_score = measures['hits']
@@ -62,9 +64,9 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     
     score_details = {
         'wer'  : wer_score,
-        'del' : (float(del_score) / count) * 100,
-        'ins'  : (float(ins_score) / count) * 100,
-        'sub'  : (float(sub_score) / count) * 100,
+        'del' : (float(del_score) / count),
+        'ins'  : (float(ins_score) / count),
+        'sub'  : (float(sub_score) / count),
         'count': count,
     }
 
@@ -87,15 +89,18 @@ if __name__ == "__main__":
     parser.add_argument('references', help= " Input the Reference text ", type=str)
     parser.add_argument('predictions', help= " Predicted text (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help= " If uses ids in computing wer ", default=True, type=str2bool)
-    parser.add_argument('--debug', help=" Output file to save debug information ", type=str)
+    parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False)
     args = parser.parse_args()
 
     target_test = args.references
     target_pred = args.predictions
     debug = args.debug
+    if debug and debug.lower() in ["true", "false"]:
+        debug = eval(debug.title())
     use_ids = args.use_ids
 
     result = compute_wer(target_test ,target_pred , debug=debug ,use_ids=use_ids)
     print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(result['wer'], result['del'], result['ins'], result['sub'], result['count']))
+    print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(
+        result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
     print(' ------------------------------------------------------------------------------------------------------- ')
