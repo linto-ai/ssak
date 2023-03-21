@@ -22,10 +22,8 @@ def compute_wer(filename_ref, filename_pred, use_ids=True, debug=False):
         refs_dict = parse_text_with_ids(filename_ref)
         preds_dict = parse_text_with_ids(filename_pred)
     else:
-        refs_dict = dict(enumerate([l.strip()
-                         for l in open(filename_ref).readlines()]))
-        preds_dict = dict(enumerate([l.strip()
-                          for l in open(filename_pred).readlines()]))
+        refs_dict = dict(enumerate([l.strip() for l in open(filename_ref).readlines()]))
+        preds_dict = dict(enumerate([l.strip() for l in open(filename_pred).readlines()]))
 
     # Reconstruct two lists of pred/ref with the intersection of ids
     ids = [id for id in refs_dict.keys() if id in preds_dict]
