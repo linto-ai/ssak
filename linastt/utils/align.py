@@ -153,7 +153,7 @@ def find_best_position_dtw(subsequence, sequence,
             indices[i] = j
 
     if None in indices:
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         raise RuntimeError("Unexpected situation")
 
     if isinstance(plot, str):

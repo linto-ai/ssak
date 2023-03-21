@@ -79,7 +79,6 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             start = elt.get("datetime")
             # convert '2019-03-14T07:12:00.410000' to absolute timing
             try:
-                import pdb; pdb.set_trace()
                 start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S.%f")
             except ValueError:
                 start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%S")
