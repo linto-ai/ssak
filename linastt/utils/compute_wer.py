@@ -36,8 +36,8 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     
     # Reconstruct two lists of pred/ref with the intersection of ids
     ids = [id for id in refs_dict.keys() if id in preds_dict]
-    refs = [refs_dict[id] for id in common_ids]
-    preds = [preds_dict[id] for id in common_ids]
+    refs = [refs_dict[id] for id in ids]
+    preds = [preds_dict[id] for id in ids]
 
     if debug:
         with open(debug, 'w+') if isinstance(debug, str) else sys.stdout as f:
@@ -62,7 +62,7 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     
     score_details = {
         'wer'  : wer_score,
-        'dele' : (float(del_score) / count) * 100,
+        'del' : (float(del_score) / count) * 100,
         'ins'  : (float(ins_score) / count) * 100,
         'sub'  : (float(sub_score) / count) * 100,
         'count': count,
@@ -72,8 +72,9 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
 
 def str2bool(string):
     str2val = {"true": True, "false": False}
+    string = string.lower()
     if string in str2val:
-        return str2val[string.lower()]
+        return str2val[string]
     else:
         raise ValueError(f"Expected True or False")
 
@@ -83,9 +84,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('Ref', help= " Input the Reference text ", type=str)
-    parser.add_argument('pred', help= " Input the kaldi text", type=str)
-    parser.add_argument('--use_ids', help= " if uses ids in computing wer ", default=True, type=str2bool)
+    parser.add_argument('references', help= " Input the Reference text ", type=str)
+    parser.add_argument('predictions', help= " Predicted text (by an ASR system)", type=str)
+    parser.add_argument('--use_ids', help= " If uses ids in computing wer ", default=True, type=str2bool)
     parser.add_argument('--debug', help=" Output file to save debug information ", type=str)
     args = parser.parse_args()
 
@@ -96,5 +97,5 @@ if __name__ == "__main__":
 
     result = compute_wer(target_test ,target_pred , debug=debug ,use_ids=use_ids)
     print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(result['wer'], result['dele'], result['ins'], result['sub'], result['count']))
+    print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(result['wer'], result['del'], result['ins'], result['sub'], result['count']))
     print(' ------------------------------------------------------------------------------------------------------- ')
