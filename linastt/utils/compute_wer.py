@@ -23,21 +23,19 @@ def compute_wer(filename_ref ,filename_pred , debug=False, use_ids=True):
     else:
         refs_dict = dict(enumerate([l.strip() for l in open(filename_ref).readlines()]))
         preds_dict = dict(enumerate([l.strip() for l in open(filename_pred).readlines()]))
-        
-    # Get the intersection of the ids (dictionary keys)
-    common_ids = set(refs_dict.keys()) & set(preds_dict.keys())
-    union_ids = set(refs_dict.keys()) | set(preds_dict.keys())
 
-    # Print a warning if intersection is not the same as the union
-    if common_ids != union_ids and common_ids:
-        print("Warning: ids in reference and/or prediction files are missing or different.")
-    
-    # Fail if intersection is empty
-    if not common_ids and common_ids != union_ids:
-        raise ValueError("No common ids between reference and prediction files")
-    
     # Reconstruct two lists of pred/ref with the intersection of ids
     ids = [id for id in refs_dict.keys() if id in preds_dict]
+
+    if len(ids) == 0:
+        if len(refs_dict) == 0:
+            raise ValueError("Reference file is empty")
+        if len(preds_dict) == 0:
+            raise ValueError("Prediction file is empty")
+        raise ValueError("No common ids between reference and prediction files")
+    if len(ids) != len(refs_dict) or len(ids) != len(preds_dict):
+        print("WARNING: ids in reference and/or prediction files are missing or different.")
+
     refs = [refs_dict[id] for id in ids]
     preds = [preds_dict[id] for id in ids]
 
