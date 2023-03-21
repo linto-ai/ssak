@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
 import jiwer
+import re
 
+def normalize_line(line):
+    return re.sub("\s+" , " ", line).strip()
 
 def parse_text_with_ids(file_name):
     with open(file_name, 'r') as f:
         res_dict = {}
         for line in f:
-            line = line.strip().split(maxsplit=1)
+            line = normalize_line(line).split(maxsplit=1)
             id = line[0]
             text = line[1] if len(line) > 1 else ""
             if id in res_dict and res_dict[id] != text:
@@ -17,13 +20,20 @@ def parse_text_with_ids(file_name):
 
 
 def compute_wer(filename_ref, filename_pred, use_ids=True, debug=False):
+    """
+    Compute WER between two files.
+    :param filename_ref: path to the reference file
+    :param filename_pred: path to the prediction file
+    :param use_ids: whether reference and prediction files includes id as a first field
+    :param debug: if True, print debug information. If string, write debug information to the file.
+    """
     # Open the test dataset human translation file
     if use_ids:
         refs_dict = parse_text_with_ids(filename_ref)
         preds_dict = parse_text_with_ids(filename_pred)
     else:
-        refs_dict = dict(enumerate([l.strip() for l in open(filename_ref).readlines()]))
-        preds_dict = dict(enumerate([l.strip() for l in open(filename_pred).readlines()]))
+        refs_dict = dict(enumerate([normalize_line(l) for l in open(filename_ref).readlines()]))
+        preds_dict = dict(enumerate([normalize_line(l) for l in open(filename_pred).readlines()]))
 
     # Reconstruct two lists of pred/ref with the intersection of ids
     ids = [id for id in refs_dict.keys() if id in preds_dict]
