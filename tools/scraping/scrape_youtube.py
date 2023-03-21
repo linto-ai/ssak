@@ -233,8 +233,8 @@ if __name__ == '__main__':
         description='Scrape YouTube subtitled videos in a given language, extracting transcripts, and possibly audio.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument('path', help= "Output folder path where audio and annotations will be saved (default: YouTubeFr, or YouTubeLang for another language than French).", type=str, nargs='?', default=None)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
-    parser.add_argument('--path', help= "Output folder path where audio and annotations will be saved.", type=str)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. If neither --search_query nor --video_ids are specified, a series of queries will be generated automatically.", type=str)
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
