@@ -7,7 +7,7 @@ def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
 
 def parse_text_with_ids(file_name):
-    with open(file_name, 'r') as f:
+    with open(file_name, 'r', encoding='utf-8') as f:
         res_dict = {}
         for line in f:
             line = normalize_line(line).split(maxsplit=1)
