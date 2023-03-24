@@ -27,7 +27,7 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
             open(text_file, "w", encoding='utf-8') as txt:
 
         
-        for audio_file in os.listdir(audio_folder):
+        for audio_file in sorted(os.listdir(audio_folder)):
             if not audio_file.endswith(f".{extension}"):
                 warnings.warn(f"\n Ignoring {audio_file} because it is not in the expected format.",UserWarning)
                 continue
@@ -57,7 +57,7 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                     segments.write(f"{utt_id} {audio_name} {start:.2f} {end:.2f}\n")
                     utt2spk.write(f"{utt_id} {utt_id}\n")
                     spk2utt.write(f"{utt_id} {utt_id}\n")
-                    spk2gender.write(f"{utt_id} M\n")
+                    spk2gender.write(f"{utt_id} m\n")
                     utt2dur.write(f"{utt_id} {duration}\n")
                     txt.write(f"{utt_id} {text}\n")
                     _id += 1
