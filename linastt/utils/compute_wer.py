@@ -113,6 +113,6 @@ if __name__ == "__main__":
 
     result = compute_wer(target_test, target_pred, use_ids=use_ids, debug=debug)
     print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' WER_score : {:.2f} % | [ deletions : {:.2f} % | insertions {:.2f} % | substitutions {:.2f} % ](count : {})'.format(
+    print(' WER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
         result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
     print(' ------------------------------------------------------------------------------------------------------- ')
