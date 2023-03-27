@@ -462,6 +462,10 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
 
 def undigit(s, lang, to="cardinal"):
     s = re.sub(" ", "", s)
+    if "." in s:
+        n = float(s)
+    else:
+        n = int(s)
     if to == "denominator":
         if lang == "fr":
             if s == "2":
@@ -484,8 +488,8 @@ def undigit(s, lang, to="cardinal"):
     if s.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", s)[0])
         if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(float(s), lang=lang, to=to, orig=s)
-    return robust_num2words(float(s), lang=lang, to=to, orig=s)
+            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
+    return robust_num2words(n, lang=lang, to=to, orig=s)
 
 def robust_num2words(x, lang, to="cardinal", orig=""):
     """
