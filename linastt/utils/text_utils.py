@@ -396,10 +396,8 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (
-                    lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,
-                                to="ordinal" if use_ordinal else "cardinal")
+                use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
                 first = undigit(digitf[:i], lang=lang)
@@ -412,45 +410,39 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             i2 = digitf.index("/", i1+1)
             is_date = False
             is_islamic_date = False
-            if len(digitf[i1+1:i2]) in [1,2] and len(digitf[i2+1:]) == 4:
+            sfirst = digitf[:i1]
+            ssecond = digitf[i1+1:i2]
+            sthird = digitf[i2+1:]
+            if len(ssecond) in [1,2]:
                 try:
-                    first = int(digitf[:i1])
-                    second = int(digitf[i1+1:i2])
-                    third = int(digitf[i2+1:])
-                    is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
-                except:
-                    pass
-            if len(digitf[:i1]) == 4 and len(digitf[i1+1:i2]) in [1,2]:
-                try:
-                    first = int(digitf[:i1])
-                    second = int(digitf[i1+1:i2])
-                    third = int(digitf[i2+1])
-                    is_islamic_date = first > 1000 and first < 1600 and second > 0 and second < 13 and third > 0 and third < 32
-                except:
+                    first = int(sfirst)
+                    second = int(ssecond)
+                    third = int(sthird)
+                    if len(sthird) == 4: # 1/1/2019
+                        is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
+                    elif len(sfirst) == 4: # 2019/1/1
+                        is_date = third > 0 and third < 32 and second > 0 and second < 13 and first > 1000
+                        if is_date:
+                            if lang == "ar":
+                                is_islamic_date = is_date and first < 1600
+                            first, third = third, first
+                            sfirst, sthird = sthird, sfirst
+                except ValueError:
                     pass 
-            third = undigit(digitf[i2+1:], lang=lang)
+            third = undigit(sthird, lang=lang)
             if is_date:
-                first = digitf[:i1].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (
-                    lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,
-                                to="ordinal" if use_ordinal else "cardinal")
-                second = _int_to_month.get(lang, {}).get(
-                    int(digitf[i1+1:i2]), digitf[i1+1:i2])
-                word = " ".join([first, second, third])
-            elif is_islamic_date:
-                first = digitf[:i1].lstrip("0")
-                use_ordinal = (lang == 'ar' and first[-1] in ["1","2","3"])
+                first = sfirst.lstrip("0")
+                use_ordinal = (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
-                second = _ar_months.get(lang, {}).get(
-                    int(digitf[i1+1:i2]), digitf[i1+1:i2])
-                word = " ".join([first, second, third])
+                second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
+                if is_islamic_date:
+                    word = " ".join([third, second, first])
+                else:
+                    word = " ".join([first, second, third])
             else:
-                word = " / ".join([undigit(s, lang=lang)
-                                for s in digitf.split('/')])
+                word = " / ".join([undigit(s, lang=lang) for s in digitf.split('/')])
         else:
-            word = " / ".join([undigit(s, lang=lang)
-                            for s in digitf.split('/')])
+            word = " / ".join([undigit(s, lang=lang) for s in digitf.split('/')])
         if verbose:
             print(digit, "->", word)
         # text = replace_keeping_word_boundaries(digit, word, text)
@@ -498,6 +490,8 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     - comma in Arabic
     - avoid overflow error on big numbers
     """
+    if lang == "ar":
+        to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
     try:
         res = num2words(x, lang=lang, to=to)
     except (OverflowError, TypeError) as err: # TypeError is because of https://github.com/savoirfairelinux/num2words/issues/509
@@ -553,12 +547,8 @@ _int_to_month = {
         10: "أكتوبر",
         11: "نوفمبر",
         12: "ديسمبر",
-    }
-    
-}
-
-_ar_months = {
-    "ar" : {
+    },
+    "ar_islamic" : {
         1: "محرم",
         2: "صفر",
         3: "ربيع الأول",
@@ -572,6 +562,7 @@ _ar_months = {
         11: "ذو القعدة",
         12: "ذو الحجة",
     }
+    
 }
 _punct_to_word = {
     "fr": {

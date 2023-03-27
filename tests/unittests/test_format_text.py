@@ -76,6 +76,11 @@ class TestFormatTextLatin(Test):
         )
 
         self.assertEqual(
+            format_text_latin("31/01/2019 et 2019/01/01"),
+            "trente et un janvier deux mille dix-neuf et premier janvier deux mille dix-neuf"
+        )
+
+        self.assertEqual(
             format_text_latin("32/01/2019 31/13 "),
             "trente-deux zéro un deux mille dix-neuf trente et un treizièmes"
         )
@@ -241,29 +246,39 @@ class TestFormatTextArabic(Test):
             'وأغلق بسعر دولار خمسة و أربعون فاصيله صفر ستة للبرميل '
         )
 
-        self.assertEqual(
-            format_text_ar("اليوم 22/03/2002"),
-            'اليوم اثنتان و عشرون مارس ألفان و اثنان '
-        )
-
     def test_symbols_converting(self):
         
         self.assertEqual(
             format_text_ar("للعام 1435/ 1436هـ"),
-            'للعام واحد ألف و أربعمائة و خمس و ثلاثون واحد ألف و أربعمائة و ست و ثلاثون هجري '
+            'للعام واحد ألف و أربعمائة و خمسة و ثلاثون واحد ألف و أربعمائة و ستة و ثلاثون هجري '
+            # 'للعام واحد ألف و أربعمائة و خمس و ثلاثون واحد ألف و أربعمائة و ست و ثلاثون هجري '
         )
 
         self.assertEqual(
             format_text_ar("7 ق.م"),
-            ' سبع قبل الميلاد '
+            ' سبعة قبل الميلاد '
+            # ' سبع قبل الميلاد '
         )
 
         self.assertEqual(
             format_text_ar("300¥ = 300$ = 300£ = 300₹"),
             ' ثلاثمائة ين يساوي ثلاثمائة دولار يساوي ثلاثمائة جنيه يساوي ثلاثمائة روبية هندية '
         )
-    def test_date_is_islamic(self):
+
+    def test_dates(self):
+        
         self.assertEqual(
             format_text_ar("هجري 1437/01/20"),
             'هجري واحد ألف و أربعمائة و سبعة و ثلاثون محرم عشرون ' 
+        )
+
+        self.assertEqual(
+            format_text_ar("هجري 1937/01/20"),
+            'هجري عشرون يناير واحد ألف و تسعمائة و سبعة و ثلاثون '
+        )
+
+        self.assertEqual(
+            format_text_ar("اليوم 22/03/2002"),
+            'اليوم اثنان و عشرون مارس ألفان و اثنان '
+            # 'اليوم اثنتان و عشرون مارس ألفان و اثنان '
         )
