@@ -391,7 +391,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                 try:
                     first = int(digitf[:i])
                     second = int(digitf[i+1:])
-                    is_date = first > 0 and first < 32 and second > 0 and second < 13
+                    is_date = first > 0 and first < 32 and second > 0 and second < 13 and len(digitf[i+1:]) == 2
                 except:
                     pass
             if is_date:
@@ -500,13 +500,11 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     """
     try:
         res = num2words(x, lang=lang, to=to)
-    except OverflowError as err:
-        if x == math.inf:  # !
+    except (OverflowError, TypeError) as err: # TypeError is because of https://github.com/savoirfairelinux/num2words/issues/509
+        if x > 0:  # !
             res = " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
-        elif x == -math.inf:  # !
-            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
         else:
-            raise RuntimeError(f"OverflowError on {x} {orig}")
+            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
     if lang == "fr" and to == "ordinal":
         res = res.replace("vingtsième", "vingtième")
     elif lang == "ar":
