@@ -6,6 +6,11 @@ import warnings
 
 from linastt.utils.misc import flatten
 
+def custom_formatwarning(msg, *args, **kwargs):
+    # ignore everything except the message
+    return str(msg) + '\n'
+warnings.formatwarning = custom_formatwarning
+
 arabic_diacritics = re.compile("""
                              ّ    | # Tashdid
                              َ    | # Fatha
