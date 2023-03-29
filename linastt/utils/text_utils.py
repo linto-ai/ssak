@@ -600,7 +600,7 @@ _punct_to_word = {
 _minus = {
     "en": "minus",
     "fr": "moins",
-    "ar": "منها",
+    "ar": "سالب",
     "de": "minus",
     "es": "menos",
     "it": "meno",
