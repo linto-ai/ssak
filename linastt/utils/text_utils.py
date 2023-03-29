@@ -496,7 +496,7 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
         res = num2words(x, lang=lang, to=to)
     except (OverflowError, TypeError) as err: # TypeError is because of https://github.com/savoirfairelinux/num2words/issues/509
         if x > 0:  # !
-            res = " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
+            res = " ".join(robust_num2words(int(xi), lang=lang, to=to, orig=xi) for xi in orig)
         else:
             res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
     if lang == "fr" and to == "ordinal":
