@@ -251,13 +251,11 @@ class TestFormatTextArabic(Test):
         self.assertEqual(
             format_text_ar("للعام 1435/ 1436هـ"),
             'للعام واحد ألف و أربعمائة و خمسة و ثلاثون واحد ألف و أربعمائة و ستة و ثلاثون هجري '
-            # 'للعام واحد ألف و أربعمائة و خمس و ثلاثون واحد ألف و أربعمائة و ست و ثلاثون هجري '
         )
 
         self.assertEqual(
             format_text_ar("7 ق.م"),
             ' سبعة قبل الميلاد '
-            # ' سبع قبل الميلاد '
         )
 
         self.assertEqual(
@@ -280,5 +278,4 @@ class TestFormatTextArabic(Test):
         self.assertEqual(
             format_text_ar("اليوم 22/03/2002"),
             'اليوم اثنان و عشرون مارس ألفان و اثنان '
-            # 'اليوم اثنتان و عشرون مارس ألفان و اثنان '
         )
