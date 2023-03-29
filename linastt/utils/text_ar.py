@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies, remove_diacritics
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -15,25 +15,6 @@ _regex_all_punctuation = regex_unescape(_all_punctuation)
 # from lang_trans.arabic import buckwalter
 # buckwalter.transliterate(text)
 # buckwalter.untransliterate(text)
-
-# Islamic months
-_islamic_months={
-    "ar":{
-        "1":"المحرم",
-        "2":"صفر",
-        "3":"ربيع الأول",
-        "4":"ربيع الآخر",
-        "5":"جمادى الأولى",
-        "6":"جمادى الآخرة",
-        "7":"رجب",
-        "8":"شعبان",
-        "9":"رمضان",
-        "10":"شوال",
-        "11":"ذو القعدة",
-        "12":"ذو الحجة",
-    }
-}
-
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -98,10 +79,11 @@ def remove_repeating_char(text):
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
     line = remove_url(line)
-    line = normalize_punct(line)
-    line = normalize_arabic_currencies(line, lang="ar")
-    line = digit2word(line)
     line = convert_symbols_to_words(line, lang="ar", lower_case=False)
+    line = normalize_arabic_currencies(line, lang="ar")
+    line = remove_diacritics(line)
+    line = normalize_punct(line)
+    line = digit2word(line)
     line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
     line = remove_repeating_char(line)      
     return line

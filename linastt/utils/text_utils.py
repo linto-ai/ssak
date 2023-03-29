@@ -6,6 +6,22 @@ import math
 
 from linastt.utils.misc import flatten
 
+arabic_diacritics = re.compile("""
+                             ّ    | # Tashdid
+                             َ    | # Fatha
+                             ً    | # Tanwin Fath
+                             ُ    | # Damma
+                             ٌ    | # Tanwin Damm
+                             ِ    | # Kasra
+                             ٍ    | # Tanwin Kasr
+                             ْ    | # Sukun
+                             ـ     # Tatwil/Kashida
+                         """, re.VERBOSE)
+
+def remove_diacritics(text):
+    text = re.sub(arabic_diacritics, '', text)
+    return text
+
 _whitespace_re = re.compile(r'[^\S\r\n]+')
 
 def collapse_whitespace(text):
@@ -263,7 +279,7 @@ def normalize_arabic_currencies(text, lang):
 def convert_symbols_to_words(text, lang, lower_case=True):
     symbol_table = _symbol_to_word.get(lang, {})
     for k, v in symbol_table.items():
-         if lower_case and lang not in "ar":
+         if lower_case:
              k = k.lower()
              v = v.lower()
          text = replace_keeping_word_boundaries(k, v, text)
@@ -371,19 +387,17 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
         elif numslash == 1:  # Fraction or date
             i = digitf.index("/")
             is_date = False
-            if len(digitf[i+1:]) == 2:
+            if len(digitf[i+1:]) in [1,2]:
                 try:
                     first = int(digitf[:i])
                     second = int(digitf[i+1:])
-                    is_date = first > 0 and first < 32 and second > 0 and second < 13
+                    is_date = first > 0 and first < 32 and second > 0 and second < 13 and len(digitf[i+1:]) == 2
                 except:
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (
-                    lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,
-                                to="ordinal" if use_ordinal else "cardinal")
+                use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
                 first = undigit(digitf[:i], lang=lang)
@@ -395,30 +409,40 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             i1 = digitf.index("/")
             i2 = digitf.index("/", i1+1)
             is_date = False
-            if len(digitf[i1+1:i2]) == 2 and len(digitf[i2+1:]) == 4:
+            is_islamic_date = False
+            sfirst = digitf[:i1]
+            ssecond = digitf[i1+1:i2]
+            sthird = digitf[i2+1:]
+            if len(ssecond) in [1,2]:
                 try:
-                    first = int(digitf[:i1])
-                    second = int(digitf[i1+1:i2])
-                    third = int(digitf[i2+1:])
-                    is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
-                except:
-                    pass
-            third = undigit(digitf[i2+1:], lang=lang)
+                    first = int(sfirst)
+                    second = int(ssecond)
+                    third = int(sthird)
+                    if len(sthird) == 4: # 1/1/2019
+                        is_date = first > 0 and first < 32 and second > 0 and second < 13 and third > 1000
+                    elif len(sfirst) == 4: # 2019/1/1
+                        is_date = third > 0 and third < 32 and second > 0 and second < 13 and first > 1000
+                        if is_date:
+                            if lang == "ar":
+                                is_islamic_date = is_date and first < 1600
+                            first, third = third, first
+                            sfirst, sthird = sthird, sfirst
+                except ValueError:
+                    pass 
+            third = undigit(sthird, lang=lang)
             if is_date:
-                first = digitf[:i1].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (
-                    lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,
-                                to="ordinal" if use_ordinal else "cardinal")
-                second = _int_to_month.get(lang, {}).get(
-                    int(digitf[i1+1:i2]), digitf[i1+1:i2])
-                word = " ".join([first, second, third])
+                first = sfirst.lstrip("0")
+                use_ordinal = (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
+                second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
+                if is_islamic_date:
+                    word = " ".join([third, second, first])
+                else:
+                    word = " ".join([first, second, third])
             else:
-                word = " / ".join([undigit(s, lang=lang)
-                                for s in digitf.split('/')])
+                word = " / ".join([undigit(s, lang=lang) for s in digitf.split('/')])
         else:
-            word = " / ".join([undigit(s, lang=lang)
-                            for s in digitf.split('/')])
+            word = " / ".join([undigit(s, lang=lang) for s in digitf.split('/')])
         if verbose:
             print(digit, "->", word)
         # text = replace_keeping_word_boundaries(digit, word, text)
@@ -430,6 +454,10 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
 
 def undigit(s, lang, to="cardinal"):
     s = re.sub(" ", "", s)
+    if "." in s:
+        n = float(s)
+    else:
+        n = int(s)
     if to == "denominator":
         if lang == "fr":
             if s == "2":
@@ -452,8 +480,8 @@ def undigit(s, lang, to="cardinal"):
     if s.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", s)[0])
         if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(float(s), lang=lang, to=to, orig=s)
-    return robust_num2words(float(s), lang=lang, to=to, orig=s)
+            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
+    return robust_num2words(n, lang=lang, to=to, orig=s)
 
 def robust_num2words(x, lang, to="cardinal", orig=""):
     """
@@ -462,15 +490,15 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     - comma in Arabic
     - avoid overflow error on big numbers
     """
+    if lang == "ar":
+        to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
     try:
         res = num2words(x, lang=lang, to=to)
-    except OverflowError as err:
-        if x == math.inf:  # !
+    except (OverflowError, TypeError) as err: # TypeError is because of https://github.com/savoirfairelinux/num2words/issues/509
+        if x > 0:  # !
             res = " ".join(robust_num2words(xi, lang=lang, to=to, orig=xi) for xi in orig)
-        elif x == -math.inf:  # !
-            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
         else:
-            raise RuntimeError(f"OverflowError on {x} {orig}")
+            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
     if lang == "fr" and to == "ordinal":
         res = res.replace("vingtsième", "vingtième")
     elif lang == "ar":
@@ -519,10 +547,23 @@ _int_to_month = {
         10: "أكتوبر",
         11: "نوفمبر",
         12: "ديسمبر",
+    },
+    "ar_islamic" : {
+        1: "محرم",
+        2: "صفر",
+        3: "ربيع الأول",
+        4: "ربيع الآخر",
+        5: "جمادى الأولى",
+        6: "جمادى الآخرة",
+        7: "رجب",
+        8: "شعبان",
+        9: "رمضان",
+        10: "شوال",
+        11: "ذو القعدة",
+        12: "ذو الحجة",
     }
     
 }
-
 _punct_to_word = {
     "fr": {
         ",": "virgule",
