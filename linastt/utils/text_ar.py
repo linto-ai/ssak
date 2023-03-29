@@ -78,14 +78,19 @@ def remove_repeating_char(text):
 
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
-    line = remove_url(line)
-    line = convert_symbols_to_words(line, lang="ar", lower_case=False)
-    line = normalize_arabic_currencies(line, lang="ar")
-    line = remove_diacritics(line)
-    line = normalize_punct(line)
-    line = digit2word(line)
-    line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
-    line = remove_repeating_char(line)      
+    input_line = line
+    try:
+        line = remove_url(line)
+        line = convert_symbols_to_words(line, lang="ar", lower_case=False)
+        line = normalize_arabic_currencies(line, lang="ar")
+        line = remove_diacritics(line)
+        line = normalize_punct(line)
+        line = digit2word(line)
+        line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
+        line = remove_repeating_char(line)      
+    except Exception as err:
+        print(f"Error when processing line: \"{input_line}\"")
+        raise err
     return line
    
 if __name__ == '__main__':
