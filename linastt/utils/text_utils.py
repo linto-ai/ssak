@@ -2,7 +2,7 @@ import re
 import string
 import unicodedata
 from num2words import num2words
-import math
+import warnings
 
 from linastt.utils.misc import flatten
 
@@ -494,7 +494,13 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
         to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
     try:
         res = num2words(x, lang=lang, to=to)
-    except (OverflowError, TypeError) as err: # TypeError is because of https://github.com/savoirfairelinux/num2words/issues/509
+    except Exception as err:
+        # Here we should expect a OverflowError, but...
+        # * TypeError can occur: https://github.com/savoirfairelinux/num2words/issues/509
+        # * IndexError can occur: https://github.com/savoirfairelinux/num2words/issues/511
+        # * decimal.InvalidOperation can occur: https://github.com/savoirfairelinux/num2words/issues/511
+        # (who knows what else can occur...)
+        warnings.warn(f"Got error of type {type(err)} on {x}")
         if x > 0:  # !
             res = " ".join(robust_num2words(int(xi), lang=lang, to=to, orig=xi) for xi in orig)
         else:
