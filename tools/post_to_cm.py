@@ -215,10 +215,14 @@ if __name__ == "__main__":
             print(json.dumps(args.transcription, indent=2, ensure_ascii=False))
 
     else:
+
         if os.path.isfile(args.transcription):
             default_name += " - " + os.path.splitext(os.path.basename(args.transcription))[0].replace(default_name, "")
-            with open(args.transcription, "r") as f:
-                args.transcription = json.load(f)
+            with open(args.transcription, "r", encoding="utf8") as f:
+                try:
+                    args.transcription = json.load(f)
+                except:
+                    raise ValueError(f"Transcription file {args.transcription} is not a valid json file.")
         else:
             try:
                 args.transcription = json.loads(args.transcription)
