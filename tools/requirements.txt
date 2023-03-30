@@ -1,7 +1,11 @@
 bs4
 certifi
 docx
-pymupdf
+google-ngram-downloader
 pycurl
+pymupdf
 python-slugify
+pytube
+moviepy
 selenium
+youtube_transcript_api

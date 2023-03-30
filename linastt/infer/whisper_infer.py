@@ -86,7 +86,7 @@ def whisper_infer(
             #   "segments": {"start", "end", "seek", "text", "tokens", "temperature", "avg_logprob", "no_speech_prob", "compression_ratio"}
             #   - "avg_logprob" : Average log-probability of tokens
             #   - "no_speech_prob" : Probability of no speech activity
-            pred.append(res["text"])
+            pred.append(res["text"].strip())
 
         if output_ids:
             for id, p in zip(ids, pred):
