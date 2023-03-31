@@ -224,6 +224,10 @@ AssertionError
         for text in robust_generate_ngram(n, lan, min_match_count=min_match_count, index_start=current_index_start):
             yield text
 
+def parse_ngrams(filename, n=3):
+    # TODO: parse the file and return a list of ngrams
+    raise NotImplementedError
+
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
     import os
@@ -238,12 +242,15 @@ if __name__ == '__main__':
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
+    parser.add_argument('--ngram', default=3, type=int, help= "n-gram to generate queries")
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
     args = parser.parse_args()
 
     lang = args.language
     if not args.search_query and not args.video_ids:
-        queries = robust_generate_ngram(3, lang, index_start= args.query_index_start)
+        queries = robust_generate_ngram(args.ngram, lang, index_start= args.query_index_start)
+    elif os.path.isfile(args.search_query):
+        queries = parse_ngrams(args.search_query, n = args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
