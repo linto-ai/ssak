@@ -224,13 +224,27 @@ AssertionError
         for text in robust_generate_ngram(n, lan, min_match_count=min_match_count, index_start=current_index_start):
             yield text
 
-def parse_ngrams(filename, n=3):
+# to generate ngram from file or more then one 
+def parse_ngrams(path, n=3):
     ngrams = []
-    with open(filename, 'r') as f:
-        for line in f:
-            words = line.strip().split()
-            for i in range(len(words) - n + 1):
-                ngrams.append(' '.join(words[i:i+n]))
+    if os.path.isfile(path):
+        # If path is a file, parse ngrams from the file
+        with open(path, 'r') as f:
+            for line in f:
+                words = line.strip().split()
+                for i in range(len(words) - n + 1):
+                    ngrams.append(' '.join(words[i:i+n]))
+    elif os.path.isdir(path):
+        # If path is a directory, parse ngrams from all files in the directory
+        for filename in os.listdir(path):
+            filepath = os.path.join(path, filename)
+            with open(filepath, 'r') as f:
+                for line in f:
+                    words = line.strip().split()
+                    for i in range(len(words) - n + 1):
+                        ngrams.append(' '.join(words[i:i+n]))
+    else:
+        print('Invalid path:', path)
     return ngrams
 
 if __name__ == '__main__':
@@ -254,7 +268,7 @@ if __name__ == '__main__':
     lang = args.language
     if not args.search_query and not args.video_ids:
         queries = robust_generate_ngram(args.ngram, lang, index_start= args.query_index_start)
-    elif os.path.isfile(args.search_query):
+    elif os.path.isdir(args.search_query) or os.path.isfile(args.search_query):
         queries = parse_ngrams(args.search_query, n = args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
