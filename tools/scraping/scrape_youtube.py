@@ -225,8 +225,13 @@ AssertionError
             yield text
 
 def parse_ngrams(filename, n=3):
-    # TODO: parse the file and return a list of ngrams
-    raise NotImplementedError
+    ngrams = []
+    with open(filename, 'r') as f:
+        for line in f:
+            words = line.strip().split()
+            for i in range(len(words) - n + 1):
+                ngrams.append(' '.join(words[i:i+n]))
+    return ngrams
 
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
