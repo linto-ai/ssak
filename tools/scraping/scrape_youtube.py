@@ -38,8 +38,10 @@ def register_discarded_id(video_id, path, reason = ''):
         f.write(str(reason)+'\n')
         
 def is_automatic(language):
-    # example: "Français (générés automatiquement)"
-    return "auto" in language
+    # Check if the language string contains the word "auto" or the Arabic word "تلقائيًا"
+    if "auto" in language.lower() or "تلقائيًا" in language:
+        return True
+    return False
 
 def norm_language_code(language_code):
     if len(language_code) > 2 and "-" in language_code:
@@ -62,6 +64,7 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
         print("Waiting 120 seconds...")
         time.sleep(120)
         return get_transcripts_if(vid, if_lang=if_lang, verbose=verbose)
+    
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
