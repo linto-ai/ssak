@@ -228,27 +228,22 @@ AssertionError
             yield text
 
 # to generate ngram from file or more then one 
-def parse_ngrams(path, n=3):
-    ngrams = []
+def parse_ngrams(path, n):
     if os.path.isfile(path):
         # If path is a file, parse ngrams from the file
         with open(path, 'r') as f:
             for line in f:
                 words = line.strip().split()
                 for i in range(len(words) - n + 1):
-                    ngrams.append(' '.join(words[i:i+n]))
+                    yield ' '.join(words[i:i+n])
     elif os.path.isdir(path):
         # If path is a directory, parse ngrams from all files in the directory
         for filename in os.listdir(path):
             filepath = os.path.join(path, filename)
-            with open(filepath, 'r') as f:
-                for line in f:
-                    words = line.strip().split()
-                    for i in range(len(words) - n + 1):
-                        ngrams.append(' '.join(words[i:i+n]))
+            for ngram in parse_ngrams(filepath, n=n):
+                yield ngram
     else:
         print('Invalid path:', path)
-    return ngrams
 
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
@@ -272,7 +267,7 @@ if __name__ == '__main__':
     if not args.search_query and not args.video_ids:
         queries = robust_generate_ngram(args.ngram, lang, index_start= args.query_index_start)
     elif os.path.isdir(args.search_query) or os.path.isfile(args.search_query):
-        queries = parse_ngrams(args.search_query, n = args.ngram)
+        queries = parse_ngrams(args.search_query, n=args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
