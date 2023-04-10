@@ -228,22 +228,29 @@ AssertionError
             yield text
 
 # to generate ngram from file or more then one 
-def parse_ngrams(path, n):
+def parse_ngrams(path, n=3):
+    ngrams = []
     if os.path.isfile(path):
         # If path is a file, parse ngrams from the file
         with open(path, 'r') as f:
             for line in f:
                 words = line.strip().split()
-                for i in range(len(words) - n + 1):
-                    yield ' '.join(words[i:i+n])
+                for k in range(1, n+1):
+                    for i in range(len(words) - k + 1):
+                        ngrams.append(' '.join(words[i:i+k]))
     elif os.path.isdir(path):
         # If path is a directory, parse ngrams from all files in the directory
         for filename in os.listdir(path):
             filepath = os.path.join(path, filename)
-            for ngram in parse_ngrams(filepath, n=n):
-                yield ngram
+            with open(filepath, 'r') as f:
+                for line in f:
+                    words = line.strip().split()
+                    for k in range(1, n+1):
+                        for i in range(len(words) - k + 1):
+                            ngrams.append(' '.join(words[i:i+k]))
     else:
         print('Invalid path:', path)
+    return ngrams
 
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
