@@ -11,6 +11,7 @@ import csv
 # from webdriver_manager.firefox import GeckoDriverManager
 
 from google_ngram_downloader import readline_google_store
+import langid
 
 
 ALL_IDS = {}
@@ -29,6 +30,11 @@ def get_new_ids(video_ids, path, subpath):
     for id in res:
         all_video_ids.append(id)
     return res
+
+# can detect the language of text or transcription in any language
+def is_language(text, l='ar'):
+    lang, score = langid.classify(text)
+    return lang == l
 
 def register_discarded_id(video_id, path, reason = ''):
     path = f'{path}/discarded'
@@ -138,17 +144,21 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if
             print(f"Video {vid} accepted. Languages: {', '.join(transcripts.keys())}")
 
         for lan, transcript in transcripts.items():
-            output_dir = f"{path}/{lan}"
-            if not os.path.isdir(output_dir):
-                os.makedirs(output_dir)
-            output_file = f"{output_dir}/{vid}.csv"             
-            with open(output_file, 'w') as csvfile:
-                csvwriter = csv.writer(csvfile, delimiter=';')
-                # Add header
-                csvwriter.writerow(['text', 'start', 'duration'])
-                # Write content
-                for line in transcript:
-                    csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
+            if is_language(' '.join([t['text'] for t in transcript]), lan):
+                output_dir = f"{path}/{lan}"
+                if not os.path.isdir(output_dir):
+                    os.makedirs(output_dir)
+                output_file = f"{output_dir}/{vid}.csv"             
+                with open(output_file, 'w') as csvfile:
+                    csvwriter = csv.writer(csvfile, delimiter=';')
+                    # Add header
+                    csvwriter.writerow(['text', 'start', 'duration'])
+                    # Write content
+                    for line in transcript:
+                        if is_language(line['text'], lan):
+                            csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
+            else:
+                print(f"Transcription for video {vid} in language {lan} is not in {lan}, skipping writing to CSV file")
 
         if extract_audio:
             # Download and save audio
