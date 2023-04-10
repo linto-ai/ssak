@@ -12,13 +12,9 @@ _regex_arabic_punctuation = regex_unescape(_arabic_punctuation)
 _regex_latin_punctuation = regex_unescape(_latin_punctuation)
 _regex_all_punctuation = regex_unescape(_all_punctuation)
 
-def translator(text, encoding):
-    if encoding == "utf8":
-        return text
-    elif encoding == "bw":
-        return bw.transliterate(text)
-    else:
-        raise ValueError("Invalid encoding type. Use 'utf8' or 'bw'.")
+def translator(text):
+    return bw.transliterate(text)
+    
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -93,7 +89,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=False, translate=Fals
         line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
         line = remove_repeating_char(line)
         if translate:
-            line = translator(line, encoding)    
+            line = translator(line)    
     except Exception as err:
         print(f"Error when processing line: \"{input_line}\"")
         raise err
@@ -107,8 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
-    parser.add_argument('--translate', help="Whether to translate text into encoding (utf8, buckwalter)", default= False, action="store_true")
-    parser.add_argument('--encoding', help="Encoder should utf8 or bw", type=str)
+    parser.add_argument('--translate', help="Whether to translate text into buckwalter encoding.", default= False, action="store_true")
     args = parser.parse_args()
 
     input = args.input
@@ -117,7 +112,6 @@ if __name__ == '__main__':
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
         "translate": args.translate,
-        "encoding": args.encoding,
     }
 
     if len(input) == 1 and os.path.isfile(input[0]):
