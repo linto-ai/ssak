@@ -18,6 +18,8 @@ if __name__ == "__main__":
     parser.add_argument('output', help="Output file (if not specified, the text will be outputed on stdout", type=str, nargs="?", default= None)
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
+    parser.add_argument('--translate', help="Whether to translate text into encoding (utf8, buckwalter)", default= False, action="store_true")
+    parser.add_argument('--encoding', help="Encoder should utf8 or bw", type=str)
     args = parser.parse_args()
 
     input_file = args.input
@@ -44,6 +46,8 @@ if __name__ == "__main__":
             line = format_text_ar(line,
                 keep_punc = args.keep_punc,
                 keep_latin_chars = args.keep_latin_chars,
+                translate = args.translate,
+                encoding = args.encoding,
             )
             for subline in line.splitlines():
                 subline = subline.strip()

@@ -1,5 +1,6 @@
 import re
 from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies, remove_diacritics
+from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-Z" # TODO: improve me
@@ -11,10 +12,13 @@ _regex_arabic_punctuation = regex_unescape(_arabic_punctuation)
 _regex_latin_punctuation = regex_unescape(_latin_punctuation)
 _regex_all_punctuation = regex_unescape(_all_punctuation)
 
-# TODO: buckwalter
-# from lang_trans.arabic import buckwalter
-# buckwalter.transliterate(text)
-# buckwalter.untransliterate(text)
+def translator(text, encoding):
+    if encoding == "utf8":
+        return text
+    elif encoding == "bw":
+        return bw.transliterate(text)
+    else:
+        raise ValueError("Invalid encoding type. Use 'utf8' or 'bw'.")
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -77,7 +81,7 @@ def remove_repeating_char(text):
     return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
 
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=False, translate=False, encoding='utf8'):
     input_line = line
     try:
         line = remove_url(line)
@@ -87,7 +91,9 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=False):
         line = remove_diacritics(line)
         line = normalize_punct(line)
         line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
-        line = remove_repeating_char(line)      
+        line = remove_repeating_char(line)
+        if translate:
+            line = translator(line, encoding)    
     except Exception as err:
         print(f"Error when processing line: \"{input_line}\"")
         raise err
@@ -101,6 +107,8 @@ if __name__ == '__main__':
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
+    parser.add_argument('--translate', help="Whether to translate text into encoding (utf8, buckwalter)", default= False, action="store_true")
+    parser.add_argument('--encoding', help="Encoder should utf8 or bw", type=str)
     args = parser.parse_args()
 
     input = args.input
@@ -108,6 +116,8 @@ if __name__ == '__main__':
     kwargs = {
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
+        "translate": args.translate,
+        "encoding": args.encoding,
     }
 
     if len(input) == 1 and os.path.isfile(input[0]):
