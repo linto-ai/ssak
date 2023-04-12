@@ -51,7 +51,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', help= "An input file path or folder", type=str, required=True)
     parser.add_argument('-o', help= "An output file path or folder", type=str, required=True)
     parser.add_argument('-e', help= "Encoder should be bw or utf8", type=str, required=True)
-    parser.add_argument('-p', help= "Use parallel processing",default=False , action="store_true")
+    parser.add_argument('-p', help= "Use parallel processing", default=False, action="store_true")
     args = parser.parse_args()
 
     input_path = args.i

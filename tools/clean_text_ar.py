@@ -8,8 +8,6 @@ if __name__ == "__main__":
     import os
     import argparse
     from tqdm import tqdm
-    import subprocess
-    sys.set_int_max_str_digits(0) # if you use python less then 3.7 comment this line 
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -18,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('output', help="Output file (if not specified, the text will be outputed on stdout", type=str, nargs="?", default= None)
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
-    parser.add_argument('--translate', help="Whether to translate text into buckwalter encoding.", default= False, action="store_true")
+    parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
     args = parser.parse_args()
 
     input_file = args.input
@@ -34,18 +32,14 @@ if __name__ == "__main__":
     # Note: This is ~10 times slower than wc -l
     #       but it's reasonnable (20 sec for ~70 000 000)
     # see https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python
-
-    # useful with python3.7 or more 
-    line_count = subprocess.run(['wc', '-l', input_file], capture_output=True, text=True)
-    output = line_count.stdout.strip()  # remove leading/trailing white space
-    num_lines = int(output.split()[0])
+    num_lines = sum(1 for _ in open(input_file))
 
     try:
         for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
             line = format_text_ar(line,
                 keep_punc = args.keep_punc,
                 keep_latin_chars = args.keep_latin_chars,
-                translate = args.translate,
+                bw = args.bw,
             )
             for subline in line.splitlines():
                 subline = subline.strip()
