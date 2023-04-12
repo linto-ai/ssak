@@ -144,22 +144,18 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if
             print(f"Video {vid} accepted. Languages: {', '.join(transcripts.keys())}")
 
         for lan, transcript in transcripts.items():
-            if is_language(' '.join([t['text'] for t in transcript]), lan):
-                output_dir = f"{path}/{lan}"
-                if not os.path.isdir(output_dir):
-                    os.makedirs(output_dir)
-                output_file = f"{output_dir}/{vid}.csv"             
-                with open(output_file, 'w') as csvfile:
-                    csvwriter = csv.writer(csvfile, delimiter=';')
-                    # Add header
-                    csvwriter.writerow(['text', 'start', 'duration'])
-                    # Write content
-                    for line in transcript:
-                        if is_language(line['text'], lan):
-                            csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
-            else:
-                print(f"Transcription for video {vid} in language {lan} is not in {lan}, skipping writing to CSV file")
-
+            output_dir = f"{path}/{lan}"
+            if not os.path.isdir(output_dir):
+                os.makedirs(output_dir)
+            output_file = f"{output_dir}/{vid}.csv"             
+            with open(output_file, 'w') as csvfile:
+                csvwriter = csv.writer(csvfile, delimiter=';')
+                # Add header
+                csvwriter.writerow(['text', 'start', 'duration'])
+                # Write content
+                for line in transcript:
+                    csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
+            
         if extract_audio:
             # Download and save audio
             isok = False
@@ -244,8 +240,9 @@ def parse_ngrams(path, n):
         with open(path, 'r') as f:
             for line in f:
                 words = line.strip().split()
-                for i in range(len(words) - n + 1):
-                    yield ' '.join(words[i:i+n])
+                for i in range(1, n+1):
+                    for j in range(len(words) - i + 1):
+                        yield ' '.join(words[j:j+i])
     elif os.path.isdir(path):
         # If path is a directory, parse ngrams from all files in the directory
         for filename in os.listdir(path):
