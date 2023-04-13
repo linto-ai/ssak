@@ -271,7 +271,7 @@ def parse_ngrams(path, ns):
         # If path is a directory, parse ngrams from all files in the directory
         for filename in os.listdir(path):
             filepath = os.path.join(path, filename)
-            for ngram in parse_ngrams(filepath, n=n):
+            for ngram in parse_ngrams(filepath, ns=ns):
                 yield ngram
     else:
         print('Invalid path:', path)
