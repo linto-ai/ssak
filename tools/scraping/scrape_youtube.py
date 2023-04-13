@@ -3,6 +3,7 @@ from pytube import YouTube
 import os
 import urllib.parse
 import requests
+import traceback
 
 from selenium import webdriver
 import time
@@ -11,7 +12,7 @@ import csv
 # from webdriver_manager.firefox import GeckoDriverManager
 
 from google_ngram_downloader import readline_google_store
-import langid
+# import langid
 
 
 ALL_IDS = {}
@@ -32,9 +33,9 @@ def get_new_ids(video_ids, path, subpath):
     return res
 
 # can detect the language of text or transcription in any language
-def is_language(text, l='ar'):
-    lang, score = langid.classify(text)
-    return lang == l
+# def is_language(text, l='ar'):
+#     lang, score = langid.classify(text)
+#     return lang == l
 
 def register_discarded_id(video_id, path, reason = ''):
     path = f'{path}/discarded'
@@ -79,7 +80,21 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
         if verbose:
             print(msg)
         return msg
-    return {norm_language_code(t.language_code) if not is_automatic(t.language) else norm_language_code(t.language_code)+"_auto": t.fetch() for t in transcripts}
+
+    res = {}
+    try:
+        for t in transcripts:
+            language_code = language = "???"
+            language_code = t.language_code
+            language = t.language
+            lang = norm_language_code(language_code) if not is_automatic(language) else norm_language_code(language_code)+"_auto"
+            # This can fail with "xml.etree.ElementTree.ParseError: not well-formed (invalid token): line XXX, column XXX"
+            res[lang] = t.fetch()
+    except Exception as e:
+        msg = f"Video {vid} discarded. Error when getting transcript:\n{traceback.format_exc()}"
+        print(msg)
+        return msg
+    return res
 
 
 # scrape the ids using a search query
@@ -191,7 +206,8 @@ def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     # Make all possible 2-grams of letters
     # Note: this should be changed for languages with different alphabet (e.g. Arabic, Chinese, ...)
     letters = list("abcdefghijklmnopqrstuvwxyz")
-    letters = [l1+l2 for l1 in letters for l2 in letters]
+    if n>1:
+        letters = [l1+l2 for l1 in letters for l2 in letters]
     if index_start:
         letters = [l for l in letters if l >= index_start]
 
@@ -222,25 +238,33 @@ Traceback (most recent call last):
 AssertionError    
     """
 
+    if isinstance(n, list):
+        for i in n:
+            for text in robust_generate_ngram(i, lan, min_match_count=min_match_count, index_start=index_start):
+                yield text
+
     current_index_start = ""
     try:
         for text in generate_ngram(n, lan, min_match_count=min_match_count, index_start=index_start):
             current_index_start = max(current_index_start, text[:2].lower())
             yield text
     except (AssertionError, requests.exceptions.ChunkedEncodingError) as e:
-        print(e)
+        print(traceback.format_exc())
         print("WARNING: Google NGram failed. Retrying...")
         for text in robust_generate_ngram(n, lan, min_match_count=min_match_count, index_start=current_index_start):
             yield text
 
 # to generate ngram from file or more then one 
-def parse_ngrams(path, n):
+def parse_ngrams(path, ns):
+    if isinstance(ns, int):
+        ns = [ns]
+    ns = sorted(set(ns))
     if os.path.isfile(path):
         # If path is a file, parse ngrams from the file
         with open(path, 'r') as f:
             for line in f:
                 words = line.strip().split()
-                for i in range(1, n+1):
+                for i in ns:
                     for j in range(len(words) - i + 1):
                         yield ' '.join(words[j:j+i])
     elif os.path.isdir(path):
@@ -266,15 +290,17 @@ if __name__ == '__main__':
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
-    parser.add_argument('--ngram', default=3, type=int, help= "n-gram to generate queries")
+    parser.add_argument('--ngram', default="3", type=str, help= "n-gram to generate queries (integer or list of integers separated by commas).")
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
     args = parser.parse_args()
+
+    args.ngram = [int(n) for n in args.ngram.split(",")]
 
     lang = args.language
     if not args.search_query and not args.video_ids:
         queries = robust_generate_ngram(args.ngram, lang, index_start= args.query_index_start)
     elif os.path.isdir(args.search_query) or os.path.isfile(args.search_query):
-        queries = parse_ngrams(args.search_query, n=args.ngram)
+        queries = parse_ngrams(args.search_query, ns=args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
