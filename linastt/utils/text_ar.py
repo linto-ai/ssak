@@ -77,7 +77,7 @@ def remove_repeating_char(text):
     return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
 
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False, encoding='utf8'):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
     input_line = line
     try:
         line = remove_url(line)
