@@ -11,8 +11,14 @@ def extract_mp4(vid, foldername):
         "--id",
         f"https://www.youtube.com/watch?v={vid}"
     ]
-    p = subprocess.Popen(CMD) # , stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    stdout, stderr = p.communicate()
+    try:
+        p = subprocess.Popen(CMD) # , stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        stdout, stderr = p.communicate()
+    except Exception as err:
+        raise RuntimeError(f"Failed to extract video using {CMD}. You may need to (re)install youtube-dl using:\n\
+        sudo curl -L https://github.com/ytdl-patched/youtube-dl/releases/latest/download/youtube-dl -o /usr/local/bin/youtube-dl\n\
+        sudo chmod a+rx /usr/local/bin/youtube-dl\n\
+        ")
     output = f"{vid}.mp4"
     assert os.path.isfile(output), f"Failed to extract {vid} using {' '.join(CMD)}"
     shutil.move(output, f"{foldername}/{output}")
