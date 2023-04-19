@@ -23,7 +23,7 @@ arabic_diacritics = re.compile("""
                              ـ     # Tatwil/Kashida
                          """, re.VERBOSE)
 
-def remove_diacritics(text):
+def remove_arabic_diacritics(text):
     text = re.sub(arabic_diacritics, '', text)
     return text
 
