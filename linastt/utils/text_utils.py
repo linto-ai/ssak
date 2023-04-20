@@ -27,7 +27,7 @@ def remove_arabic_diacritics(text):
     text = re.sub(arabic_diacritics, '', text)
     return text
 
-_whitespace_re = re.compile(r'[^\S\r\n]+')
+_whitespace_re = re.compile(r'[\s\r\n]+')
 
 def collapse_whitespace(text):
     return re.sub(_whitespace_re, ' ', text).strip()
