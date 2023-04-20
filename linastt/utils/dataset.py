@@ -15,7 +15,10 @@ import datasets
 import transformers
 
 import numpy as np
-np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) # VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
+try:
+    np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) # VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
+except AttributeError:
+    pass
 import torch 
 
 from envsubst import envsubst
@@ -214,7 +217,7 @@ def kaldi_folder_to_dataset(
                 start = float(fields[2])
                 end = float(fields[3])
                 duration = end - start
-                assert duration > 0
+                assert duration > 0, f"Error in {kaldi_path}/segments:\nDuration of utterance {uttid} is negative: {duration}"
                 if max_len and duration > max_len:
                     try:
                         i = uttids.index(uttid)

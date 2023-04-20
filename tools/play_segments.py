@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Play audio file using results from a segmentation into words / segments')
     parser.add_argument('audio_file', type=str, help='Audio file')
-    parser.add_argument('results_file', type=str, help='Results file')
+    parser.add_argument('results_file', type=str, help='Results file or Kaldi folder')
     parser.add_argument('--segments', default=False, action='store_true', help='Play segments instead of words')
     parser.add_argument('--min_sec', default=0, type=float, help='Minimum second to start playing from (default: 0)')
     parser.add_argument('--play_silences', default=False, action="store_true", help='Play silence between words')
@@ -79,6 +79,14 @@ if __name__ == "__main__":
     results_file = args.results_file
 
     assert os.path.isfile(audio_file), f"Cannot find audio file {audio_file}"
+
+    if os.path.isdir(results_file):
+        from linastt.utils.dataset import kaldi_folder_to_dataset
+        import tempfile
+        _, tmp_file = kaldi_folder_to_dataset(results_file, return_csv=True)
+        import pdb; pdb.set_trace()
+        tmp_file
+
     assert os.path.isfile(results_file), f"Cannot find result file {results_file}"
 
     results = to_linstt_transcription(results_file)

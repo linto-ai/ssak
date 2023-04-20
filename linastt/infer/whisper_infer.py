@@ -8,6 +8,7 @@ from linastt.utils.logs import tic, toc, gpu_mempeak
 import whisper
 import torch
 import numpy as np
+import re
 
 def whisper_infer(
     model,
@@ -56,7 +57,7 @@ def whisper_infer(
         device = auto_device()
 
     if isinstance(model, str):
-        model = whisper.load_model(model, device = device, download_root = get_cache_dir("whisper"))
+        model = load_model(model, device = device, download_root = get_cache_dir("whisper"))
 
     batches = to_audio_batches(audios, return_format = 'torch',
         sample_rate = whisper.audio.SAMPLE_RATE,
@@ -102,6 +103,97 @@ def audio_minimum_padding(audio):
         return whisper.pad_or_trim(audio, 201)
     return audio
 
+def load_model(
+    name: str,
+    device: str = None,
+    download_root: str = None,
+    in_memory: bool = False,
+):
+    extension = os.path.splitext(name)[-1] if os.path.isfile(name) else None
+
+    if name in whisper.available_models() or extension == ".pt":
+        return whisper.load_model(name, device=device, download_root=download_root, in_memory=in_memory)
+    
+    # Otherwise, assume transformers
+    if extension in [".ckpt", ".bin"]:
+        model_path = name
+    else:
+        # Search for the cached file (download if necessary)
+        try:
+            import transformers
+        except ImportError:
+            raise ImportError(f"If you are trying to download a HuggingFace model with {name}, please install first the transformers library")
+        from transformers.utils import cached_file
+
+        try:
+            model_path = cached_file(name, "pytorch_model.bin", cache_dir=download_root, use_auth_token=None, revision=None)
+        except Exception as e:
+            try:
+                if isinstance(e, OSError):
+                    model_path = cached_file(name, "whisper.ckpt", cache_dir=download_root, use_auth_token=None, revision=None)
+                else:
+                    raise e
+            except:
+                raise RuntimeError(f"Original error: {e}\nCould not find model {name} from HuggingFace nor local folders.")
+    # Load HF Model
+    hf_state_dict = torch.load(model_path, map_location="cpu")
+    # Rename layers
+    for key in list(hf_state_dict.keys())[:]:
+        new_key = hf_to_whisper_states(key)
+        hf_state_dict[new_key] = hf_state_dict.pop(key)
+    
+    # Remove useless key (Speechbrain
+    if "_mel_filters" in hf_state_dict:
+        hf_state_dict.pop("_mel_filters")
+
+    # Init Whisper Model and replace model weights
+    dims = whisper.model.ModelDimensions(**states_to_dim(hf_state_dict))
+    whisper_model = whisper.model.Whisper(dims)
+    whisper_model.load_state_dict(hf_state_dict)
+    del hf_state_dict
+    if hasattr(whisper_model, "alignment_heads"):
+        del whisper_model.alignment_heads # Will be recomputed later
+    whisper_model = whisper_model.to(device)
+    return whisper_model
+
+# Credit: https://github.com/openai/whisper/discussions/830
+def hf_to_whisper_states(text):
+    text = re.sub('.layers.', '.blocks.', text)
+    text = re.sub('.self_attn.', '.attn.', text)
+    text = re.sub('.q_proj.', '.query.', text)
+    text = re.sub('.k_proj.', '.key.', text)
+    text = re.sub('.v_proj.', '.value.', text)
+    text = re.sub('.out_proj.', '.out.', text)
+    text = re.sub('.fc1.', '.mlp.0.', text)
+    text = re.sub('.fc2.', '.mlp.2.', text)
+    text = re.sub('.fc3.', '.mlp.3.', text)
+    text = re.sub('.fc3.', '.mlp.3.', text)
+    text = re.sub('.encoder_attn.', '.cross_attn.', text)
+    text = re.sub('.cross_attn.ln.', '.cross_attn_ln.', text)
+    text = re.sub('.embed_positions.weight', '.positional_embedding', text)
+    text = re.sub('.embed_tokens.', '.token_embedding.', text)
+    text = re.sub('model.', '', text)
+    text = re.sub('attn.layer_norm.', 'attn_ln.', text)
+    text = re.sub('.final_layer_norm.', '.mlp_ln.', text)
+    text = re.sub('encoder.layer_norm.', 'encoder.ln_post.', text)
+    text = re.sub('decoder.layer_norm.', 'decoder.ln.', text)
+    return text
+
+def states_to_dim(state_dict):
+    n_audio_state = len(state_dict['encoder.ln_post.bias'])
+    n_text_state = len(state_dict["decoder.ln.bias"])
+    return {
+        "n_mels":        state_dict["encoder.conv1.weight"].shape[1],           # 80
+        "n_vocab":       state_dict["decoder.token_embedding.weight"].shape[0], # 51864 / 51865
+        "n_audio_ctx":   state_dict["encoder.positional_embedding"].shape[0],   # 1500
+        "n_audio_state": n_audio_state,         # 384 / 512 / 768 / 1024 / 1280
+        "n_audio_head":  n_audio_state // 64,   # 6 / 8 / 12 / 16 / 20
+        "n_audio_layer": len(set([".".join(k.split(".")[:3]) for k in state_dict.keys() if "encoder.blocks." in k])), # 4 / 6 / 12 / 24 / 32
+        "n_text_ctx":    state_dict["decoder.positional_embedding"].shape[0],   # 448
+        "n_text_state":  n_text_state,          # 384 / 512 / 768 / 1024 / 1280
+        "n_text_head":   n_text_state // 64,    # 6 / 8 / 12 / 16 / 20
+        "n_text_layer":  len(set([".".join(k.split(".")[:3]) for k in state_dict.keys() if "decoder.blocks." in k])), # 4 / 6 / 12 / 24 / 32
+    }
 
 if __name__ == "__main__":
 
@@ -116,7 +208,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
-    parser.add_argument('--model', help=f"Size of model to use. Among : {', '.join(whisper.available_models())}.", default = "base")
+    parser.add_argument('--model', help=f"name of the Whisper model to use. Examples: {', '.join(whisper.available_models())}", default="base")
     parser.add_argument('--language', help=f"Language to use. Among : {', '.join(sorted(k+'('+v+')' for k,v in whisper.tokenizer.LANGUAGES.items()))}.", default = "fr")
     parser.add_argument('--no_speech_threshold', help="Threshold for detecting no speech activity", type=float, default=0.6)
     parser.add_argument('--logprob_threshold', help="f the average log probability over sampled tokens is below this value, returns empty string", type=float, default=-1.0)

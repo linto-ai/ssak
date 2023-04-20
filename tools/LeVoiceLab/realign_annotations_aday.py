@@ -5,7 +5,9 @@ from datetime import datetime
 
 from linastt.utils.align import find_best_position_dtw
 from linastt.utils.text import format_text_latin, split_around_space_and_apostrophe
+import re
 
+from math import floor, ceil
 
 import time
 # Convert absolute timestamp to date time
@@ -36,12 +38,13 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
 
     if transcripts.startswith("<?xml"):
         transcripts_xml = transcripts
+        transcripts_xml = re.sub(r"<\/speech>\n\s+\n", "</speech>\n <speech />\n", transcripts_xml)
         transcripts = []
         for elt in ET.fromstring(transcripts_xml):
             if elt.tag == "content":
                 for elt in elt:
                     if elt.tag == "speech":
-                        if elt.text:
+                        if elt.text and elt.text.strip():
                             transcript = elt.text.strip().replace("’", "'")
                             if transcript[-1] not in [".", "!", "?"]:
                                 transcript += "."
@@ -51,6 +54,8 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
                                 transcripts[-1] += " " + transcript
                         elif len(transcripts) and transcripts[-1] is not None:
                             transcripts.append(None)
+                    else:
+                        print("WARNING: Unknown tag", elt.tag)
         transcripts = [t for t in transcripts if t is not None]
     else:
         print("WARNING: NO XML !!!!")
@@ -69,6 +74,9 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
         auto_transcript_start = datetime.strptime(auto_transcript_start[:-6], "%Y-%m-%dT%H:%M:%S")
 
     new_transcripts = []
+
+    audio_start = None
+    audio_end = None
 
     # Get words and timestamps from automatic transcript
     auto_words = []
@@ -99,6 +107,9 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
         else:
             raise ValueError(f"Unknown tag {elt.tag}")
         for start, word in zip(starts, words):
+            if audio_start is None:
+                audio_start = start
+            audio_end = start
             assert start is not None
             start = start - auto_transcript_start
             # concert datetime.timedelta to seconds
@@ -107,9 +118,15 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             auto_words.append(word)
             auto_starts.append(start)
 
+    audio_duration = audio_end - audio_start
+    annotation_duration = 0
+
     assert len(auto_words) > 0, "No words in automatic transcript"
 
-    for transcript in transcripts:
+    for i_transcript, transcript in enumerate(transcripts):
+
+        annotation_start = None
+        annotation_end = None
 
         # Get words from manual transcript
         # (split around ' and spaces)
@@ -119,7 +136,7 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             indices = find_best_position_dtw(
                 [format_text_latin(w) for w in words],
                 [format_text_latin(w) for w in auto_words],
-                plot = plot,
+                plot = f"{plot}-{i_transcript}",
             )
             indices = indices["indices"]
         else:
@@ -156,6 +173,9 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             current_segment += word
 
             if word[-1] in [".", "!", "?"]:
+                if annotation_start is None:
+                    annotation_start = current_start
+                annotation_end = end
                 new_transcripts.append([
                     current_segment,
                     current_start,
@@ -178,7 +198,10 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             return 
         assert current_segment is None
 
-    return new_transcripts
+        annotation_duration += (annotation_end - annotation_start)
+
+
+    return new_transcripts, audio_duration, annotation_duration
 
 def time2str(time):
     if time is None:
@@ -216,9 +239,12 @@ if __name__ == "__main__":
 
     import sys
 
-    DIRIN="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_batch"
-    DIROUT="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-1/annotation_new"
+    DIRIN="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-2/annotation_batch"
+    DIROUT="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/ADAY/dev-2/annotation_new"
     
+
+    audio_durations = []
+    annotation_durations = []
 
     for file_in in sorted(os.listdir(DIRIN)):
 
@@ -228,17 +254,41 @@ if __name__ == "__main__":
         file_in = os.path.join(DIRIN, file_in)
         file_out = os.path.join(DIROUT, os.path.basename(file_in))
 
-        if os.path.isfile(file_out):
-            print(f"WARNING: file already exists: {file_out}")
-            continue
+        # if os.path.isfile(file_out):
+        #     print(f"WARNING: file already exists: {file_out}")
+        #     continue
 
         print("================================")
         print(file_in)
-        annot = realign_annotations(file_in, word_strategy = True, plot = "--plot" in sys.argv, verbose = False)
+        annot, audio_duration, annotation_duration = realign_annotations(file_in, word_strategy = True, plot = "--plot" in sys.argv, verbose = False)
+        print(f"Annotation duration: {annotation_duration}/{audio_duration} ({annotation_duration/audio_duration*100:.2f}%)")
+        audio_durations.append(audio_duration)
+        annotation_durations.append(annotation_duration)
         if annot is None:
             print("WARNING: SOMETHING WENT WRONG")
             continue
         save_annotation(annot, file_out)
+
+    total_annotation_duration = sum(annotation_durations)
+    total_audio_duration = sum(audio_durations)
+
+    print(f"Total annotated duration: {total_annotation_duration}/{total_audio_duration} ({total_annotation_duration/total_audio_duration*100:.2f}%)")
+    print(f"Audio duration: min = {min(audio_durations)/60}, max = {max(audio_durations)/60}, mean = {sum(audio_durations)/len(audio_durations)/60}, total = {sum(audio_durations)/60}")
+
+    import matplotlib.pyplot as plt
+    ratios = [100*a/audio_duration for a, audio_duration in zip(annotation_durations, audio_durations)]
+    plt.figure()
+    plt.hist(ratios, bins = 100, range=(floor(min(ratios) - .1), ceil(max(ratios) + .1)))
+    plt.xlabel("Portion d'audio annotée manuellement (%)")
+
+    # Plot cumulative distribution
+    ratios.sort()
+    plt.figure()
+    plt.plot(ratios, [100*(i+1)/len(ratios) for i in range(len(ratios))])
+    plt.xlabel("Portion d'audio annotée manuellement (%)")
+    plt.ylabel("Distribution cumulée (%)")
+
+    plt.show()
 
 
 
