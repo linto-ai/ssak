@@ -186,15 +186,18 @@ def kaldi_folder_to_dataset(
     if verbose:
         print("Parsing", kaldi_path, "(no segments)" if not has_segment else "")
 
-    with open(kaldi_path + "/text") as f:
+    with open(kaldi_path + "/text", encoding="utf8") as f:
         def split_line(line):
             res = line.strip().split(" ", 1)
             if len(res) == 1:
                 res = [res[0], ""]
             return res
-        uttids, annots = zip(*map(split_line, f))
-        uttids = list(uttids)
-        annots = list(annots)
+        try:
+            uttids, annots = zip(*map(split_line, f))
+            uttids = list(uttids)
+            annots = list(annots)
+        except Exception as err:
+            raise RuntimeError("Error while parsing %s/text" % (kaldi_path)) from err
 
     if not choose_data_with_max_len and max_data and max_data < len(uttids):
         random.seed(69)
