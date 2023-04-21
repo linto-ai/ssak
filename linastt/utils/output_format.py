@@ -18,6 +18,7 @@ def to_linstt_transcription(transcription,
     include_punctuation_in_timestamp=False,
     remove_empty_words=True,
     recompute_text=True,
+    warn_if_missing_words=True,
     ):
 
     if isinstance(transcription, str):
@@ -60,7 +61,8 @@ def to_linstt_transcription(transcription,
                         word_key = k
                         break
             if word_key not in seg:
-                print(f"WARNING: could not find word-level information for segment {i}")
+                if warn_if_missing_words:
+                    print(f"WARNING: could not find word-level information for segment {i}")
             else:
                 new_words = []
                 for j, word in enumerate(seg[word_key]):
@@ -348,6 +350,9 @@ def read_simple_txt(file):
 
 
 def read_simple_csv(transcription, delimiter=","):
+    """
+    Read a csv that has a header with: "path", "start", "end" or "duration", and "text" (case insensitive)
+    """
 
     with open(transcription, 'r', encoding="utf8") as f:
         csvreader = csv.reader(f, delimiter=delimiter)
@@ -356,7 +361,7 @@ def read_simple_csv(transcription, delimiter=","):
             if i == 0:
                 # Read CSV Header
                 if len(row) == 1:
-                    delimiters = [s for s in [";", "\t"] if s in row[0]]
+                    delimiters = [s for s in [";", "\t", "|"] if s in row[0]]
                     if len(delimiters) == 0:
                         raise ValueError(f"Could not find delimiter in {transcription}")
                     delimiter = delimiters[0]
@@ -387,6 +392,7 @@ def read_simple_csv(transcription, delimiter=","):
                     "start": start,
                     "end": end,
                 })
+        segments = sorted(segments, key=lambda x: x["start"])
     return {
         "text": " ".join([s["text"] for s in segments]),
         "segments": segments,
