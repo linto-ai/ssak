@@ -7,10 +7,18 @@ import torchaudio
 
 from linastt.utils.curl import curl_post, curl_get
 
+DIARIZATION_SERVICES = {
+    "pybk": "stt-diarization-pybk",
+    "pyannote": "stt-diarization-pyannote",
+    "simple": "stt-diarization-simple",
+}
+
 def linstt_transcribe(
         audio_file,
         transcription_server="https://api.linto.ai/stt-french-generic",
         diarization_server=None,
+        diarization_service_name=DIARIZATION_SERVICES["simple"],
+        force_16k = False,
         convert_numbers=True,
         punctuation=True,
         diarization=False,
@@ -18,7 +26,7 @@ def linstt_transcribe(
         wordsub={},
         verbose=False,
         timeout = 3600,
-        timeout_progress0 = 30, # For transcription that is never starting (seems to be a bug currently)
+        timeout_progress0 = 60, # For transcription that is never starting (seems to be a bug currently)
         ping_interval = 1,
         delete_temp_files = True,
         transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
@@ -46,7 +54,7 @@ def linstt_transcribe(
 
     to_be_deleted = []
 
-    if not check_wav_16khz_mono(audio_file):
+    if force_16k and not check_wav_16khz_mono(audio_file):
         converted_file = os.path.basename(audio_file) + "_16kHz_mono.wav"
         if not os.path.isfile(converted_file) or not check_wav_16khz_mono(converted_file):
             convert_wav_16khz_mono(audio_file, converted_file)
@@ -73,7 +81,7 @@ def linstt_transcribe(
                     "enableDiarization": True if diarization else False,
                     "numberOfSpeaker": numberOfSpeaker,
                     "maxNumberOfSpeaker": maxNumberOfSpeaker,
-                    "serviceName": None,
+                    "serviceName": diarization_service_name,
                 }
             },
             "force_sync": False
@@ -153,6 +161,9 @@ def linstt_transcribe(
             )
             assert "state" in result_id, f"'state' not found in response: {result_id}"
             if result_id["state"] == "done":
+                break
+            if result_id["state"] == "failed":
+                raise RuntimeError(f"Job failed for reason:\n{result_id['reason']}")
                 break
             time.sleep(ping_interval)
             slept += ping_interval
