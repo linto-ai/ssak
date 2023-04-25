@@ -20,8 +20,9 @@ def custom_text_normalization(transcript):
     transcript = remove_special_words(transcript)
     transcript = transcript.replace("numérohuit8", "numéro huit")
     transcript = transcript.replace('"','')
-    transcript = transcript.replace("disaisâ", "disais ah").replace('à§','ç').replace("à¨","è").replace("à©", "é").replace("àª", "ê").replace("à´","ô").replace("à¹","ù").replace("à®","î").replace("à¢","â")
-    transcript = transcript.strip("â")
+    # DEPRECATED (encoding issues)
+    # transcript = transcript.replace("disaisâ", "disais ah").replace('à§','ç').replace("à¨","è").replace("à©", "é").replace("àª", "ê").replace("à´","ô").replace("à¹","ù").replace("à®","î").replace("à¢","â")
+    # transcript = transcript.strip("â")
     transcript = re.sub(r" +", " ", transcript).strip()
     return transcript
 
