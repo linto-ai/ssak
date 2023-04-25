@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies, remove_arabic_diacritics
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
 from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
@@ -15,6 +15,21 @@ _regex_all_punctuation = regex_unescape(_all_punctuation)
 def bw_transliterate(text):
     return bw.transliterate(text)
     
+arabic_diacritics = re.compile("""
+                             ّ    | # Tashdid
+                             َ    | # Fatha
+                             ً    | # Tanwin Fath
+                             ُ    | # Damma
+                             ٌ    | # Tanwin Damm
+                             ِ    | # Kasra
+                             ٍ    | # Tanwin Kasr
+                             ْ    | # Sukun
+                             ـ     # Tatwil/Kashida
+                         """, re.VERBOSE)
+
+def remove_arabic_diacritics(text):
+    text = re.sub(arabic_diacritics, '', text)
+    return text
 
 def convert_hindi_numbers(text):
     text = text.replace('۰', '0')
@@ -46,13 +61,6 @@ def normalize_punct(text):
 
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
-
-
-# this function can split sentences.
-def split_around(text, punctuation = _regex_all_punctuation):
-    sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]|$)", text)
-    return ["".join(s).strip() for s in sentences]
-
 
 
 # this function can get only the arabic chars with/without punctuation.

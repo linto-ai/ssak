@@ -11,23 +11,7 @@ def custom_formatwarning(msg, *args, **kwargs):
     return str(msg) + '\n'
 warnings.formatwarning = custom_formatwarning
 
-arabic_diacritics = re.compile("""
-                             ّ    | # Tashdid
-                             َ    | # Fatha
-                             ً    | # Tanwin Fath
-                             ُ    | # Damma
-                             ٌ    | # Tanwin Damm
-                             ِ    | # Kasra
-                             ٍ    | # Tanwin Kasr
-                             ْ    | # Sukun
-                             ـ     # Tatwil/Kashida
-                         """, re.VERBOSE)
 
-def remove_arabic_diacritics(text):
-    text = re.sub(arabic_diacritics, '', text)
-    return text
-
-_whitespace_re = re.compile(r'[\s\r\n]+')
 
 def collapse_whitespace(text):
     return re.sub(_whitespace_re, ' ', text).strip()
@@ -38,6 +22,8 @@ def transliterate(c):
     # This is useful for converting Vietnamese text to ASCII.
     # See https://stackoverflow.com/a/517974/446579
     return unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("ascii")
+
+_whitespace_re = re.compile(r'[\s\r\n]+')
 
 _special_characters_pattern = re.compile("["
                             u"\U0001F600-\U0001F64F"  # emoticons
@@ -59,8 +45,6 @@ _special_characters_pattern = re.compile("["
                             u"\ufe0f"  # dingbats
                             u"\u3030"
                             "]+", flags=re.UNICODE)
-
-
 
 _symbol_to_word = {
     "fr": {
@@ -348,6 +332,49 @@ def remove_punctuations(text, strong = False):
     if strong:
         return text.translate(str.maketrans('', '', _punctuation_strong))
     return text.translate(str.maketrans('', '', _punctuation))
+
+# this function can split sentences.
+def split_around(
+        text,
+        punctuation = _punctuation,
+        must_not_end_with=None,
+        has_to_start_with=None,
+        min_length=0,
+        ):
+    """
+    Split text around punctuation.
+
+    Args:
+        text (str): text to split
+        punctuation (str): punctuation to split around
+        must_not_end_with (str): if the sentence ends with this *regex*, it will be glued to the next sentence
+        has_to_start_with (str): if the sentence does not start with this *regex*, it will be glued to the previous sentence
+        min_length (int): if the sentence is shorter than this, it will be glued to the next sentence
+    """
+    sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]+|$)", text)
+    sentences = ["".join(s) for s in sentences]
+    if must_not_end_with or has_to_start_with or min_length:
+        new_sentences = []
+        has_to_be_glued = False
+        for s in sentences:
+            next_has_to_be_glued = False
+            if must_not_end_with and re.match(r".*"+must_not_end_with+r"$", s):
+                next_has_to_be_glued = True
+            
+            if has_to_start_with and len(new_sentences) and len(s) and not re.match(r"^"+has_to_start_with, s):
+                has_to_be_glued = True
+
+            if has_to_be_glued:
+                new_sentences[-1]+= s
+            else:
+                new_sentences.append(s)
+
+            if min_length and len(new_sentences[-1]) < min_length:
+                next_has_to_be_glued = True
+            has_to_be_glued = next_has_to_be_glued
+        sentences = new_sentences
+
+    return [s.strip() for s in sentences]
 
 def split_around_apostrophe(text):
     words = text.split("'")
