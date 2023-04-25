@@ -13,7 +13,7 @@ from .misc import hashmd5
 
 import datasets
 import transformers
-
+import pandas as pd
 import numpy as np
 try:
     np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) # VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
@@ -34,14 +34,17 @@ def kaldi_folder_to_dataset(
     sort_by_len = 0,
     weights = 1,
     split = None,
-    return_csv = False,
+    return_format = "dataset",
     include_duration = False,
+    # TODO include_speaker = False,
     verbose = True,
     logstream = None,
     do_cache = True,
     ):
     """
-    Take a kaldi folder and returns a tuple (metadata dict, HuggingFace dataset)
+    Take a kaldi folder and returns a tuple (metadata dict, dataset)
+
+    The class of dataset depends on option return_format
 
     Parameters
     ----------
@@ -63,11 +66,14 @@ def kaldi_folder_to_dataset(
         Data will be duplicated (upsampled when weights > 1).
     choose_data_with_max_len : bool
         If True and max_data is not None, the longest utterances will be chosen (good for testing if everything fits in memory).
-    return_csv : bool
-        If True, return the CSV file instead of the dataset.
+    return_format : "dataset" / "csv" / "pandas"
+        Output format:
+        - "dataset": a HuggingFace dataset
+        - "csv": a csv file
+        - "pandas": a pandas pandas
     include_duration : bool
         If True, include the duration of the audio in the dataset.
-        Only has an effect if return_csv is True.
+        Warning: does not have any effect if return_format="dataset".
     split : str
         Split to use ("train", "dev", "test"). If None, unspecified.
     verbose : bool
@@ -81,6 +87,19 @@ def kaldi_folder_to_dataset(
     -------
     dataset : datasets.Dataset
     """
+
+    opts = dict((k,v) for k,v in locals().items() if "kaldi_path" not in k)
+
+    assert return_format in ["dataset", "csv", "pandas"], f"return_format {return_format} must be 'dataset', 'csv' or 'pandas'"
+
+    if return_format == "pandas":
+        opts["return_format"] = "csv"
+        meta, csv_file = kaldi_folder_to_dataset(kaldi_path, **opts)
+        ds = pd.read_csv(csv_file)
+        os.remove(csv_file)
+        return meta, ds
+
+    use_csv = return_format in ["csv"]
 
     # Logging business (start)
     ds_progress_bar = datasets.utils.is_progress_bar_enabled()
@@ -103,24 +122,15 @@ def kaldi_folder_to_dataset(
     if not isinstance(kaldi_path, str):
         if not isinstance(weights, list):
             weights = [weights] * len(kaldi_path)
-        ds = [kaldi_folder_to_dataset(
-            p,
-            online = False, shuffle = False,
-            max_data = max_data,
-            min_len = min_len,
-            max_len = max_len,
-            choose_data_with_max_len = choose_data_with_max_len,
-            sort_by_len = sort_by_len,
-            weights = w,
-            include_duration = include_duration,
-            split = split,
-            verbose = verbose,
-            logstream = logstream,
-            do_cache = False) for p,w in zip(kaldi_path, weights)]
+
+        opts["online"] = False
+        opts["shuffle"] = False
+        opts["do_cache"] = False
+        ds = [kaldi_folder_to_dataset(p, **(opts | {"weights": w})) for p,w in zip(kaldi_path, weights)]
 
         dataset = datasets.concatenate_datasets([d[1] for d in ds])
         if do_cache:
-            dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = return_csv)
+            dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = use_csv)
 
         meta = {
             "samples": sum([d[0]["samples"] for d in ds]),
@@ -157,23 +167,7 @@ def kaldi_folder_to_dataset(
                         assert len(new_weights) > 0, "File cannot start with a weight (first a folder name, then a weight)"
                         new_weights[-1] *= w
         
-        return kaldi_folder_to_dataset(
-            new_kaldi_path,
-            online = online,
-            shuffle = shuffle,
-            max_data = max_data,
-            min_len = min_len,
-            max_len = max_len,
-            choose_data_with_max_len = choose_data_with_max_len,
-            sort_by_len = sort_by_len,
-            weights = new_weights,
-            split = split,
-            return_csv = return_csv,
-            include_duration = include_duration,
-            verbose = verbose,
-            logstream = logstream,
-            do_cache = do_cache,
-        )
+        return kaldi_folder_to_dataset(new_kaldi_path, **opts)
 
     elif not os.path.isdir(kaldi_path):
         raise RuntimeError("Could not find folder %s" % kaldi_path)
@@ -355,7 +349,7 @@ def kaldi_folder_to_dataset(
     )
 
     if do_cache:
-        dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = return_csv)
+        dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = use_csv)
 
     meta = {
         "samples": len(uttids),
@@ -765,7 +759,6 @@ def to_annotation_text(input):
         
         if os.path.isdir(input) or os.path.isfile(input):
             _, dataset = kaldi_folder_to_dataset(input)
-            batch = []
             for data in dataset:
                 yield data["text"]
 
@@ -773,7 +766,6 @@ def to_annotation_text(input):
             raise ValueError(f"Cannot interpret {input} as a file or a directory")
 
     elif isinstance(input, list):
-        batch = []
         for data in input:
             for text in to_annotation_text(data):
                 yield text

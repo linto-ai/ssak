@@ -86,7 +86,7 @@ if __name__ == "__main__":
         # Kaldi folder:
         # We will filter corresponding to this wav file
         from linastt.utils.dataset import kaldi_folder_to_dataset
-        _, tmp_file = kaldi_folder_to_dataset(results_file, return_csv=True)
+        _, tmp_file = kaldi_folder_to_dataset(results_file, return_format="csv")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=True) as tmp:
             with open(tmp_file, 'r', encoding="utf8") as fin, \
                 open(tmp.name, 'w', encoding="utf8") as fout:

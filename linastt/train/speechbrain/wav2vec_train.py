@@ -348,7 +348,7 @@ def dataio_prepare(hparams, tokenizer):
 
     trainsetmeta, traincsv = kaldi_folder_to_dataset(
         hparams["train"],
-        return_csv = True, include_duration = True,
+        return_format = "csv", include_duration = True,
         shuffle = True,
         max_data = max(1, int((hparams["debug_num_batches"] * hparams["batch_size"]))) if DEBUG else None,
         choose_data_with_max_len = DEBUG,
@@ -358,7 +358,7 @@ def dataio_prepare(hparams, tokenizer):
     )
     testsetmeta, testcsv = kaldi_folder_to_dataset(
         hparams["valid"],
-        return_csv = True, include_duration = True,
+        return_format = "csv", include_duration = True,
         shuffle = False,
         max_data = max(1, int((2 * hparams["test_batch_size"]))) if DEBUG else 480,
         choose_data_with_max_len = DEBUG,
