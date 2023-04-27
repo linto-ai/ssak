@@ -160,6 +160,8 @@ def find_best_position_dtw(subsequence, sequence,
         figure1.savefig(plot+"_1.png")
         figure2.savefig(plot+"_2.png")
         figure3.savefig(plot+"_3.png")
+        for fig in [figure1, figure2, figure3]:
+            plt.close(fig)
     elif plot:
         plt.show()
 

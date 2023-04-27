@@ -1,11 +1,12 @@
 import re
 import math
+import warnings
 
 from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, regex_unescape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
 
 def remove_special_words(text,
     glue_apostrophe = True,
-    extra = True,
+    glue_dash = None,
     ):
     """
     Small process designed for text that has ALREADY been processed (ex: "8" -> "huit"), but some special words might still be present (ex: "<noise>")
@@ -19,24 +20,21 @@ def remove_special_words(text,
         print("PROBLEM WITH TEXT:", text, type(text))
         text = re.sub(r"<.*?>", "", text)
     
-    if glue_apostrophe:
-        text = re.sub(r"'[^\S\r\n]+", "'", text)
-    else:
+    if glue_apostrophe is True:
+        text = re.sub(r"[^\S]+'[^\S]+", "'", text)
+    elif glue_apostrophe is False:
         text = re.sub(r"'", "' ", text).strip()
 
-    if extra:
-        text = re.sub(r"\" ", " ", text)
-        text = re.sub(r":", " ", text)
-        text = re.sub(r"\+", " plus ", text)
-        text = re.sub(r"1", " un ", text)
-        text = re.sub(r"2", " deux ", text)
-        text = re.sub(r"3", " trois ", text)
-        text = re.sub(r"4", " quatre ", text)
-        text = re.sub(r"5", " cinq ", text)
-        text = re.sub(r"6", " six ", text)
-        text = re.sub(r"7", " sept ", text)
-        text = re.sub(r"8", " huit ", text)
-        text = re.sub(r"9", " neuf ", text)
+    if glue_dash is True:
+        text = re.sub(r"[^\S]+\-[^\S]+", "-", text)
+    elif glue_dash is False:
+        text = re.sub(r"\-", "- ", text).strip()
+    if glue_dash == "right":
+        text = re.sub(r"\-[^\S]+", "-", text)
+        text = re.sub("-", " -", text)
+    if glue_dash == "left":
+        text = re.sub(r"[^\S]+\-", "-", text)
+        text = re.sub("-", "- ", text)
 
     text = collapse_whitespace(text)
 
@@ -255,7 +253,7 @@ def format_text_latin(text,
             digits = re.findall(
                 r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
         else:
-            logger.warn(
+            warnings.warn(
                 f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
             digits = []
         if digits:

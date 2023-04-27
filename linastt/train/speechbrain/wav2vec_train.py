@@ -7,6 +7,7 @@ from linastt.utils.text import remove_special_words
 from linastt.utils.logs import get_num_gpus
 from linastt.utils.augment import SpeechAugment
 from linastt.utils.misc import save_source_dir, get_cache_dir, hashmd5
+from linastt.utils.text_utils import collapse_whitespace
 from linastt.utils.yaml_utils import easy_yaml_load
 from linastt.infer.speechbrain_infer import speechbrain_load_model, speechbrain_cachedir
 from linastt.train.speechbrain.wav2vec_finalize import finalize_folder
@@ -347,7 +348,7 @@ def dataio_prepare(hparams, tokenizer):
 
     trainsetmeta, traincsv = kaldi_folder_to_dataset(
         hparams["train"],
-        return_csv = True, include_duration = True,
+        return_format = "csv", include_duration = True,
         shuffle = True,
         max_data = max(1, int((hparams["debug_num_batches"] * hparams["batch_size"]))) if DEBUG else None,
         choose_data_with_max_len = DEBUG,
@@ -357,7 +358,7 @@ def dataio_prepare(hparams, tokenizer):
     )
     testsetmeta, testcsv = kaldi_folder_to_dataset(
         hparams["valid"],
-        return_csv = True, include_duration = True,
+        return_format = "csv", include_duration = True,
         shuffle = False,
         max_data = max(1, int((2 * hparams["test_batch_size"]))) if DEBUG else 480,
         choose_data_with_max_len = DEBUG,
@@ -427,7 +428,6 @@ def dataio_prepare(hparams, tokenizer):
 
     sb.dataio.dataset.add_dynamic_item(datasets, audio_pipeline)
 
-    _whitespace_re = re.compile(r'[^\S\r\n]+')
     pretrained_tokenizer = "base_model" in hparams and hparams["base_model"] in ["speechbrain/asr-wav2vec2-commonvoice-fr"]
 
     # 3. Define text pipeline:
@@ -438,7 +438,7 @@ def dataio_prepare(hparams, tokenizer):
         if pretrained_tokenizer:
             wrd = wrd.upper()
             wrd = wrd.replace("'", " ")
-            wrd = re.sub(_whitespace_re, ' ', wrd).strip()
+            wrd = collapse_whitespace(wrd)
         tokens_list = tokenizer.encode_as_ids(wrd)
         return torch.LongTensor(tokens_list)
 

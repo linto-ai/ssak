@@ -5,6 +5,8 @@ import os
 from linastt.utils.player import play_audiofile
 from linastt.utils.output_format import to_linstt_transcription
 
+import tempfile
+import csv
 
 def check_results(audio_file, results, min_sec = 0, play_segment = False, play_silences = False):
 
@@ -69,7 +71,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Play audio file using results from a segmentation into words / segments')
     parser.add_argument('audio_file', type=str, help='Audio file')
-    parser.add_argument('results_file', type=str, help='Results file')
+    parser.add_argument('results_file', type=str, help='Results file or Kaldi folder')
     parser.add_argument('--segments', default=False, action='store_true', help='Play segments instead of words')
     parser.add_argument('--min_sec', default=0, type=float, help='Minimum second to start playing from (default: 0)')
     parser.add_argument('--play_silences', default=False, action="store_true", help='Play silence between words')
@@ -79,9 +81,35 @@ if __name__ == "__main__":
     results_file = args.results_file
 
     assert os.path.isfile(audio_file), f"Cannot find audio file {audio_file}"
-    assert os.path.isfile(results_file), f"Cannot find result file {results_file}"
 
-    results = to_linstt_transcription(results_file)
+    if os.path.isdir(results_file):
+        # Kaldi folder:
+        # We will filter corresponding to this wav file
+        from linastt.utils.dataset import kaldi_folder_to_dataset
+        _, tmp_file = kaldi_folder_to_dataset(results_file, return_format="csv")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=True) as tmp:
+            with open(tmp_file, 'r', encoding="utf8") as fin, \
+                open(tmp.name, 'w', encoding="utf8") as fout:
+                csvreader = csv.reader(fin)
+                csvwriter = csv.writer(fout)
+                wrote_something = False
+                for i, row in enumerate(csvreader):
+                    if i == 0:
+                        # Read header
+                        ipath = row.index("path")
+                    else:
+                        path = row[ipath]
+                        if os.path.basename(path) != os.path.basename(audio_file):
+                            continue
+                        wrote_something = True
+                    csvwriter.writerow(row)
+                if not wrote_something:
+                    raise ValueError(f"Cannot find occurrence of {audio_file} in {results_file}/wav.scp")
+            os.remove(tmp_file)
+            results = to_linstt_transcription(tmp.name, warn_if_missing_words = not args.segments)
+    else:
+        assert os.path.isfile(results_file), f"Cannot find result file {results_file}"
+        results = to_linstt_transcription(results_file, warn_if_missing_words = not args.segments)
 
     check_results(audio_file, results,
                   play_segment=args.segments,

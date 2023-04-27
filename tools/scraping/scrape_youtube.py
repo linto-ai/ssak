@@ -96,27 +96,36 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
         return msg
     return res
 
+DRIVER = None
 
 # scrape the ids using a search query
-def search_videos_ids(search_query, open_browser=False):
-    # Set up Firefox driver
-    options = webdriver.FirefoxOptions()
-    if not open_browser:
-        options.add_argument("--headless")
+def search_videos_ids(search_query, open_browser=False, use_global_driver=True):
 
-    driver = webdriver.Firefox(options=options) # , executable_path=GeckoDriverManager().install())
+    global DRIVER
+    if DRIVER is None or not use_global_driver:
+
+        # Set up Firefox driver
+        options = webdriver.FirefoxOptions()
+        if not open_browser:
+            options.add_argument("--headless")
+
+        try:
+            DRIVER = webdriver.Firefox(options=options)
+        except Exception as err:
+            raise RuntimeError("Could not start Firefox driver. You may need to install Firefox:\n\
+                            apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
     try:
         # Navigate to YouTube and search for videos with subtitles
-        driver.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
+        DRIVER.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
 
         # Scroll down the page to load more videos
         SCROLL_PAUSE_TIME = 2
-        last_height = driver.execute_script("return document.documentElement.scrollHeight")
+        last_height = DRIVER.execute_script("return document.documentElement.scrollHeight")
         num_scrolls = 0
         while True:
-            driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+            DRIVER.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
             time.sleep(SCROLL_PAUSE_TIME)
-            new_height = driver.execute_script("return document.documentElement.scrollHeight")
+            new_height = DRIVER.execute_script("return document.documentElement.scrollHeight")
             if new_height == last_height:
                 break
             last_height = new_height
@@ -124,11 +133,12 @@ def search_videos_ids(search_query, open_browser=False):
             print(f"Scrolled {num_scrolls} time{'s' if num_scrolls>1 else ''} for query \"{search_query}\"...")
 
         # Extract video IDs from search results
-        video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(driver.page_source)))))
+        video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(DRIVER.page_source)))))
         print(f'Found {len(video_ids)} video IDs for query \"{search_query}\"')
         
     finally:
-        driver.close()   
+        if not use_global_driver:
+            DRIVER.close()
     return video_ids
 
 
