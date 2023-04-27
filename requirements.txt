@@ -1,5 +1,6 @@
 accelerate
 audiomentations
+bitsandbytes   
 datasets
 datasets[audio]
 dtw-python
@@ -7,11 +8,15 @@ envsubst
 huggingface_hub
 ipython
 jiwer
-lang-trans
+langid
+lang-trans==0.7.0
 librosa
+loralib
+loralib
 matplotlib
 num2words
 onnxruntime
+peft
 psutil
 py3nvml
 pyannote.audio
@@ -28,7 +33,3 @@ torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
 transformers
 vosk
-langid
-bitsandbytes   
-loralib
-peft
