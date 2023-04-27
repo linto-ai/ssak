@@ -9,7 +9,7 @@ huggingface_hub
 ipython
 jiwer
 langid
-lang-trans==0.7.0
+lang-trans
 librosa
 loralib
 loralib
