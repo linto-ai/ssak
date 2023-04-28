@@ -73,7 +73,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends firefox-esr
 # ENV LANGUAGE fr_FR:en  
 # ENV LC_ALL fr_FR.UTF-8
  
-ENV PATH="/usr/local/cuda-11.6/bin:/usr/local/cuda-11.3/bin:/usr/local/cuda-11.1/bin:$PATH"
-ENV LD_LIBRARY_PATH="/usr/local/cuda-11.6/lib:/usr/local/cuda-11.3/lib:/usr/local/cuda-11.1/lib:$LD_LIBRARY_PATH"
+# ENV LD_LIBRARY_PATH="/usr/local/lib/python3.9/site-packages/nvidia/curand/lib/:$LD_LIBRARY_PATH"
 
 ENTRYPOINT ["/bin/bash"]
