@@ -187,6 +187,14 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     parser.add_argument("-o", "--overwrite", action="store_true", help="Overwrite existing conversations with the same name")
     parser.add_argument("--new", action="store_true", help="Do not post if the conversation already exists")
+    parser_stt = parser.add_argument_group('Options to run transcription when no transcription is provided')
+    parser_stt.add_argument('--transcription_server', type=str, help='Transcription server',
+        # default="https://alpha.api.linto.ai/stt-french-generic",
+        default="https://api.linto.ai/stt-french-generic",
+    )
+    parser_stt.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
+    parser_stt.add_argument('--convert_numbers', default = True, action='store_true', help='Convert numbers to text')
+    parser_stt.add_argument('--diarization_service_name', default = "stt-diarization-simple", help='Diarization service name')
     args = parser.parse_args()
 
     if not args.url.endswith("cm-api"):
@@ -207,7 +215,10 @@ if __name__ == "__main__":
         default_name += " - LinSTT"
     
         args.transcription = linstt_transcribe(args.audio,
-            wordsub={},
+            transcription_server=args.transcription_server,
+            diarization=args.num_spearkers,
+            convert_numbers=args.convert_numbers,
+            diarization_service_name=args.diarization_service_name,
             verbose=args.verbose,
         )
         if args.verbose:

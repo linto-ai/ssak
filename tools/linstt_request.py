@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser.add_argument('--diarization_server', type=str, help='Diarization server', default= None)
     parser.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
     parser.add_argument('--convert_numbers', default = True, action='store_true', help='Convert numbers to text')
+    parser.add_argument('--diarization_service_name', default = "stt-diarization-simple", help='Diarization service name')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     # parser.add_argument('--return_raw', default = True, action='store_true', help='Convert numbers to text')
     args = parser.parse_args()
@@ -39,6 +40,7 @@ if __name__ == "__main__":
                     diarization_server=args.diarization_server,
                     diarization=args.num_spearkers,
                     convert_numbers=args.convert_numbers,
+                    diarization_service_name=args.diarization_service_name,
                     verbose=args.verbose,
                 )
             except Exception as e:
