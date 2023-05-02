@@ -267,11 +267,15 @@ def scrape(
     ignore_article_if = None,
     close_at_the_end = True,
     check_article = False,
+    open_browser = False,
     ):
 
     print("Scrapping", website)
 
-    driver = webdriver.Firefox()
+    options = webdriver.FirefoxOptions()
+    if not open_browser:
+        options.add_argument("--headless")
+    driver = webdriver.Firefox(options=options)
 
     text_to_discard = [ norm_text(t) for t in [
         "\nChoix de consentement © Copyright 20\xa0Minutes  - La fréquentation de 20\xa0Minutes est certifiée par l’ACPM \n",
@@ -503,15 +507,15 @@ def scrape(
 
 if __name__ == "__main__":
 
-    print("Note that you can disable graphical interface by doing:\n\
-```\n\
-#install Xvfb\n\
-sudo apt-get install xvfb\n\
-\n\
-#set display number to :99\n\
-Xvfb :99 -ac &\n\
-export DISPLAY=:99\n\
-```")
+#     print("Note that you can disable graphical interface by doing:\n\
+# ```\n\
+# #install Xvfb\n\
+# sudo apt-get install xvfb\n\
+# \n\
+# #set display number to :99\n\
+# Xvfb :99 -ac &\n\
+# export DISPLAY=:99\n\
+# ```")
 
     import argparse
 
@@ -528,6 +532,7 @@ export DISPLAY=:99\n\
     TEST_MODE = args.max_articles_per_website is not None
 
     kwargs = {
+        "open_browser": args.no_close,
         "close_at_the_end" : not args.no_close,
         "verbose" : 2 if args.verbose or TEST_MODE else 1,
         "max_pages" : args.max_articles_per_website,
