@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+# Hedi Naouara
+# hnaouara@linagora.com
+## ____HN____
+from linastt.utils.text_ar import format_text_ar
+from linastt.utils.text_latin import format_text_latin
 
-# handle option --gpus (and set environment variables at the beginning)
-from linastt.utils.env import *
-from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
-from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
-from linastt.utils.augment import SpeechAugment
-from linastt.utils.misc import hashmd5, save_source_dir, remove_commonprefix
-
+import librosa
+import re
+import evaluate
 
 import sys
 import os
@@ -15,20 +15,22 @@ import datetime
 import json
 import random
 
-import datasets
+from datasets import DatasetDict, Dataset, concatenate_datasets
+
 import transformers
 import torch
 import numpy as np
 
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import numpy as np
-import gc
-
-from dataclasses import dataclass
-from typing import Any, Dict, List, Union
-from peft import prepare_model_for_int8_training, LoraConfig, PeftModel, LoraModel, PeftConfig, get_peft_model
-
+from audiomentations import(
+    AddBackgroundNoise,
+    AddGaussianNoise,
+    Compose,
+    Gain,
+    OneOf,
+    PitchShift,
+    PolarityInversion,
+    TimeStretch
+) 
 from transformers import (
     WhisperForConditionalGeneration,
     WhisperProcessor,
@@ -39,10 +41,83 @@ from transformers import (
 
 )
 
+from dataclasses import dataclass
+from typing import Any, Dict, List, Union
+from peft import prepare_model_for_int8_training, LoraConfig, PeftModel, LoraModel, PeftConfig, get_peft_model
 
-from transformers import TrainerState, TrainerControl
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-import evaluate
+def set_device_map(device_map):
+    if device_map == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device_map == "cpu":
+        device = "cpu"
+    else:
+        devices = device_map.split()
+        device = {f"cuda:{i}": i for i in range(len(devices))}
+    
+    return device
+
+def augment_dataset(batch):
+    batch["audio"] = augmentation(batch["input_features"], sample_rate=16000)
+    return batch
+
+def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length=480000):
+    data_list = []
+
+    with open(transcription_file, "r", encoding="utf-8") as trans_file:
+        for line in trans_file:
+            line_parts = line.strip().split(" ")
+            if len(line_parts) < 2:
+                continue
+            id_wav, text = line_parts[0], " ".join(line_parts[1:])
+            wav_path = os.path.join(str(data_dir), "wavs", f"{id_wav}.wav")
+            audio, sr = librosa.load(wav_path, sr=16000)
+            if audio.shape[0] > audio_max_sample_length:
+                print(len(text), audio.shape[0])
+                continue
+            data_list.append((id_wav, wav_path, text, sr))
+
+    # convert data_list to a dictionary of lists
+    dataset_dict = {'id_wav': [], 'wav_path': [], 'text': [], 'sr': []}
+
+    for id_wav, wav_path, text, sr in data_list:
+        dataset_dict['id_wav'].append(id_wav)
+        dataset_dict['wav_path'].append(wav_path)
+        dataset_dict['text'].append(text)
+        dataset_dict['sr'].append(sr)
+
+    # create a Dataset object from the dictionary
+    dataset = Dataset.from_dict(dataset_dict)
+
+    return dataset
+
+def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case=False, lang="ar"):
+    if lang == 'ar':
+        text = format_text_ar(text, keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars)
+    elif lang == 'fr' or lang == 'en':
+        text = format_text_latin(text, lang, lower_case=Lower_case, keep_punc=Keep_punc)
+    else: 
+        print("we do not support this language, maybe later!!")
+    
+    return text
+        
+def prepare_dataset(batch):
+    # load and (possibly) resample audio datato 16kHz
+    audio = batch["audio"]
+    sr = batch["sr"]
+    transcription = batch["text"]
+
+    # compute log-Mel input features from input audio array 
+    batch["input_features"] = processor.feature_extractor(audio, sampling_rate=sr).input_features[0]
+    # compute input length of audio sample in seconds
+    batch["input_length"] = len(audio) / sr
+    
+    # optional pre-processing steps
+    if do_Normalization:
+        transcription = normalization_text(transcription, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr)
+    
+    # encode target text to label ids
+    batch["labels"] = processor.tokenizer(transcription).input_ids
+    return batch
 
 
 @dataclass
@@ -52,21 +127,16 @@ class DataCollatorSpeechSeq2SeqWithPadding:
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
         # split inputs and labels since they have to be of different lengths and need different padding methods
         # first treat the audio inputs by simply returning torch tensors
-        input_features = [{"input_features": feature["input_features"]}
-                          for feature in features]
-        batch = self.processor.feature_extractor.pad(
-            input_features, return_tensors="pt")
+        input_features = [{"input_features": feature["input_features"]} for feature in features]
+        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
 
         # get the tokenized label sequences
-        label_features = [{"input_ids": feature["labels"]}
-                          for feature in features]
+        label_features = [{"input_ids": feature["labels"]} for feature in features]
         # pad the labels to max length
-        labels_batch = self.processor.tokenizer.pad(
-            label_features, return_tensors="pt")
+        labels_batch = self.processor.tokenizer.pad(label_features, return_tensors="pt")
 
         # replace padding with -100 to ignore loss correctly
-        labels = labels_batch["input_ids"].masked_fill(
-            labels_batch.attention_mask.ne(1), -100)
+        labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
 
         # if bos token is appended in previous tokenization step,
         # cut bos token here as it's append later anyways
@@ -77,243 +147,163 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
         return batch
 
-# trainer callback to reinitialise and reshuffle the streamable datasets at the beginning of each epoch
-
-
-class SavePeftModelCallback(TrainerCallback):
-    def on_save(
-        self,
-        args: Seq2SeqTrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        **kwargs,
-    ):
-        checkpoint_folder = os.path.join(
-            args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
-
-        peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
-        kwargs["model"].save_pretrained(peft_model_path)
-
-        pytorch_model_path = os.path.join(
-            checkpoint_folder, "pytorch_model.bin")
-        if os.path.exists(pytorch_model_path):
-            os.remove(pytorch_model_path)
-        return control
-
-
+    
 def compute_metrics(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
 
     # replace -100 with the pad_token_id
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
-
+    label_ids[label_ids == -100] = processor.tokenizer.pad_token_id
+    print(processor.tokenizer.pad_token_id)
     # we do not want to group tokens when computing the metrics
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+    pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+    label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
+    if do_Normalization:
+        pred_str = [normalization_text(pred, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for pred in pred_str]
+        label_str = [normalization_text(label, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for label in label_str]
+        # filtering step to only evaluate the samples that correspond to non-zero references:
+        pred_str = [pred_str[i] for i in range(len(pred_str)) if len(label_str[i]) > 0]
+        label_str = [label_str[i] for i in range(len(label_str)) if len(label_str[i]) > 0]
+    
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
+    return {"wer":wer}
 
-    return {"wer": wer}
 
+def is_audio_in_length_range(length):
+    return length < max_input_length
 
 if __name__ == "__main__":
-
     import argparse
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--input_dir', help='Input directory to process', type=str)
+    parser.add_argument('--input_text_file', help='Input text file and this text file should be in theis forma ( <-Wav_id-> <-transcription->) to process', type=str)
+    parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str)
+    parser.add_argument('--lang', help='Language to tune',default="ar", type=str)
+    parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
+    parser.add_argument('--use_peft', help='To use PEFT method',default=False)
+    parser.add_argument('--device_map', help='To map the Model into device (GPU or CPU)(auto : if there is GPU or cpu it works)', default="auto", type=str)
+    #text Normalization:
+    parser.add_argument('--do_Normalization', help='To Normalize the text',default=False)
+    parser.add_argument('--Keep_punc', help='Keep punctuation in the text',default=False)
+    parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False)
+    parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False)
+    #hyparams : 
+    parser.add_argument('--batch_size', help='Batch size',default=8, type=int)
+    parser.add_argument('--batch_size_eval', help='Batch size to eval',default=8, type=int)
+    parser.add_argument('--learning_rate', help='Learning rate',default=1e-5, type=float)
+    parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=1, type=int)
+    parser.add_argument('--max_steps', help='Max steps',default=1500, type=int)
+    parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=512, type=int)
 
-    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter
-                                     )
-
-    parser.add_argument(
-        'train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
-    parser.add_argument(
-        'valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
-    parser.add_argument('--debug', help="to perform small experiment, check if things are running",
-                        default=False, action="store_true")
-    parser.add_argument(
-        '--gpus', help="List of GPU index to use (starting from 0)", default=None)
-    parser.add_argument('--online', help="load and process audio files on the fly",
-                        default=False, action="store_true")
-    parser.add_argument(
-        '--max_len', help="maximum signal length", default=15, type=int)
-    parser.add_argument(
-        '--min_len', help="minimum signal length", default=1, type=int)
-    parser.add_argument(
-        '--base_model', default="openai/whisper-small", type=str, help="Model to adapt")
-    parser.add_argument('--language', default="ar",
-                        type=str, help="Language to fine tune")
-    parser.add_argument('--task', default="transcribe",
-                        type=str, help="task to fine tune")
-    parser.add_argument('--use_peft', help="Option to let you use the peft method or not",
-                        default=False, action="store_true")
-    # Hyperparameters
-    parser.add_argument('--data_augment', help="To augment data",
-                        default=False, action="store_true")
-    parser.add_argument('--learning_rate',
-                        help="Learning rate", type=float, default=1e-3)
-    parser.add_argument('--batch_size', help="Batch size", type=int, default=8)
-    parser.add_argument(
-        '--num_epochs', help="Number of epochs", type=int, default=5)
-    parser.add_argument('--use_max_step', help="use max step", default=True)
-    parser.add_argument('--weight_decay', help="Weight decay",
-                        type=float, default=0.0)
-    parser.add_argument(
-        '--warmup_steps', help="warmup steps", type=int, default=50)
-    parser.add_argument(
-        '--eval_steps', help="Validation and checkpoint model every n steps", default=25, type=int)
-    parser.add_argument('--data_augment_noise', help="Folder with audio files to simulate noises (used only with --data_augment)",
-                        default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises", type=str
-                        )
-    parser.add_argument('--data_augment_rir', help="Folder with audio files to simulate reverberation (used only with --data_augment)",
-                        default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/[simulated_rirs_16k/smallroom/rir_list,simulated_rirs_16k/mediumroom/rir_list,simulated_rirs_16k/largeroom/rir_list]", type=str
-                        )
-    parser.add_argument(
-        '--output_dir', help="output parent folder", default=".", type=str)
+    parser.add_argument('--output_dir', help='Output trained model', default="./Model")
     args = parser.parse_args()
+    
+    # # Set the device to run on (GPU if available, otherwise CPU)
+    device = set_device_map(args.device_map)
+    # Args to variable
+    data_dir = args.input_dir
+    output_dir = args.output_dir
+    input_text_file = args.input_text_file
+    base_model = args.base_model
+    task = args.task
 
+    do_Normalization = args.do_Normalization
+    Keep_punc = args.Keep_punc
+    keep_latin_chars = args.keep_latin_chars
+    Lower_case = args.Lower_case
+
+    SAMPLE_RATE = 16000
+    BATCH_SIZE = args.batch_size
+    BATCH_SIZE_EVAL = args.batch_size_eval
+    GRADIENT_ACCUMULATION_STEPS=args.gradient_accumulation_steps
+    LR = args.learning_rate
+    MAX_STEPS = args.max_steps
+    AUDIO_MAX_LENGTH = 480000
+    TEXT_MAX_LENGTH = args.text_max_length
+    PEFT = args.use_peft
+    
+    print("Output Folder:", output_dir)
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+
+    resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
+    
     languages = {
-        'Arabic':  'ar',
+        'Arabic' :  'ar',
         'English':  'en',
         'Spanish':  'es',
-        'French':  'fr',
-        'German':  'de',
+        'French' :  'fr',
+        'German' :  'de',
         'Italian':  'it'
-    }
-
+    } 
     language = ""
     language_abbr = ""
-    task = args.task
-    args.online = (args.online or args.data_augment)
-    online_dev = False
-    USE_MIXED_PRECISION = False  # use_gpu
-    USE_MIXED_PRECISION_CPU = False  # Too many problems
-    use_peft = args.use_peft
-
+    task = "transcribe"
     for key, value in languages.items():
-        if value == args.language:
+        if value == args.lang:
             language = key
             language_abbr = value
 
-    if not args.gpus:
-        args.gpus = ",".join([str(i) for i in range(get_num_gpus())])
+    transcription_file = os.path.join(data_dir, input_text_file)
+    if not os.path.exists(transcription_file):
+        print(f"Transcription file {transcription_file} does not exist.")
+        exit()
 
-    # GPU with the most of memory first
-    gpus = list(reversed(sorted(
-        [int(i) for i in args.gpus.split(",") if i and int(i) >= 0],
-        key=gpu_free_memory
-    )))
-    print("Using gpus:", gpus)
-    use_gpu = len(gpus) > 0
+    dataset = get_audio_dataset_dict(transcription_file=transcription_file, data_dir=data_dir, audio_max_sample_length=AUDIO_MAX_LENGTH)
+    train_dataset, validation_dataset= dataset.train_test_split(test_size=0.1).values()
+    dataset = DatasetDict({'train': train_dataset, 'val': validation_dataset})
+    # print(dataset)
     
-    if args.debug and args.num_epochs > 5:
-        args.num_epochs = 5
-        args.eval_steps = 2
+    processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
+    
+    audio_train = []
+    for i in dataset["train"]["wav_path"]:
+        array, sr = librosa.load(i, sr=16000)
+        audio_train.append(array)
 
-    model_name_or_path = args.base_model
+    audio_val = []
+    for i in dataset["val"]["wav_path"]:
+        array, sr = librosa.load(i, sr=16000)
+        audio_val.append(array)
 
-    output_folder = "{}".format(args.output_dir)
-    print("Output Folder:", output_folder)
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
-    save_source_dir(output_folder)
+    dataset['train'] = dataset['train'].add_column("audio",audio_train)
+    dataset['val'] = dataset['val'].add_column("audio",audio_val)
 
-    resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(
-        output_folder)
-
-    # if data augmentation
-    data_augmenter = None
-    if args.data_augment:
-        if "[" not in args.data_augment_rir:
-            raise RuntimeError(
-                "--data_augment_rir syntax must be /root/folder/[rir/file1,rir/file2,...]")
-        rir_dir = args.data_augment_rir.split("[")[0].rstrip("/")
-        rir_lists = args.data_augment_rir.split(
-            "[")[1].split("]")[0].split(",")
-        for f in rir_lists:
-            if not os.path.isfile(os.path.join(rir_dir, f)):
-                raise RuntimeError("RIR list file {} does not exist".format(
-                    os.path.join(rir_dir, f)))
-        data_augmenter = SpeechAugment(
-            noise_dir=args.data_augment_noise,
-            rir_dir=rir_dir,
-            rir_lists=rir_lists,
-            apply_prob=1,
-            sample_rate=16000,
-        )
-
-    if True:  # not os.path.isfile(output_folder+"/README.txt"):
-        readme = open(output_folder+"/README.txt", "a")
-
-        # Print the date and time
-        print(datetime.datetime.now(), file=readme)
-        print(" ".join(sys.argv), file=readme)
-        print(sys.argv[0] + " --" + " --".join([k if v is True else k+"="+str(v)
-              for k, v in args.__dict__.items() if v is not False]), file=readme)
-        print("", file=readme)
-    else:
-        readme = None
-
-    trainsetmeta, trainset = kaldi_folder_to_dataset(
-        args.train,
-        shuffle=True,
-        online=args.online,
-        max_data=(2 * args.batch_size) if args.debug else None,
-        choose_data_with_max_len=args.debug,
-        min_len=args.min_len,
-        max_len=args.max_len,
-        logstream=readme,
+    augmentation = Compose(
+        [
+            TimeStretch(min_rate=0.9, max_rate=1.1, p=0.2,
+                        leave_length_unchanged=False),
+            Gain(min_gain_in_db=-6, max_gain_in_db=4, p=0.1),
+            PitchShift(min_semitones=-4, max_semitones=4, p=0.2),
+        ]
     )
-    testsetmeta, testset = kaldi_folder_to_dataset(
-        args.valid,
-        shuffle=False,
-        online=args.online,
-        max_data=(2 * args.batch_size) if args.debug else 480,
-        choose_data_with_max_len=args.debug,
-        min_len=args.min_len,
-        max_len=args.max_len,
-        logstream=readme,
+    
+    
+    vectorized_datasets = dataset.map(prepare_dataset, remove_columns=list(next(iter(dataset.values())).features)).with_format("torch")
+    augment_training_set = vectorized_datasets["train"].map(augment_dataset).with_format("torch")
+    vectorized_datasets["train"] = concatenate_datasets([vectorized_datasets["train"],augment_training_set])
+    vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(seed=42)
+    
+    
+    max_input_length = 30.0
+    vectorized_datasets["train"] = vectorized_datasets["train"].filter(
+        is_audio_in_length_range,
+        input_columns=["input_length"]
     )
-
-    trainset = trainset.shuffle(seed=69)
-
-    trainsetlen = trainsetmeta["samples"]
-    trainsetmeta = ", ".join("{} {}".format(v, k)
-                             for k, v in trainsetmeta.items())
-    testsetmeta = ", ".join("{} {}".format(v, k)
-                            for k, v in testsetmeta.items())
-    print("Training set:", trainsetmeta)
-    print("Test set:", testsetmeta)
-    if readme:
-        print("", file=readme)
-        print("Training set:", trainsetmeta, file=readme)
-        print("Test set:", testsetmeta, file=readme)
-        print("", file=readme)
-        readme.flush()
-
-    # load the Model_Processor
-    processor = WhisperProcessor.from_pretrained(
-        model_name_or_path, language=language, task=task)
+    print(vectorized_datasets["train"] ) 
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-    tokenizer = WhisperTokenizer.from_pretrained(
-        model_name_or_path, language=language, task=task)
-
-    # load the Metric
     metric = evaluate.load("wer")
-    
-    # load the Model
-    model = WhisperForConditionalGeneration.from_pretrained(
-        model_name_or_path, load_in_8bit=use_peft, device_map="auto")
 
-    model.config.forced_decoder_idsnum_train_epochs = None
+    model = WhisperForConditionalGeneration.from_pretrained(base_model,load_in_8bit=PEFT, device_map="auto")
+    model.to(device)
+    model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
-    model.config.use_cache = False
-
     model.train(True)
     model.gradient_checkpointing_enable()
+    model.config.use_cache = False 
 
-    # Post-processing on the model
-    if use_peft:
+    if PEFT:
         model = prepare_model_for_int8_training(
             model, output_embedding_layer_name="proj_out")
 
@@ -328,79 +318,37 @@ if __name__ == "__main__":
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
 
-    gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format(
-        "-".join([str(g) for g in gpus]))), "a") if args.gpus else None
-
-    gpu_usage("START", stream=gpu_log)
-    if use_gpu:
-        # torch.device(type='cuda', index=gpus[0]).
-        model = model.to("cuda:"+str(gpus[0]))
-        mem = gpu_usage("Model loaded", stream=gpu_log)
-        min_mem = + mem + \
-            (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
-        print("Estimation of minimal GPU memory:", min_mem)
-
-    trainset = process_dataset(
-        processor, trainset, data_augmenter=data_augmenter, batch_size=args.batch_size, logstream=readme)
-    testset = process_dataset(
-        processor, testset, batch_size=args.batch_size, logstream=readme)
-    train_dataset = trainset.with_format("torch"),
-    eval_dataset = testset.with_format("torch"),
-
-    if readme is not None:
-        readme.flush()
-
-    use_max_step = args.use_max_step
-
-    # Define the Training Configuration
     training_args = Seq2SeqTrainingArguments(
-        output_dir=output_folder,  # change to a repo name of your choice
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=8,
-        gradient_accumulation_steps=1,  # increase by 2x for every 2x decrease in batch size
-        # if "ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm)", use 0 or increase /dev/shm
-        dataloader_num_workers=6,
-        num_train_epochs=args.num_epochs,
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        warmup_steps=args.warmup_steps,
-        max_steps=- \
-        1 if not use_max_step else round(
-            args.num_epochs * trainsetlen / args.batch_size),
+        output_dir=output_dir,  # change to a repo name of your choice
+        per_device_train_batch_size=BATCH_SIZE,
+        per_device_eval_batch_size=BATCH_SIZE_EVAL,
+        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,  # increase by 2x for every 2x decrease in batch size
+        learning_rate=LR,
+        warmup_steps=50,
+        max_steps=MAX_STEPS,
         evaluation_strategy="steps",
-        fp16=True,
+        fp16=PEFT,
         generation_max_length=128,
-        metric_for_best_model="wer", greater_is_better=False,
-        eval_steps=args.eval_steps,
-        save_steps=args.eval_steps,
-        logging_steps=args.eval_steps,
-        logging_dir=output_folder,
-        seed=args.seed, data_seed=args.seed,
-        report_to=["tensorboard"],
-        # required as the PeftModel forward doesn't have the signature of the wrapped model's forward
-        remove_unused_columns = not use_peft,
-        label_names=["labels"],  # same reason as above
-        no_cuda=not use_gpu,
+        eval_steps=500,
+        logging_steps=25,
+        remove_unused_columns=not PEFT,  # required as the PeftModel forward doesn't have the signature of the wrapped model's forward
         resume_from_checkpoint=resume_from_checkpoint,
+        # label_names=["labels"],  # same reason as above
     )
 
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=vectorized_datasets["train"],
+        eval_dataset=vectorized_datasets["val"],
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        # compute_metrics=compute_metrics,
         tokenizer=processor.feature_extractor,
-        callbacks=[SavePeftModelCallback],
+        
     )
-    # silence the warnings. Please re-enable for inference!
 
-    # Train
-    tic()
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
-    toc("Training", stream=readme)
-
+    
     # Save model
-    processor.save_pretrained(output_folder+"/final")
-    model.save_pretrained(output_folder+"/final")
+    processor.save_pretrained(output_dir+"/final")
+    model.save_pretrained(output_dir+"/final")
