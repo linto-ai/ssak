@@ -72,10 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends firefox-esr
 # ENV LANG fr_FR.UTF-8  
 # ENV LANGUAGE fr_FR:en  
 # ENV LC_ALL fr_FR.UTF-8
- 
-<<<<<<< HEAD
-=======
+
 # ENV LD_LIBRARY_PATH="/usr/local/lib/python3.9/site-packages/nvidia/curand/lib/:$LD_LIBRARY_PATH"
->>>>>>> 566c7327caccbdd3e4da8ed70632419706963fd7
 
 ENTRYPOINT ["/bin/bash"]
