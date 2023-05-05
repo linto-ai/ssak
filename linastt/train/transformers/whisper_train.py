@@ -1,19 +1,17 @@
 # Hedi Naouara
 # hnaouara@linagora.com
 ## ____HN____
+import os
 from linastt.utils.text_ar import format_text_ar
 from linastt.utils.text_latin import format_text_latin
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
 import librosa
-import re
 import evaluate
 
-import sys
-import os
-import shutil
-import datetime
-import json
-import random
+
+
 
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
@@ -21,45 +19,45 @@ import transformers
 import torch
 import numpy as np
 
-from audiomentations import(
-    AddBackgroundNoise,
-    AddGaussianNoise,
-    Compose,
-    Gain,
-    OneOf,
-    PitchShift,
-    PolarityInversion,
-    TimeStretch
-) 
+import audiomentations as A
+
 from transformers import (
     WhisperForConditionalGeneration,
     WhisperProcessor,
-    WhisperTokenizer,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
-    TrainerCallback,
-
 )
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-from peft import prepare_model_for_int8_training, LoraConfig, PeftModel, LoraModel, PeftConfig, get_peft_model
+from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
 
-def set_device_map(device_map):
-    if device_map == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif device_map == "cpu":
-        device = "cpu"
+
+
+def get_device(gpu):
+    if gpu == 0 :
+        device = torch.device("cuda:0")
+    elif gpu == 1 : 
+        device = torch.device("cuda:1")
     else:
-        devices = device_map.split()
-        device = {f"cuda:{i}": i for i in range(len(devices))}
-    
+        device = torch.device("cpu")
     return device
+        
+########################################################
+# Text Normalization
+def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case=False, lang="ar"):
+    if lang == 'ar':
+        text = format_text_ar(text, keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars)
+    elif lang == 'fr' or lang == 'en':
+        text = format_text_latin(text, lang, lower_case=Lower_case, keep_punc=Keep_punc)
+    else: 
+        print("we do not support this language, maybe later!!")
+    
+    return text
 
-def augment_dataset(batch):
-    batch["audio"] = augmentation(batch["input_features"], sample_rate=16000)
-    return batch
 
+########################################################
+# dataset preparation
 def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length=480000):
     data_list = []
 
@@ -72,17 +70,18 @@ def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length
             wav_path = os.path.join(str(data_dir), "wavs", f"{id_wav}.wav")
             audio, sr = librosa.load(wav_path, sr=16000)
             if audio.shape[0] > audio_max_sample_length:
-                print(len(text), audio.shape[0])
+                print(len(text), audio[0].shape[0])
                 continue
-            data_list.append((id_wav, wav_path, text, sr))
+            data_list.append((id_wav, wav_path, text, audio, sr))
 
     # convert data_list to a dictionary of lists
-    dataset_dict = {'id_wav': [], 'wav_path': [], 'text': [], 'sr': []}
+    dataset_dict = {'id_wav': [], 'wav_path': [], 'text': [],'audio': [], 'sr': []}
 
-    for id_wav, wav_path, text, sr in data_list:
+    for id_wav, wav_path, text, audio, sr in data_list:
         dataset_dict['id_wav'].append(id_wav)
         dataset_dict['wav_path'].append(wav_path)
         dataset_dict['text'].append(text)
+        dataset_dict['audio'].append(audio)
         dataset_dict['sr'].append(sr)
 
     # create a Dataset object from the dictionary
@@ -90,16 +89,8 @@ def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length
 
     return dataset
 
-def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case=False, lang="ar"):
-    if lang == 'ar':
-        text = format_text_ar(text, keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars)
-    elif lang == 'fr' or lang == 'en':
-        text = format_text_latin(text, lang, lower_case=Lower_case, keep_punc=Keep_punc)
-    else: 
-        print("we do not support this language, maybe later!!")
-    
-    return text
-        
+####################################################
+# Data pre-processing for train        
 def prepare_dataset(batch):
     # load and (possibly) resample audio datato 16kHz
     audio = batch["audio"]
@@ -119,7 +110,44 @@ def prepare_dataset(batch):
     batch["labels"] = processor.tokenizer(transcription).input_ids
     return batch
 
+#############################################################
+# Data Augmentation
+def augment_audio(batch):
+    audio = np.array(batch["audio"])
+    sr = batch["sr"]
+    transcription = batch["text"]
+    
+    # create a list of augmentations to apply
+    augmentations = A.Compose([
+        A.AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.5),
+        A.Shift(p=0.5),
+        A.PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
+        A.TimeStretch(p=0.5),
+        A.Normalize(p=1.0),
+        A.ClippingDistortion(min_percentile_threshold=0, max_percentile_threshold=30, p=0.5),
+    ])
+    
+    # apply augmentations to the audio data
+    augmented_data = augmentations(samples=audio, sample_rate=sr)
+    
+    # # convert augmented_data list to a NumPy array
+    # augmented_data = np.array(augmented_data)
+    
+    # update the batch with augmented data
+    batch["input_features"] = processor.feature_extractor(augmented_data, sampling_rate=sr).input_features[0]
+    batch["input_length"] = len(augmented_data) / sr
+    
+    if do_Normalization:
+        transcription = normalization_text(transcription, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang="ar")
+    
+    # encode target text to label ids
+    batch["labels"] = processor.tokenizer(transcription).input_ids
+    
+    return batch
 
+
+#############################################################
+# data Collator
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
     processor: Any
@@ -147,7 +175,9 @@ class DataCollatorSpeechSeq2SeqWithPadding:
 
         return batch
 
-    
+
+#############################################################
+# WER Computer    
 def compute_metrics(pred):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
@@ -169,10 +199,14 @@ def compute_metrics(pred):
     wer = 100 * metric.compute(predictions=pred_str, references=label_str)
     return {"wer":wer}
 
-
+#############################################################
+# Check Audio length
 def is_audio_in_length_range(length):
     return length < max_input_length
 
+
+
+# Main()
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -181,18 +215,19 @@ if __name__ == "__main__":
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str)
     parser.add_argument('--lang', help='Language to tune',default="ar", type=str)
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
-    parser.add_argument('--use_peft', help='To use PEFT method',default=False)
-    parser.add_argument('--device_map', help='To map the Model into device (GPU or CPU)(auto : if there is GPU or cpu it works)', default="auto", type=str)
+    parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
+    parser.add_argument('--gpu', help= "Index of GPU to use (O, 1, ...)", default=1, type=int)
+    parser.add_argument('--data_augmentation', help='To use data augmentation method',default=False , action = "store_true")
     #text Normalization:
-    parser.add_argument('--do_Normalization', help='To Normalize the text',default=False)
-    parser.add_argument('--Keep_punc', help='Keep punctuation in the text',default=False)
-    parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False)
-    parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False)
+    parser.add_argument('--do_Normalization', help='To Normalize the text',default=False , action = "store_true")
+    parser.add_argument('--Keep_punc', help='Keep punctuation in the text',default=False , action = "store_true")
+    parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False , action = "store_true")
+    parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False , action = "store_true")
     #hyparams : 
-    parser.add_argument('--batch_size', help='Batch size',default=8, type=int)
-    parser.add_argument('--batch_size_eval', help='Batch size to eval',default=8, type=int)
+    parser.add_argument('--batch_size', help='Batch size',default=4, type=int)
+    parser.add_argument('--batch_size_eval', help='Batch size to eval',default=2, type=int)
     parser.add_argument('--learning_rate', help='Learning rate',default=1e-5, type=float)
-    parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=1, type=int)
+    parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=4, type=int)
     parser.add_argument('--max_steps', help='Max steps',default=1500, type=int)
     parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=512, type=int)
 
@@ -200,13 +235,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # # Set the device to run on (GPU if available, otherwise CPU)
-    device = set_device_map(args.device_map)
-    # Args to variable
+    GPU_IDX = args.gpu
+    gpu = get_device(GPU_IDX)    
     data_dir = args.input_dir
     output_dir = args.output_dir
     input_text_file = args.input_text_file
     base_model = args.base_model
     task = args.task
+    data_augmentation = args.data_augmentation
 
     do_Normalization = args.do_Normalization
     Keep_punc = args.Keep_punc
@@ -257,34 +293,20 @@ if __name__ == "__main__":
     
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
     
-    audio_train = []
-    for i in dataset["train"]["wav_path"]:
-        array, sr = librosa.load(i, sr=16000)
-        audio_train.append(array)
-
-    audio_val = []
-    for i in dataset["val"]["wav_path"]:
-        array, sr = librosa.load(i, sr=16000)
-        audio_val.append(array)
-
-    dataset['train'] = dataset['train'].add_column("audio",audio_train)
-    dataset['val'] = dataset['val'].add_column("audio",audio_val)
-
-    augmentation = Compose(
-        [
-            TimeStretch(min_rate=0.9, max_rate=1.1, p=0.2,
-                        leave_length_unchanged=False),
-            Gain(min_gain_in_db=-6, max_gain_in_db=4, p=0.1),
-            PitchShift(min_semitones=-4, max_semitones=4, p=0.2),
-        ]
-    )
-    
-    
-    vectorized_datasets = dataset.map(prepare_dataset, remove_columns=list(next(iter(dataset.values())).features)).with_format("torch")
-    augment_training_set = vectorized_datasets["train"].map(augment_dataset).with_format("torch")
-    vectorized_datasets["train"] = concatenate_datasets([vectorized_datasets["train"],augment_training_set])
+    vectorized_datasets = dataset.map(
+        prepare_dataset, 
+        remove_columns=list(next(iter(dataset.values())).features)
+        ).with_format("torch")
     vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(seed=42)
     
+    if data_augmentation :
+        augmented_vectorized_train = dataset["train"].map(
+            augment_audio, 
+            remove_columns=list(next(iter(dataset.values())).features),
+        ).with_format("torch")
+        
+        vectorized_datasets_augmented = concatenate_datasets([vectorized_datasets['train'], augmented_vectorized_train])
+        vectorized_datasets['train'] = vectorized_datasets_augmented
     
     max_input_length = 30.0
     vectorized_datasets["train"] = vectorized_datasets["train"].filter(
@@ -295,8 +317,8 @@ if __name__ == "__main__":
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
     metric = evaluate.load("wer")
 
-    model = WhisperForConditionalGeneration.from_pretrained(base_model,load_in_8bit=PEFT, device_map="auto")
-    model.to(device)
+    model = WhisperForConditionalGeneration.from_pretrained(base_model)
+    model.to(gpu)
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
     model.train(True)
@@ -305,7 +327,7 @@ if __name__ == "__main__":
 
     if PEFT:
         model = prepare_model_for_int8_training(
-            model, output_embedding_layer_name="proj_out")
+        model, output_embedding_layer_name="proj_out")
 
         # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
         config = LoraConfig(r=32,
@@ -327,7 +349,7 @@ if __name__ == "__main__":
         warmup_steps=50,
         max_steps=MAX_STEPS,
         evaluation_strategy="steps",
-        fp16=PEFT,
+        fp16=True,
         generation_max_length=128,
         eval_steps=500,
         logging_steps=25,
@@ -347,7 +369,7 @@ if __name__ == "__main__":
         
     )
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint).to()
     
     # Save model
     processor.save_pretrained(output_dir+"/final")
