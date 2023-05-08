@@ -10,9 +10,6 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 import librosa
 import evaluate
 
-
-
-
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
 import transformers
@@ -30,17 +27,17 @@ from transformers import (
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
+# from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
 
 
 
 def get_device(gpu):
     if gpu == 0 :
-        device = torch.device("cuda:0")
+        device = "cuda:0"
     elif gpu == 1 : 
-        device = torch.device("cuda:1")
+        device = "cuda:1"
     else:
-        device = torch.device("cpu")
+        device = "cpu"
     return device
         
 ########################################################
@@ -216,7 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('--lang', help='Language to tune',default="ar", type=str)
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
-    parser.add_argument('--gpu', help= "Index of GPU to use (O, 1, ...)", default=1, type=int)
+    parser.add_argument('--gpu', help= "Index of GPU to use (O, 1, ...)", default=0, type=int)
     parser.add_argument('--data_augmentation', help='To use data augmentation method',default=False , action = "store_true")
     #text Normalization:
     parser.add_argument('--do_Normalization', help='To Normalize the text',default=False , action = "store_true")
@@ -224,7 +221,7 @@ if __name__ == "__main__":
     parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False , action = "store_true")
     parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False , action = "store_true")
     #hyparams : 
-    parser.add_argument('--batch_size', help='Batch size',default=4, type=int)
+    parser.add_argument('--batch_size', help='Batch size',default=2, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size to eval',default=2, type=int)
     parser.add_argument('--learning_rate', help='Learning rate',default=1e-5, type=float)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=4, type=int)
@@ -317,8 +314,8 @@ if __name__ == "__main__":
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
     metric = evaluate.load("wer")
 
-    model = WhisperForConditionalGeneration.from_pretrained(base_model)
-    model.to(gpu)
+    model = WhisperForConditionalGeneration.from_pretrained(base_model).cuda(gpu)
+    
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
     model.train(True)
@@ -350,9 +347,11 @@ if __name__ == "__main__":
         max_steps=MAX_STEPS,
         evaluation_strategy="steps",
         fp16=True,
+        optim="adamw_torch",
         generation_max_length=128,
         eval_steps=500,
         logging_steps=25,
+        logging_dir= f'{output_dir}/logs',
         remove_unused_columns=not PEFT,  # required as the PeftModel forward doesn't have the signature of the wrapped model's forward
         resume_from_checkpoint=resume_from_checkpoint,
         # label_names=["labels"],  # same reason as above
