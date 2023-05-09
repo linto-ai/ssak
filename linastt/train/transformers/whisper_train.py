@@ -2,14 +2,16 @@
 # hnaouara@linagora.com
 ## ____HN____
 import os
+import sys
 from linastt.utils.text_ar import format_text_ar
 from linastt.utils.text_latin import format_text_latin
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
+import jiwer
 import librosa
-import evaluate
-
+ 
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
 import transformers
@@ -28,19 +30,23 @@ from transformers import (
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 # from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
+   
 
+def move_model_to_device(model, device):
+    if not isinstance(device, torch.device):
+        raise ValueError("device must be of type torch.device.")
 
+    # unwrap model
+    # if isinstance(model, torch.nn.DataParallel):
+    model = (
+        model.module if hasattr(model, "module") else model
+    )  # Take care of distributed/parallel training
 
-def get_device(gpu):
-    if gpu == 0 :
-        device = "cuda:0"
-    elif gpu == 1 : 
-        device = "cuda:1"
-    else:
-        device = "cpu"
-    return device
+    # move to device
+    return model.to(device)
+
         
-########################################################
+
 # Text Normalization
 def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case=False, lang="ar"):
     if lang == 'ar':
@@ -53,9 +59,8 @@ def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case
     return text
 
 
-########################################################
 # dataset preparation
-def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length=480000):
+def get_audio_dataset_dict(transcription_file, audio_dir, audio_max_sample_length=480000):
     data_list = []
 
     with open(transcription_file, "r", encoding="utf-8") as trans_file:
@@ -64,7 +69,7 @@ def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length
             if len(line_parts) < 2:
                 continue
             id_wav, text = line_parts[0], " ".join(line_parts[1:])
-            wav_path = os.path.join(str(data_dir), "wavs", f"{id_wav}.wav")
+            wav_path = os.path.join(str(audio_dir), f"{id_wav}.wav")
             audio, sr = librosa.load(wav_path, sr=16000)
             if audio.shape[0] > audio_max_sample_length:
                 print(len(text), audio[0].shape[0])
@@ -86,7 +91,7 @@ def get_audio_dataset_dict(transcription_file, data_dir, audio_max_sample_length
 
     return dataset
 
-####################################################
+
 # Data pre-processing for train        
 def prepare_dataset(batch):
     # load and (possibly) resample audio datato 16kHz
@@ -107,10 +112,10 @@ def prepare_dataset(batch):
     batch["labels"] = processor.tokenizer(transcription).input_ids
     return batch
 
-#############################################################
+
 # Data Augmentation
 def augment_audio(batch):
-    audio = np.array(batch["audio"])
+    audio = np.array(batch["audio"]).astype(np.float32)
     sr = batch["sr"]
     transcription = batch["text"]
     
@@ -143,7 +148,7 @@ def augment_audio(batch):
     return batch
 
 
-#############################################################
+
 # data Collator
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
@@ -173,7 +178,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 
-#############################################################
+
 # WER Computer    
 def compute_metrics(pred):
     pred_ids = pred.predictions
@@ -182,6 +187,7 @@ def compute_metrics(pred):
     # replace -100 with the pad_token_id
     label_ids[label_ids == -100] = processor.tokenizer.pad_token_id
     print(processor.tokenizer.pad_token_id)
+
     # we do not want to group tokens when computing the metrics
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
@@ -189,14 +195,16 @@ def compute_metrics(pred):
     if do_Normalization:
         pred_str = [normalization_text(pred, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for pred in pred_str]
         label_str = [normalization_text(label, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for label in label_str]
+
         # filtering step to only evaluate the samples that correspond to non-zero references:
         pred_str = [pred_str[i] for i in range(len(pred_str)) if len(label_str[i]) > 0]
         label_str = [label_str[i] for i in range(len(label_str)) if len(label_str[i]) > 0]
     
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
-    return {"wer":wer}
+    wer = 100 * jiwer.wer(label_str, pred_str)
+    return {"wer": wer}
 
-#############################################################
+
+
 # Check Audio length
 def is_audio_in_length_range(length):
     return length < max_input_length
@@ -207,13 +215,13 @@ def is_audio_in_length_range(length):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--input_dir', help='Input directory to process', type=str)
-    parser.add_argument('--input_text_file', help='Input text file and this text file should be in theis forma ( <-Wav_id-> <-transcription->) to process', type=str)
+    parser.add_argument('--input_audio_dir', help='Path to audios / waves ', type=str)
+    parser.add_argument('--input_text_file', help='Path to text file and this text file should be in theis forma ( <-Wav_id-> <-transcription->) to process', type=str)
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str)
     parser.add_argument('--lang', help='Language to tune',default="ar", type=str)
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
-    parser.add_argument('--gpu', help= "Index of GPU to use (O, 1, ...)", default=0, type=int)
+    parser.add_argument('--gpu', help= "Index of GPU to use (O, 1, ...)",nargs='+', default=None, type=int)
     parser.add_argument('--data_augmentation', help='To use data augmentation method',default=False , action = "store_true")
     #text Normalization:
     parser.add_argument('--do_Normalization', help='To Normalize the text',default=False , action = "store_true")
@@ -223,20 +231,38 @@ if __name__ == "__main__":
     #hyparams : 
     parser.add_argument('--batch_size', help='Batch size',default=2, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size to eval',default=2, type=int)
-    parser.add_argument('--learning_rate', help='Learning rate',default=1e-5, type=float)
+    parser.add_argument('--learning_rate', help='Learning rate',default=3e-5, type=float)
+    parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=4, type=int)
-    parser.add_argument('--max_steps', help='Max steps',default=1500, type=int)
+    parser.add_argument('--num_epochs', help='Num of Epochs',default=5, type=int)
     parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=512, type=int)
+    parser.add_argument('--warmup_steps', help='warmup steps',default=50, type=int)
+    parser.add_argument('--fp16', help='FP16',default=False, action = "store_true")
+    parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
 
     parser.add_argument('--output_dir', help='Output trained model', default="./Model")
     args = parser.parse_args()
     
+
     # # Set the device to run on (GPU if available, otherwise CPU)
-    GPU_IDX = args.gpu
-    gpu = get_device(GPU_IDX)    
-    data_dir = args.input_dir
+    gpu = args.gpu
+    if len(gpu) > 1:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in gpu)
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu[0])
+    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")   
+    if torch.cuda.is_available():
+        device_count = torch.cuda.device_count()
+        print(f"Number of available GPUs: {device_count}")
+        for i in range(device_count):
+            print(f"Device {i}: {torch.cuda.get_device_name(i)}")
+    else:
+        print("No GPU available.")
+        
+        
+    audio_dir = args.input_audio_dir
     output_dir = args.output_dir
-    input_text_file = args.input_text_file
+    transcription_file = args.input_text_file
     base_model = args.base_model
     task = args.task
     data_augmentation = args.data_augmentation
@@ -246,22 +272,28 @@ if __name__ == "__main__":
     keep_latin_chars = args.keep_latin_chars
     Lower_case = args.Lower_case
 
+    
+    # HyperParams 
     SAMPLE_RATE = 16000
     BATCH_SIZE = args.batch_size
+    WARMUP_STEPS = args.warmup_steps
     BATCH_SIZE_EVAL = args.batch_size_eval
+    WEIGHT_DECAY= args.weight_decay
     GRADIENT_ACCUMULATION_STEPS=args.gradient_accumulation_steps
     LR = args.learning_rate
-    MAX_STEPS = args.max_steps
+    NUM_EPOCH = args.num_epochs
     AUDIO_MAX_LENGTH = 480000
     TEXT_MAX_LENGTH = args.text_max_length
     PEFT = args.use_peft
+    FP16 = args.fp16
+    SEED = args.seed
     
     print("Output Folder:", output_dir)
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
-
-    resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
+ 
     
+    task = args.task  
     languages = {
         'Arabic' :  'ar',
         'English':  'en',
@@ -270,32 +302,55 @@ if __name__ == "__main__":
         'German' :  'de',
         'Italian':  'it'
     } 
-    language = ""
-    language_abbr = ""
-    task = "transcribe"
-    for key, value in languages.items():
-        if value == args.lang:
-            language = key
-            language_abbr = value
+    # Check if the language is valid
+    language_abbr = args.lang.lower()
+    if language_abbr not in languages.values():
+        print(f"Invalid language abbreviation: {language_abbr}")
+        exit()
 
-    transcription_file = os.path.join(data_dir, input_text_file)
+    # Get the language name
+    language = ""
+    for key, value in languages.items():
+        if value == language_abbr:
+            language = key     
+    
+    
+    
+
+    # Check if the transcription file exists
     if not os.path.exists(transcription_file):
         print(f"Transcription file {transcription_file} does not exist.")
         exit()
+        
+    # Check if the audio directory exists
+    if not os.path.isdir(audio_dir):
+        print(f"Audio directory {audio_dir} does not exist.")
+        exit()
 
-    dataset = get_audio_dataset_dict(transcription_file=transcription_file, data_dir=data_dir, audio_max_sample_length=AUDIO_MAX_LENGTH)
-    train_dataset, validation_dataset= dataset.train_test_split(test_size=0.1).values()
+    # Get the audio dataset dictionary
+    dataset = get_audio_dataset_dict(transcription_file=transcription_file, audio_dir=audio_dir, audio_max_sample_length=AUDIO_MAX_LENGTH)
+
+    # Split the dataset into train and validation datasets
+    train_dataset, validation_dataset = dataset.train_test_split(test_size=0.1).values()
     dataset = DatasetDict({'train': train_dataset, 'val': validation_dataset})
-    # print(dataset)
-    
+    # Check if the dataset is empty
+    if len(dataset) == 0:
+        print("Empty dataset.")
+        exit()
+
+    # Get the last checkpoint
+    resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
+
+    # Create the processor
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
-    
+
+    # Prepare the vectorized datasets
     vectorized_datasets = dataset.map(
-        prepare_dataset, 
+        prepare_dataset,
         remove_columns=list(next(iter(dataset.values())).features)
-        ).with_format("torch")
-    vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(seed=42)
-    
+    ).with_format("torch")
+
+    # Generate Augmented data
     if data_augmentation :
         augmented_vectorized_train = dataset["train"].map(
             augment_audio, 
@@ -310,12 +365,13 @@ if __name__ == "__main__":
         is_audio_in_length_range,
         input_columns=["input_length"]
     )
-    print(vectorized_datasets["train"] ) 
-    data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-    metric = evaluate.load("wer")
-
-    model = WhisperForConditionalGeneration.from_pretrained(base_model).cuda(gpu)
+    vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(seed=SEED)
+    print(vectorized_datasets)
     
+    data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
+
+    model = WhisperForConditionalGeneration.from_pretrained(base_model)
+    model = move_model_to_device(model, device)
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
     model.train(True)
@@ -329,7 +385,6 @@ if __name__ == "__main__":
         # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
         config = LoraConfig(r=32,
                             lora_alpha=64,
-                            # ["q_proj", "v_proj"],
                             target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
                             lora_dropout=0.05,
                             bias="none")
@@ -341,20 +396,24 @@ if __name__ == "__main__":
         output_dir=output_dir,  # change to a repo name of your choice
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE_EVAL,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        save_total_limit=1,
+        num_train_epochs=NUM_EPOCH,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,  # increase by 2x for every 2x decrease in batch size
         learning_rate=LR,
-        warmup_steps=50,
-        max_steps=MAX_STEPS,
-        evaluation_strategy="steps",
-        fp16=True,
+        warmup_steps=WARMUP_STEPS,
+        weight_decay=WEIGHT_DECAY,
+        predict_with_generate=True,
+        seed=SEED,
+        fp16=FP16,
         optim="adamw_torch",
         generation_max_length=128,
-        eval_steps=500,
-        logging_steps=25,
+        logging_steps=500,
         logging_dir= f'{output_dir}/logs',
         remove_unused_columns=not PEFT,  # required as the PeftModel forward doesn't have the signature of the wrapped model's forward
         resume_from_checkpoint=resume_from_checkpoint,
-        # label_names=["labels"],  # same reason as above
+        greater_is_better=False,
     )
 
     trainer = Seq2SeqTrainer(
@@ -363,12 +422,11 @@ if __name__ == "__main__":
         train_dataset=vectorized_datasets["train"],
         eval_dataset=vectorized_datasets["val"],
         data_collator=data_collator,
-        # compute_metrics=compute_metrics,
         tokenizer=processor.feature_extractor,
-        
+        compute_metrics=compute_metrics,   
     )
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint).to()
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     
     # Save model
     processor.save_pretrained(output_dir+"/final")
