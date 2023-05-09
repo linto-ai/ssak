@@ -39,7 +39,7 @@ def cm_import(
     datestr = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d - %H:%M:%S")
 
     organization = curl_get(
-        url + "/api/organizations/user",
+        url + "/api/organizations",
         headers=[f"Authorization: Bearer {token}"],
     )
     assert len(organization) >= 1, "No organization found."
@@ -80,7 +80,7 @@ def cm_find_conversation(
 
     token = cm_get_token(url, email, password, verbose=verbose)
 
-    conversations = curl_post(
+    conversations = curl_get(
         url + "/api/conversations/search",
         {
             "searchType": "title",
