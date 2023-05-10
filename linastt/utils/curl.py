@@ -10,7 +10,7 @@ import re
 ####################
 # Curl helpers
 
-def format_option_for_curl(option, c):
+def format_option_for_curl(option, c, use_unicode=True):
     if isinstance(option, bool):
         return "true" if option else "false"
     if isinstance(option, dict):
@@ -18,12 +18,15 @@ def format_option_for_curl(option, c):
     if isinstance(option, str) and os.path.isfile(option):
         return (c.FORM_FILE, option)
     if isinstance(option, str):
-        return option.encode("utf8")
-    return str(option)
+        if use_unicode:
+            return option.encode("utf8")
+        else:
+            return option
+    return format_option_for_curl(str(option), c, use_unicode)
 
-def format_options_for_curl(options, c):
+def format_options_for_curl(options, c, use_unicode=True):
     return [
-        (key, format_option_for_curl(value, c)) for key, value in (options.items() if isinstance(options, dict) else options)
+        (key, format_option_for_curl(value, c, use_unicode)) for key, value in (options.items() if isinstance(options, dict) else options)
     ]
 
 def curl_post(url, options, headers=[], default=None, verbose=False):
@@ -45,12 +48,13 @@ def _curl_do(action, url, options, headers=[], default=None, verbose=False):
         # ("timestamps", ""),
         # ("transcriptionConfig", json.dumps(transcription_config)),
         # ("force_sync", "false")   
-    options = format_options_for_curl(options, c)
+    options = format_options_for_curl(options, c, use_unicode=(action != "GET"))
+    options_str = ""
 
     if action == "GET":
         c.setopt(c.CAINFO, certifi.where())
         if len(options):
-            url += "?" + urllib.parse.urlencode(format_options_for_curl(options, c))
+            url += "?" + urllib.parse.urlencode(options)
     if action == "DELETE":
         c.setopt(c.CUSTOMREQUEST, "DELETE")
         assert len(options) == 0, "DELETE requests cannot have options"
@@ -58,11 +62,12 @@ def _curl_do(action, url, options, headers=[], default=None, verbose=False):
     c.setopt(c.HTTPHEADER, ['accept: application/json'] + headers) # ['Content-Type: multipart/form-data'] ?
     if action == "POST":
         c.setopt(c.HTTPPOST, options)
+        options_str = " \\\n\t".join([f"-F '{key}={value}'" for key, value in options])
     buffer = io.BytesIO()
     c.setopt(c.WRITEDATA, buffer)
 
     if verbose:
-        options_str = " \\\n\t".join([f"-F '{key}={value}'" for key, value in options])
+        
         headers_str = " \\\n\t".join([f"-H '{header}'" for header in headers]) + (" \\\n\t" if len(headers) else "")
         cmd_str=f"\ncurl -X '{action}' \\\n\t\
 '{url}' \\\n\t\
