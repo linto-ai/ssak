@@ -25,10 +25,10 @@ if __name__ == "__main__":
     # parser.add_argument('--return_raw', default = True, action='store_true', help='Convert numbers to text')
     args = parser.parse_args()
 
-    if args.output_file and not os.path.isdir(os.path.dirname(args.output_file)):
-        os.makedirs(os.path.dirname(args.output_file))
-    if args.output_dir and not os.path.isdir(args.output_dir):
-        os.makedirs(args.output_dir)
+    if args.output_file:
+        os.makedirs(os.path.dirname(os.path.realpath(args.output_file)), exist_ok=True)
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
 
     with (open(args.output_file, "w") if args.output_file else (sys.stdout if not args.output_dir else open(os.devnull,"w"))) as f:
 
