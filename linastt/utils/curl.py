@@ -88,7 +88,8 @@ def _curl_do(action, url, options, headers=[], default=None, verbose=False):
         try:
             response_body = json.loads(response_body)
         except json.decoder.JSONDecodeError:
-            raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
+            if action != "DELETE":
+                raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
 
     return response_body
     
