@@ -22,6 +22,7 @@ def cm_import(
         url,email, password,
         lang="fr-FR",
         name=None,
+        tags=[],
         verbose=False,
     ):
     assert os.path.isfile(audio_file), f"File {audio_file} does not exist."
@@ -38,12 +39,7 @@ def cm_import(
 
     datestr = datetime.datetime.fromtimestamp(time.time()).strftime("%Y-%m-%d - %H:%M:%S")
 
-    organization = curl_get(
-        url + "/api/organizations",
-        headers=[f"Authorization: Bearer {token}"],
-    )
-    assert len(organization) >= 1, "No organization found."
-    organizationId = organization[0]["_id"]
+    organizationId = cm_get_organization(url, email, password, verbose=verbose)
 
     result = curl_post(
         url + "/api/conversations/import?type=transcription",
@@ -72,10 +68,47 @@ def cm_import(
 
     print("\n"+result["message"])
 
+    if len(tags):
+        conversation = cm_find_conversation(name,url,email, password, verbose=verbose, strict=True)
+        assert len(conversation) > 0, f"Conversation not found: {conversation}"
+        assert len(conversation) == 1, f"Multiple conversations found: {conversation}"
+        conversation = conversation[0]
+        conversationId = conversation['_id']
+    for tag in tags:
+        tagId = cm_get_tag_id(tag, url, email, password, verbose=verbose)
+        res = curl_post(
+            url + f"/api/conversations/{conversationId}/tags/{tagId}",
+            {
+                "conversationId": conversationId,
+                "tagId": tagId,
+            },
+            headers=[f"Authorization: Bearer {token}"],
+            verbose=verbose,
+        )
+        assert isinstance(res, dict) and (res.get("status") == "OK" or res.get("message") == "Tag added to conversation"), \
+            f"Unexpected response: {res}"
+
+
+def cm_get_organization(url, email, password, verbose=False):
+    token = cm_get_token(url, email, password, verbose=verbose)
+    organization = curl_get(
+        url + "/api/organizations",
+        headers=[f"Authorization: Bearer {token}"],
+        verbose=verbose,
+    )
+    assert len(organization) >= 1, "No organization found."
+    if isinstance(organization, dict):
+        assert "message" in organization
+        raise RuntimeError(f"Error: {organization['message']}")
+    organizationId = organization[0]["_id"]
+    return organizationId
+
+
 def cm_find_conversation(
     name,
     url,email, password,
     verbose=False,
+    strict=False,
     ):
 
     token = cm_get_token(url, email, password, verbose=verbose)
@@ -93,6 +126,9 @@ def cm_find_conversation(
 
     assert "conversations" in conversations, f"'conversations' not found in response: {conversations}"
     conversations = conversations["conversations"]
+
+    if strict:
+        conversations = [c for c in conversations if c["name"] == name]
 
     return conversations
 
@@ -120,18 +156,91 @@ def cm_delete_conversation(
         print(result["message"])
     return result
     
+####################
+# CM tags
+
+def cm_get_tags(url, email, password, organizationId=None, verbose=False):
+    if organizationId is None:
+        organizationId = cm_get_organization(url, email, password, verbose=verbose)
+    token = cm_get_token(url, email, password, verbose=verbose)
+    return curl_get(
+        url + f"/api/organizations/{organizationId}/tags",
+        headers=[f"Authorization: Bearer {token}"],
+        verbose=verbose,
+    )
+
+def cm_get_categories(url, email, password, organizationId=None, verbose=False):
+    if organizationId is None:
+        organizationId = cm_get_organization(url, email, password, verbose=verbose)
+    token = cm_get_token(url, email, password, verbose=verbose)
+    res = curl_get(
+        url + f"/api/organizations/{organizationId}/categories",
+        headers=[f"Authorization: Bearer {token}"],
+        verbose=verbose,
+    )
+    if isinstance(res, dict):
+        assert "message" in res
+        raise RuntimeError(f"Error: {res['message']}")
+    assert isinstance(res, list)
+    return [r["_id"] for r in res]
+
+def cm_get_tag_id(tag, url, email, password, organizationId=None, create_if_missing=True, verbose=False):
+    if organizationId is None:
+        organizationId = cm_get_organization(url, email, password, verbose=verbose)
+
+    tags = cm_get_tags(url, email, password, organizationId=organizationId, verbose=verbose)
+    for t in tags:
+        if t["name"] == tag:
+            return t["_id"]
+    
+    # The tag was not found
+    if not create_if_missing:
+        return None
+    
+    token = cm_get_token(url, email, password, verbose=verbose)
+    categories = cm_get_categories(url, email, password, organizationId=organizationId, verbose=verbose)
+    assert len(categories) > 0, "No tag category found."
+    curl_post(
+        url + f"/api/organizations/{organizationId}/tags",
+        {
+            "name": tag,
+            "categoryId": categories[0],
+        },
+        headers=[f"Authorization: Bearer {token}"],
+        verbose=verbose,
+    )
+    tags = cm_get_tags(url, email, password, organizationId=organizationId, verbose=verbose)
+    for t in tags:
+        if t["name"] == tag:
+            return t["_id"]
+    raise RuntimeError("There was an error: tag could not be created.")
+
+def cm_remove_tag(tag, url, email, password, organizationId=None, verbose=False):
+    if organizationId is None:
+        organizationId = cm_get_organization(url, email, password, verbose=verbose)
+    tagId = cm_get_tag_id(tag, url, email, password, organizationId=organizationId, create_if_missing=False, verbose=verbose)
+    if tagId is None:
+        raise RuntimeError(f"Tag {tag} does not exist.")
+    token = cm_get_token(url, email, password, verbose=verbose)
+    res = curl_delete(
+        url + f"/api/organizations/{organizationId}/tags/{tagId}",
+        headers=[f"Authorization: Bearer {token}"],
+        verbose=verbose,
+    )
+    if res != "Tag deleted":
+        raise RuntimeError(f"Error: {res}")
 
 ####################
 # CM token
 
 CM_TOKEN = {}
 
-def cm_get_token(url, email, password, verbose=False):
+def cm_get_token(url, email, password, verbose=False, force=False):
 
     _id = f"{url}@{email}"
 
     global CM_TOKEN
-    if _id in CM_TOKEN:
+    if _id in CM_TOKEN and not force:
         return CM_TOKEN[_id]
 
     token = curl_post(
@@ -181,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("audio", type=str, help="Audio file")
     parser.add_argument("transcription", type=str, help="File with transcription", default=None, nargs="?")
     parser.add_argument("-n", "--name", type=str, help="Name of the conversation", default=None)
+    parser.add_argument("-t", "--tag", type=str, help="Tag for the conversation (or list of tags if seperated by commas)", default=None)
     parser.add_argument("-e", "-u", "--email", "--username", type=str, help="Email of the Conversation Manager account (can also be passed with environment variable CM_EMAIL)", default=None)
     parser.add_argument("-p", "--password", type=str, help="Password of the Conversation Manager account (can also be passed with environment variable CM_PASSWD)", default=None)
     parser.add_argument("--url", type=str, help="Conversation Manager url", default="https://alpha.linto.ai")
@@ -247,8 +357,8 @@ if __name__ == "__main__":
     conversations = cm_find_conversation(name,
         url=args.url, email=args.email, password=args.password,
         verbose=args.verbose,
+        strict=True,
     )
-    conversations = [c for c in conversations if c["name"] == name]
     if len(conversations):
         s = "s" if len(conversations) > 1 else ""
         names = ", ".join(list(set([conv["name"] for conv in conversations])))
@@ -279,6 +389,7 @@ if __name__ == "__main__":
         args.audio,
         args.transcription,
         name=name,
+        tags=[t for t in args.tag.split(",") if t],
         url=args.url,
         email=args.email,
         password=args.password,
