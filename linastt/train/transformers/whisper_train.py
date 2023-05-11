@@ -462,7 +462,6 @@ if __name__ == "__main__":
     max_step = max_step if max_step % 2 == 0 else max_step + 1
     print("max_step :", max_step)
     eval_steps = round(max_step / NUM_EPOCH)
-    eval_steps = eval_steps if eval_steps % 2 == 0 else eval_steps + 1
     print("eval_steps :", eval_steps)
     num_devices = len(gpus) or 1
     
