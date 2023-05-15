@@ -136,15 +136,13 @@ if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--kaldi_data', help="The path to the Kaldi dataset should be a path \
-                                            to a folder containing two subfolders, 'train' and 'val'.\
-                                            Each subfolder should contain files such as \
-                                            'text', 'wav.scp', 'utt2spk', 'segments', and so on.")
+    parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
+    parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
     parser.add_argument('--max_len', help="maximum signal length", default=30, type=int)
     parser.add_argument('--min_len', help="minimum signal length", default=1, type=int)
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
-    parser.add_argument('--lang', help='Language to tune',default="ar", type=str, choices=TO_LANGUAGE_CODE.values())
+    parser.add_argument('--lang', help='Language to tune',default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
@@ -229,9 +227,8 @@ if __name__ == "__main__":
     # Create the processor
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
     
-    kaldi_data = args.kaldi_data
-    data_train = os.path.join(kaldi_data, "train")
-    data_val = os.path.join(kaldi_data, "val")
+    data_train = args.train
+    data_val = args.valid
     trainsetmeta, trainset = kaldi_folder_to_dataset(
         data_train,
         shuffle = True,
