@@ -275,7 +275,8 @@ def kaldi_folder_to_dataset(
 
         if max_len or min_len or (choose_data_with_max_len and max_data) or sort_by_len:
             uttids, annots = zip(*sorted(zip(uttids, annots), key= lambda i:(durations[i[0]], len(i[1]))))
-        durations = list(itemgetter(*uttids)(durations))
+        durations = itemgetter(*uttids)(durations)
+        durations = [durations] if isinstance(durations, float) else list(durations) # Tuple to list conversion
         if max_len or min_len:
             a = 0
             b = 0
