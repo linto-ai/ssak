@@ -155,9 +155,6 @@ if __name__ == "__main__":
     parser.add_argument('--data_augment_rir', help="Folder with audio files to simulate reverberation (used only with --data_augment)",
         default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/[simulated_rirs_16k/smallroom/rir_list,simulated_rirs_16k/mediumroom/rir_list,simulated_rirs_16k/largeroom/rir_list]", type=str
     )
-    # text Normalization:
-    parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False , action = "store_true")
-    parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False , action = "store_true")
     # hyparams :
     parser.add_argument('--batch_size', help='Batch size',default=8, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size to eval',default=8, type=int)
@@ -208,9 +205,6 @@ if __name__ == "__main__":
     base_model = args.base_model
     task = args.task
     data_augmentation = args.data_augmentation
-
-    keep_latin_chars = args.keep_latin_chars
-    Lower_case = args.Lower_case
 
     print("Output Folder:", output_dir)
     if not os.path.isdir(output_dir):
