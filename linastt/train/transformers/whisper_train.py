@@ -2,6 +2,7 @@
 # hnaouara@linagora.com
 ## ____HN____
 import os
+import datetime
 from linastt.utils.text_ar import format_text_ar
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
@@ -210,6 +211,14 @@ if __name__ == "__main__":
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
+    readme = open(output_dir+"/README.txt", "a")
+
+    # Print the date and time
+    print(datetime.datetime.now(), file=readme)
+    print(" ".join(sys.argv), file = readme)
+    print(sys.argv[0]+ " --"+ " --".join([k if v is True else k+"="+str(v) for k,v in args.__dict__.items() if v is not False]), file = readme)
+    print("", file = readme)
+
     task = args.task  
     language = args.lang.lower()
     
@@ -231,6 +240,7 @@ if __name__ == "__main__":
         choose_data_with_max_len = args.debug,
         min_len = args.min_len,
         max_len = args.max_len,
+        logstream = readme,
     )
     testsetmeta, testset = kaldi_folder_to_dataset(
         data_val,
@@ -240,8 +250,27 @@ if __name__ == "__main__":
         choose_data_with_max_len = args.debug,
         min_len = args.min_len,
         max_len = args.max_len,
+        logstream = readme,
     )
     trainset = trainset.shuffle(seed = SEED)
+
+    trainset_len = trainsetmeta["samples"]
+    testset_len = testsetmeta["samples"]
+    BATCH_SIZE = min(trainset_len, BATCH_SIZE)
+    max_steps = round(NUM_EPOCH * trainset_len / BATCH_SIZE)
+    eval_steps = round(max_steps / NUM_EPOCH)
+    num_devices = len(gpus) or 1
+    
+    trainsetmeta = ", ".join("{} {}".format(v,k) for k,v in trainsetmeta.items())
+    testsetmeta = ", ".join("{} {}".format(v,k) for k,v in testsetmeta.items())
+    print("Training set:", trainsetmeta)
+    print("Test set:", testsetmeta)
+    if readme:
+        print("", file = readme)
+        print("Training set:", trainsetmeta, file = readme)
+        print("Test set:", testsetmeta, file = readme)
+        print("", file = readme)
+        readme.flush()
 
     data_augmenter = None
     if data_augmentation :
@@ -260,8 +289,10 @@ if __name__ == "__main__":
             sample_rate =16000,
         )
         
-    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = args.batch_size)
-    testset = process_dataset(processor, testset, batch_size = args.batch_size_eval)
+    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = args.batch_size, logstream = readme)
+    testset = process_dataset(processor, testset, batch_size = args.batch_size_eval, logstream = readme)
+    if readme is not None:
+        readme.flush()
 
     dataset = DatasetDict({'train': trainset, 'val': testset})
     # Check if the dataset is empty
@@ -314,17 +345,6 @@ if __name__ == "__main__":
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
 
-    trainset_len = trainsetmeta["samples"]
-    testset_len = testsetmeta["samples"]
-    print("trainset :",trainset_len)
-    print("testset :",testset_len)
-    BATCH_SIZE = min(trainset_len, BATCH_SIZE)
-    max_steps = round(NUM_EPOCH * trainset_len / BATCH_SIZE)
-    print("max_step :", max_steps)
-    eval_steps = round(max_steps / NUM_EPOCH)
-    print("eval_steps :", eval_steps)
-    num_devices = len(gpus) or 1
-    
     random.seed(SEED)
     transformers.set_seed(SEED)
     training_args = Seq2SeqTrainingArguments(
