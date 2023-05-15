@@ -166,10 +166,16 @@ def kaldi_folder_to_dataset(
                             raise RuntimeError("Could not find folder %s" % w)
                         assert len(new_weights) > 0, "File cannot start with a weight (first a folder name, then a weight)"
                         new_weights[-1] *= w
-        
-        return kaldi_folder_to_dataset(new_kaldi_path, **opts)
+
+        opts.pop("weights", None)
+        return kaldi_folder_to_dataset(new_kaldi_path, weights=new_weights, **opts)
 
     elif not os.path.isdir(kaldi_path):
+
+        if "," in kaldi_path:
+            # Parse a comma-separated list of folders
+            return kaldi_folder_to_dataset(kaldi_path.split(","), **opts)
+
         raise RuntimeError("Could not find folder %s" % kaldi_path)
 
     for fname in "text", "wav.scp":
