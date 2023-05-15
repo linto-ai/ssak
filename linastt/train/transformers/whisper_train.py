@@ -44,11 +44,11 @@ def move_model_to_device(model, device):
     if not isinstance(device, torch.device):
         raise ValueError("device must be of type torch.device.")
 
-    # unwrap model
-    # if isinstance(model, torch.nn.DataParallel):
-    model = (
-        model.module if hasattr(model, "module") else model
-    )  # Take care of distributed/parallel training
+    # # unwrap model
+    # # if isinstance(model, torch.nn.DataParallel):
+    # model = (
+    #     model.module if hasattr(model, "module") else model
+    # )  # Take care of distributed/parallel training
 
     # move to device
     return model.to(device)
@@ -124,9 +124,9 @@ class SavePeftModelCallback(TrainerCallback):
         peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
         kwargs["model"].save_pretrained(peft_model_path)
 
-        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
-        if os.path.exists(pytorch_model_path):
-            os.remove(pytorch_model_path)
+        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        # if os.path.exists(pytorch_model_path):
+        #     os.remove(pytorch_model_path)
         return control
 
 
@@ -387,7 +387,7 @@ if __name__ == "__main__":
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
         compute_metrics=compute_metrics, # if not PEFT else None, 
-        callbacks=[SavePeftModelCallback], 
+        callbacks=[transformers.EarlyStoppingCallback(early_stopping_patience= 15)] + ([SavePeftModelCallback] if PEFT else []),
     )
     model.config.use_cache = False 
 
