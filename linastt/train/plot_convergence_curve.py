@@ -41,12 +41,15 @@ def get_log_history_huggingface(path):
         steps = log_history.get("step",[])
         if len(steps) == 0 or step > steps[-1]:
             log_history["step"] = steps + [step]
-        if "loss/train" in d:
-            log_history["loss/train"] = log_history.get("loss/train", []) + [d["loss/train"]]
-        if "loss/valid" in d:
-            log_history["loss/valid"] = log_history.get("loss/valid", []) + [d["loss/valid"]]
-        if "WER/valid" in d:
-            log_history["WER/valid"] = log_history.get("WER/valid", []) + [d["WER/valid"]]
+        key_loss_train = "loss/train" if "loss/train" in d else "loss"
+        key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
+        key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_WER"
+        if key_loss_train in d:
+            log_history["loss/train"] = log_history.get("loss/train", []) + [d[key_loss_train]]
+        if key_loss_valid in d:
+            log_history["loss/valid"] = log_history.get("loss/valid", []) + [d[key_loss_valid]]
+        if key_wer_valid in d:
+            log_history["WER/valid"] = log_history.get("WER/valid", []) + [d[key_wer_valid]]
         if "lr_model" in d:
             log_history["lr_model"] = log_history.get("lr_model", []) + [d["lr_model"]]
     return log_history
@@ -158,13 +161,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dirs = args.dirs
-    if args.use_time:
-        def get_x(log_history):
-            return log_history["train_time_h"]
-    else:
-        def get_x(log_history):
-            return log_history["total_audio_h"]
-
+    xkeys = ["train_time_h"] if args.use_time else ["total_audio_h"] + ["step"]
+    def get_x(log_history):
+        for k in xkeys:
+            if k in log_history.keys():
+                return log_history[k]
+        raise RuntimeError(f"Could not find x keys among {log_history.keys()}")
     dirs = [dir for dir in dirs if get_monitoring_file(dir) is not None]
 
     prefix = commonprefix(dirs)
