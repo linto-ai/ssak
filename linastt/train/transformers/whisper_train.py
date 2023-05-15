@@ -90,10 +90,8 @@ def prepare_dataset(batch):
     batch["input_features"] = feature_extractor(audio, sampling_rate=sr).input_features[0]
     batch["input_length"] = len(audio) / sr
 
-
     # encode target text to label ids
     batch["labels"] = tokenizer(transcription).input_ids
-    print(batch["labels"])
     return batch
   
 
@@ -415,7 +413,6 @@ if __name__ == "__main__":
                         target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
                         lora_dropout=0.05, 
                         bias="none",
-                        task_type=TaskType.SEQ_2_SEQ_LM
                     )
 
         model = get_peft_model(model, config)
@@ -483,7 +480,7 @@ if __name__ == "__main__":
         eval_dataset=vectorized_datasets["val"],
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        # compute_metrics=compute_metrics , 
+        compute_metrics=compute_metrics if not PEFT else None, 
         callbacks=[SavePeftModelCallback], 
     )
     model.config.use_cache = False 
