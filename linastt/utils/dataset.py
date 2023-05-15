@@ -559,14 +559,16 @@ def process_dataset(processor, dataset,
         text = [sample["labels"] for sample in subset]
         chars = extract_all_chars(text)["vocab"]
     vocab = processor.tokenizer.get_vocab()
-    no_warning = True
-    for char in chars:
-        if char not in vocab and char != " ":
-            if verbose:
-                print("WARNING: character {} not in vocabulary".format(char))
-            no_warning = False
-    if no_warning and verbose:
-        print("GOOD: All characters seem to be in vocabulary")
+    character_level_vocab = len(vocab) < 100
+    if character_level_vocab:
+        no_warning = True
+        for char in chars:
+            if char not in vocab and char != " ":
+                if verbose:
+                    print("WARNING: character {} not in vocabulary".format(char))
+                no_warning = False
+        if no_warning and verbose:
+            print("GOOD: All characters seem to be in vocabulary")
     
     if not is_iterable:
         if "cache_file_name" in map_kwargs:
@@ -587,10 +589,20 @@ def process_dataset(processor, dataset,
     return processed
 
 def apply_processor(processor, batch, sample_rate):
-    processed = processor(batch["input_values"], sampling_rate = sample_rate)
-    batch["input_values"] = processed.input_values
-    with processor.as_target_processor():
-        batch["labels"] = processor(batch["labels"]).input_ids
+    batch_inputs = batch["input_values"]
+    processed = processor(batch_inputs, sampling_rate = sample_rate)
+    if hasattr(processed, "input_values"):
+        batch["input_values"] = processed.input_values
+    elif hasattr(processed, "input_features"):
+        batch["input_features"] = processed.input_features
+    else:
+        raise NotImplementedError(f"Could not find any known key among {list(processed.keys())}")
+    batch["input_length"] = [len(audio) / sample_rate for audio in batch_inputs]
+    if hasattr(processor, "tokenizer"):
+        batch["labels"] = processor.tokenizer(batch["labels"]).input_ids
+    else:
+        with processor.as_target_processor():
+            batch["labels"] = processor(batch["labels"]).input_ids
     return batch
 
 def to_audio_batches(

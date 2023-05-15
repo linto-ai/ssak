@@ -1,18 +1,15 @@
 # Hedi Naouara
 # hnaouara@linagora.com
 ## ____HN____
-import datetime
 import os
-import sys
 from linastt.utils.text_ar import format_text_ar
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
-from linastt.utils.dataset import kaldi_folder_to_dataset
+from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
 
 import jiwer
-import librosa
  
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
@@ -20,7 +17,6 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 import transformers
 import torch
-import numpy as np 
 import random
 
 from transformers import (
@@ -40,6 +36,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
+
 def move_model_to_device(model, device):
     if not isinstance(device, torch.device):
         raise ValueError("device must be of type torch.device.")
@@ -54,65 +53,15 @@ def move_model_to_device(model, device):
     return model.to(device)
 
 # Text Normalization
-def normalization_text(text, Keep_punc=False, keep_latin_chars=False, Lower_case=False, lang="ar"):
+def normalization_text(text, lang):
     if lang == 'ar':
-        text = format_text_ar(text, keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars)
-    elif lang == 'fr' or lang == 'en':
-        text = format_text_latin(text, lang, lower_case=Lower_case, keep_punc=Keep_punc)
+        text = format_text_ar(text, keep_punc=False, keep_latin_chars=True)
+    elif lang in ['fr', 'en']:
+        text = format_text_latin(text, lang, lower_case=True, keep_punc=False)
     else: 
         print("we do not support this language, maybe later!!")
     
     return text
-
-
-def get_audio_for_kaldi_data(dataset):
-    dataset_dict = {'ID': [], 'path': [], 'text': [], 'start' : [], 'end' : [], 'audio': [], 'sr': []}
-    for row in dataset:
-        path = row['path']
-        audio, sr = librosa.load(path, sr=16000)
-        dataset_dict['ID'].append(row['ID'])
-        dataset_dict['path'].append(path)
-        dataset_dict['text'].append(row['text'])
-        dataset_dict['start'].append(row['start'])
-        dataset_dict['end'].append(row['end'])
-        dataset_dict['audio'].append(audio)
-        dataset_dict['sr'].append(sr)
-    return Dataset.from_dict(dataset_dict)
-
-# Data pre-processing for train        
-def prepare_dataset(batch):
-    # load and (possibly) resample audio datato 16kHz
-    audio = batch["audio"]
-    sr = batch["sr"]
-    transcription = batch["text"]
-
-    # compute log-Mel input features from input audio array
-    batch["input_features"] = feature_extractor(audio, sampling_rate=sr).input_features[0]
-    batch["input_length"] = len(audio) / sr
-
-    # encode target text to label ids
-    batch["labels"] = tokenizer(transcription).input_ids
-    return batch
-  
-
-# Data Augmentation
-def augment_audio(batch):
-    audio = np.array(batch["audio"]).astype(np.float32)
-    sr = batch["sr"]
-    transcription = batch["text"]
-   
-    # apply augmentations to the audio data
-    augmented_data = data_augmenter(audio, sr)
-    
-    # update the batch with augmented data
-    batch["input_features"] = feature_extractor(augmented_data, sampling_rate=sr).input_features[0]
-    batch["input_length"] = len(augmented_data) / sr
-    
-    # encode target text to label ids
-    batch["labels"] = tokenizer(transcription).input_ids
-    
-    return batch
-
 
 
 # data Collator
@@ -155,17 +104,11 @@ def compute_metrics(pred):
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-    if do_Normalization:
-        pred_str = [normalization_text(pred, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for pred in pred_str]
-        label_str = [normalization_text(label, Keep_punc=Keep_punc, keep_latin_chars=keep_latin_chars , Lower_case=Lower_case , lang=language_abbr) for label in label_str]
+    pred_str = [normalization_text(pred, lang=language) for pred in pred_str]
+    label_str = [normalization_text(label, lang=language) for label in label_str]
     
     wer = 100 * jiwer.wer(label_str, pred_str)
-    return {"wer": wer}
-
-# Check Audio length
-def is_audio_in_length_range(length):
-    return length < max_input_length
-
+    return {"WER": wer}
 
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
@@ -188,6 +131,9 @@ class SavePeftModelCallback(TrainerCallback):
 
 # Main()
 if __name__ == "__main__":
+
+    from transformers.models.whisper.tokenization_whisper import TO_LANGUAGE_CODE
+
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--kaldi_data', help="The path to the Kaldi dataset should be a path \
@@ -198,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_len', help="minimum signal length", default=1, type=int)
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
-    parser.add_argument('--lang', help='Language to tune',default="ar", type=str)
+    parser.add_argument('--lang', help='Language to tune',default="ar", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
@@ -212,8 +158,6 @@ if __name__ == "__main__":
         default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/[simulated_rirs_16k/smallroom/rir_list,simulated_rirs_16k/mediumroom/rir_list,simulated_rirs_16k/largeroom/rir_list]", type=str
     )
     # text Normalization:
-    parser.add_argument('--do_Normalization', help='To Normalize the text',default=False , action = "store_true")
-    parser.add_argument('--Keep_punc', help='Keep punctuation in the text',default=False , action = "store_true")
     parser.add_argument('--keep_latin_chars', help='Keep latin chars if the text is in Arabic',default=False , action = "store_true")
     parser.add_argument('--Lower_case', help='Keep Lower case in the latin text',default=False , action = "store_true")
     # hyparams :
@@ -267,8 +211,6 @@ if __name__ == "__main__":
     task = args.task
     data_augmentation = args.data_augmentation
 
-    do_Normalization = args.do_Normalization
-    Keep_punc = args.Keep_punc
     keep_latin_chars = args.keep_latin_chars
     Lower_case = args.Lower_case
 
@@ -277,25 +219,7 @@ if __name__ == "__main__":
         os.makedirs(output_dir)
 
     task = args.task  
-    languages = {
-        'Arabic' :  'ar',
-        'English':  'en',
-        'Spanish':  'es',
-        'French' :  'fr',
-        'German' :  'de',
-        'Italian':  'it'
-    } 
-    # Check if the language is valid
-    language_abbr = args.lang.lower()
-    if language_abbr not in languages.values():
-        print(f"Invalid language abbreviation: {language_abbr}")
-        exit()
-
-    # Get the language name
-    language = ""
-    for key, value in languages.items():
-        if value == language_abbr:
-            language = key   
+    language = args.lang.lower()
     
     # Get the last checkpoint
     resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
@@ -304,7 +228,6 @@ if __name__ == "__main__":
     
     # Create the processor
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
-           
     
     kaldi_data = args.kaldi_data
     data_train = os.path.join(kaldi_data, "train")
@@ -328,24 +251,7 @@ if __name__ == "__main__":
         max_len = args.max_len,
     )
     trainset = trainset.shuffle(seed = SEED)
-    
-    train_dataset = get_audio_for_kaldi_data(trainset)
-    validation_dataset = get_audio_for_kaldi_data(testset)
-        
-    dataset = DatasetDict({'train': train_dataset, 'val': validation_dataset})
-    # Check if the dataset is empty
-    if len(dataset) == 0:
-        print("Empty dataset.")
-        exit()
-           
-    # Prepare the vectorized datasets
-    vectorized_datasets = dataset.map(
-        prepare_dataset,
-        remove_columns=list(next(iter(dataset.values())).features),
-        num_proc=1,
-        desc="Data preparation",
-    ).with_format("torch")
-    
+
     data_augmenter = None
     if data_augmentation :
         if "[" not in args.data_augment_rir:
@@ -363,22 +269,13 @@ if __name__ == "__main__":
             sample_rate =16000,
         )
         
-        augmented_vectorized_train = dataset["train"].map(
-            augment_audio, 
-            remove_columns=list(next(iter(dataset.values())).features),
-            desc="Data Augmentation",
-            num_proc=1,
-        ).with_format("torch")
-        
-        vectorized_datasets_augmented = concatenate_datasets([vectorized_datasets['train'], augmented_vectorized_train])
-        vectorized_datasets['train'] = vectorized_datasets_augmented
-    
-    max_input_length = args.max_len
-    vectorized_datasets["train"] = vectorized_datasets["train"].filter(
-        is_audio_in_length_range,
-        input_columns=["input_length"],
-    )
-    vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(seed=SEED)
+    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = args.batch_size)
+    testset = process_dataset(processor, testset, batch_size = args.batch_size_eval)
+
+    dataset = DatasetDict({'train': trainset, 'val': testset})
+    # Check if the dataset is empty
+    if len(dataset) == 0:
+        raise RuntimeError("Empty dataset.")
           
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
     device_map = {
@@ -390,8 +287,6 @@ if __name__ == "__main__":
     }
 
     quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
-
-    
     
     if PEFT: 
         model = WhisperForConditionalGeneration.from_pretrained(base_model, load_in_8bit=True, device_map="auto", quantization_config=quantization_config)
@@ -428,10 +323,11 @@ if __name__ == "__main__":
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
 
-    trainset_len = int(vectorized_datasets['train'].num_rows)
-    testset_len = int(vectorized_datasets['val'].num_rows)
+    trainset_len = trainsetmeta["samples"]
+    testset_len = testsetmeta["samples"]
     print("trainset :",trainset_len)
     print("testset :",testset_len)
+    BATCH_SIZE = min(trainset_len, BATCH_SIZE)
     max_steps = round(NUM_EPOCH * trainset_len / BATCH_SIZE)
     print("max_step :", max_steps)
     eval_steps = round(max_steps / NUM_EPOCH)
@@ -472,15 +368,14 @@ if __name__ == "__main__":
         no_cuda = not use_gpu,
     )
 
-    
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        train_dataset=vectorized_datasets["train"],
-        eval_dataset=vectorized_datasets["val"],
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["val"],
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        compute_metrics=compute_metrics if not PEFT else None, 
+        compute_metrics=compute_metrics, # if not PEFT else None, 
         callbacks=[SavePeftModelCallback], 
     )
     model.config.use_cache = False 
