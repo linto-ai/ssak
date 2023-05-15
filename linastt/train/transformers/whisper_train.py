@@ -108,7 +108,7 @@ def compute_metrics(pred):
     label_str = [normalization_text(label, lang=language) for label in label_str]
     
     wer = 100 * jiwer.wer(label_str, pred_str)
-    return {"WER": wer}
+    return {"wer": wer}
 
 class SavePeftModelCallback(TrainerCallback):
     def on_save(

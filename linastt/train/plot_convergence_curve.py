@@ -43,7 +43,7 @@ def get_log_history_huggingface(path):
             log_history["step"] = steps + [step]
         key_loss_train = "loss/train" if "loss/train" in d else "loss"
         key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
-        key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_WER"
+        key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_wer"
         if key_loss_train in d:
             log_history["loss/train"] = log_history.get("loss/train", []) + [d[key_loss_train]]
         if key_loss_valid in d:
