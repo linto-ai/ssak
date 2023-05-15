@@ -1,6 +1,6 @@
-accelerate
+accelerate==0.19.0
 audiomentations
-bitsandbytes   
+bitsandbytes
 datasets
 datasets[audio]
 dtw-python
@@ -16,7 +16,8 @@ loralib
 matplotlib
 num2words
 onnxruntime
-peft
+# peft
+git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
 psutil
 py3nvml
 pyannote.audio
@@ -31,5 +32,5 @@ tensorboard
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
-transformers
+transformers==4.29.1
 vosk

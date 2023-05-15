@@ -51,7 +51,7 @@ RUN git clone https://github.com/speechbrain/speechbrain /opt/speechbrain \
 RUN pip3 install git+https://github.com/openai/whisper.git 
 
 # Tweaks (for the SKIPPING trick (look for 'SKIPPING' in the code), useful to restart training experiments with transformers trainer, when the jobs stopped in the middle of a huge epoch)
-COPY docker/transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
+# COPY docker/transformers_modified/trainer.py /usr/local/lib/python3.9/site-packages/transformers/
 
 # Fix for hyperpyyaml
 RUN pip3 install git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd7fb01e1e6e063be492fddeab
@@ -74,5 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends firefox-esr
 # ENV LC_ALL fr_FR.UTF-8
 
 # ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
+ENV WANDB_DISABLED=1
 
 ENTRYPOINT ["/bin/bash"]
