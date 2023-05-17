@@ -25,6 +25,7 @@ def parse_text_without_ids(file_name):
 def compute_wer(refs, preds,
                 use_ids=True,
                 normalization=None,
+                character_level=False,
                 debug=False,
                 ):
     """
@@ -92,7 +93,21 @@ def compute_wer(refs, preds,
 
     # Calculate WER for the whole corpus
 
-    measures = jiwer.compute_measures(refs, preds)
+    if character_level:
+        cer_transform = jiwer.transforms.Compose(
+            [
+                jiwer.transforms.RemoveMultipleSpaces(),
+                jiwer.transforms.Strip(),
+                jiwer.transforms.ReduceToSingleSentence(""),
+                jiwer.transforms.ReduceToListOfListOfChars(),
+            ]
+        )
+        measures = jiwer.compute_measures(refs, preds,
+            truth_transform=cer_transform,
+            hypothesis_transform=cer_transform,
+        )
+    else:
+        measures = jiwer.compute_measures(refs, preds)
 
     wer_score = measures['wer']
     sub_score = measures['substitutions']
@@ -131,6 +146,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...)", default=None)
+    parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
     args = parser.parse_args()
 
     target_test = args.references
@@ -148,8 +164,9 @@ if __name__ == "__main__":
         target_test, target_pred,
         use_ids=use_ids,
         normalization=args.norm,
+        character_level=args.char,
         debug=debug)
     print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' WER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
-        result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
+    print(' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
+        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
     print(' ------------------------------------------------------------------------------------------------------- ')
