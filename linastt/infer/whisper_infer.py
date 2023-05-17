@@ -115,10 +115,16 @@ def load_model(
         return whisper.load_model(name, device=device, download_root=download_root, in_memory=in_memory)
     
     # Otherwise, assume transformers
+    peft_folder = None
     if extension in [".ckpt", ".bin"]:
         model_path = name
     else:
         # Search for the cached file (download if necessary)
+        if os.path.isdir(name):
+            for root, _, files in os.walk(name):
+                if "adapter_config.json" in files:
+                    peft_folder = root
+                    break
         try:
             import transformers
         except ImportError:
@@ -134,30 +140,53 @@ def load_model(
                 else:
                     raise e
             except:
-                raise RuntimeError(f"Original error: {e}\nCould not find model {name} from HuggingFace nor local folders.")
+                if peft_folder is None:
+                    raise RuntimeError(f"Original error: {e}\nCould not find model {name} from HuggingFace nor local folders.")
+
     # Load HF Model
-    hf_state_dict = torch.load(model_path, map_location="cpu")
-    # Rename layers
-    for key in list(hf_state_dict.keys())[:]:
+    if peft_folder is not None:
+        from peft import PeftConfig, PeftModel
+        from transformers import WhisperForConditionalGeneration
+        peft_config = PeftConfig.from_pretrained(peft_folder)
+        base_model = peft_config.base_model_name_or_path
+        model = WhisperForConditionalGeneration.from_pretrained(base_model)
+        model = PeftModel.from_pretrained(model, peft_folder)
+        hf_state_dict = model.state_dict()
+        del model
+    else:
+        hf_state_dict = torch.load(model_path, map_location="cpu")
+
+    # Rename layers 
+    for key in list(hf_state_dict.keys()):
         new_key = hf_to_whisper_states(key)
-        hf_state_dict[new_key] = hf_state_dict.pop(key)
-    
-    # Remove useless key (Speechbrain
-    if "_mel_filters" in hf_state_dict:
-        hf_state_dict.pop("_mel_filters")
+        if new_key is None:
+            hf_state_dict.pop(key)
+        elif new_key != key:
+            hf_state_dict[new_key] = hf_state_dict.pop(key)
 
     # Init Whisper Model and replace model weights
     dims = whisper.model.ModelDimensions(**states_to_dim(hf_state_dict))
     whisper_model = whisper.model.Whisper(dims)
     whisper_model.load_state_dict(hf_state_dict)
     del hf_state_dict
-    if hasattr(whisper_model, "alignment_heads"):
-        del whisper_model.alignment_heads # Will be recomputed later
     whisper_model = whisper_model.to(device)
     return whisper_model
 
 # Credit: https://github.com/openai/whisper/discussions/830
 def hf_to_whisper_states(text):
+    
+    # From Speechbrain
+    if text == "_mel_filters":
+        return None
+    
+    # From PEFT
+    if "default" in text:
+        return None
+    if text.startswith("base_model.model."):
+        text = text[len("base_model.model."):]
+    if not text.startswith("model."):
+        return None
+    
     text = re.sub('.layers.', '.blocks.', text)
     text = re.sub('.self_attn.', '.attn.', text)
     text = re.sub('.q_proj.', '.query.', text)
