@@ -45,7 +45,7 @@ def cm_import(
         url + "/api/conversations/import?type=transcription",
         {
             "transcription": transcription,
-            "file": audio_file,
+            "file": os.path.realpath(audio_file),
             "lang": lang,
             "name": name,
             "segmentCharSize": 2500,
