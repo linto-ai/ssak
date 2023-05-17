@@ -101,7 +101,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
     except Exception as err:
         print(f"Error when processing line: \"{input_line}\"")
         raise err
-    return line
+    return line.strip()
    
 if __name__ == '__main__':
 

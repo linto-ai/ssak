@@ -22,13 +22,18 @@ def parse_text_with_ids(file_name):
 def parse_text_without_ids(file_name):
     return dict(enumerate([normalize_line(l) for l in open(file_name,'r',encoding='utf-8').readlines()]))
 
-def compute_wer(refs, preds, use_ids=True, debug=False):
+def compute_wer(refs, preds,
+                use_ids=True,
+                normalization=None,
+                debug=False,
+                ):
     """
     Compute WER between two files.
     :param refs: path to the reference file, or dictionary {"id": "text..."}, or list of texts
     :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
                   Must be of the same type as refs.
     :param use_ids: (for files) whether reference and prediction files includes id as a first field
+    :param normalization: None or a language code ("fr", "ar", ...)
     :param debug: if True, print debug information. If string, write debug information to the file.
     """
     # Open the test dataset human translation file
@@ -64,6 +69,15 @@ def compute_wer(refs, preds, use_ids=True, debug=False):
     assert isinstance(refs, list)
     assert isinstance(preds, list)
     assert len(refs) == len(preds)
+
+    if normalization:
+        from linastt.utils.text import format_text_latin, format_text_ar
+        if normalization == "ar":
+            normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
+        else:
+            normalize_func = lambda x: format_text_latin(x, lang=normalization)
+        refs = [normalize_func(ref) for ref in refs]
+        preds = [normalize_func(pred) for pred in preds]
 
     if debug:
         with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
@@ -116,7 +130,7 @@ if __name__ == "__main__":
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
-    parser.add_argument('--normalization', help="Language to use for text normalization", default=None)
+    parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...)", default=None)
     args = parser.parse_args()
 
     target_test = args.references
@@ -130,7 +144,11 @@ if __name__ == "__main__":
         debug = eval(debug.title())
     use_ids = args.use_ids
 
-    result = compute_wer(target_test, target_pred, use_ids=use_ids, debug=debug)
+    result = compute_wer(
+        target_test, target_pred,
+        use_ids=use_ids,
+        normalization=args.norm,
+        debug=debug)
     print(' ------------------------------------------------------------------------------------------------------- ')
     print(' WER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
         result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
