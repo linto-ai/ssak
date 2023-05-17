@@ -2,6 +2,7 @@
 
 import jiwer
 import re
+import os
 
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
@@ -18,38 +19,51 @@ def parse_text_with_ids(file_name):
             res_dict[id] = text
     return res_dict
 
+def parse_text_without_ids(file_name):
+    return dict(enumerate([normalize_line(l) for l in open(file_name,'r',encoding='utf-8').readlines()]))
 
-def compute_wer(filename_ref, filename_pred, use_ids=True, debug=False):
+def compute_wer(refs, preds, use_ids=True, debug=False):
     """
     Compute WER between two files.
-    :param filename_ref: path to the reference file
-    :param filename_pred: path to the prediction file
-    :param use_ids: whether reference and prediction files includes id as a first field
+    :param refs: path to the reference file, or dictionary {"id": "text..."}, or list of texts
+    :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
+                  Must be of the same type as refs.
+    :param use_ids: (for files) whether reference and prediction files includes id as a first field
     :param debug: if True, print debug information. If string, write debug information to the file.
     """
     # Open the test dataset human translation file
-    if use_ids:
-        refs_dict = parse_text_with_ids(filename_ref)
-        preds_dict = parse_text_with_ids(filename_pred)
-    else:
-        refs_dict = dict(enumerate([normalize_line(l) for l in open(filename_ref,'r',encoding='utf-8').readlines()]))
-        preds_dict = dict(enumerate([normalize_line(l) for l in open(filename_pred,'r',encoding='utf-8').readlines()]))
+    if isinstance(refs, str):
+        assert os.path.isfile(refs), f"Reference file {refs} doesn't exist"
+        assert isinstance(preds, str) and os.path.isfile(preds)
+        if use_ids:
+            refs = parse_text_with_ids(refs)
+            preds = parse_text_with_ids(preds)
+        else:
+            refs = parse_text_without_ids(refs)
+            preds = parse_text_without_ids(preds)
 
-    # Reconstruct two lists of pred/ref with the intersection of ids
-    ids = [id for id in refs_dict.keys() if id in preds_dict]
+    if isinstance(refs, dict):
+        assert isinstance(preds, dict)
 
-    if len(ids) == 0:
-        if len(refs_dict) == 0:
-            raise ValueError("Reference file is empty")
-        if len(preds_dict) == 0:
-            raise ValueError("Prediction file is empty")
-        raise ValueError(
-            "No common ids between reference and prediction files")
-    if len(ids) != len(refs_dict) or len(ids) != len(preds_dict):
-        print("WARNING: ids in reference and/or prediction files are missing or different.")
+        # Reconstruct two lists of pred/ref with the intersection of ids
+        ids = [id for id in refs.keys() if id in preds]
 
-    refs = [refs_dict[id] for id in ids]
-    preds = [preds_dict[id] for id in ids]
+        if len(ids) == 0:
+            if len(refs) == 0:
+                raise ValueError("Reference file is empty")
+            if len(preds) == 0:
+                raise ValueError("Prediction file is empty")
+            raise ValueError(
+                "No common ids between reference and prediction files")
+        if len(ids) != len(refs) or len(ids) != len(preds):
+            print("WARNING: ids in reference and/or prediction files are missing or different.")
+
+        refs = [refs[id] for id in ids]
+        preds = [preds[id] for id in ids]
+
+    assert isinstance(refs, list)
+    assert isinstance(preds, list)
+    assert len(refs) == len(preds)
 
     if debug:
         with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
@@ -102,10 +116,15 @@ if __name__ == "__main__":
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
+    parser.add_argument('--normalization', help="Language to use for text normalization", default=None)
     args = parser.parse_args()
 
     target_test = args.references
     target_pred = args.predictions
+
+    assert os.path.isfile(target_test), f"File {target_test} doesn't exist"
+    assert os.path.isfile(target_pred), f"File {target_pred} doesn't exist"
+
     debug = args.debug
     if debug and debug.lower() in ["true", "false"]:
         debug = eval(debug.title())
