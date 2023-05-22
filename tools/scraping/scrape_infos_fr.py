@@ -142,7 +142,7 @@ def scrape_lesechos(outfolder, **kwargs):
         ],
         category_section = ("a", is_top_menu), # Top Menu
         article_section = [("a", is_article)],  # Articles in a page
-        paragraph_classes = [['sc-14kwckt-6', 'dbPXmO']], # Paragraph classes in articles
+        paragraph_classes = [['sc-14kwckt-6']], # Paragraph classes in articles
         outfolder = outfolder, **kwargs
     )
 
@@ -275,7 +275,11 @@ def scrape(
     options = webdriver.FirefoxOptions()
     if not open_browser:
         options.add_argument("--headless")
-    driver = webdriver.Firefox(options=options)
+    try:
+        driver = webdriver.Firefox(options=options)
+    except Exception as err:
+        raise RuntimeError("Could not start Firefox driver. You may need to install Firefox:\n\
+                        apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
 
     text_to_discard = [ norm_text(t) for t in [
         "\nChoix de consentement © Copyright 20\xa0Minutes  - La fréquentation de 20\xa0Minutes est certifiée par l’ACPM \n",
@@ -308,6 +312,8 @@ def scrape(
         "=> Cliquer ici ",
         "AFP/",
         "REUTERS/",
+        "Contenu réservé aux abonnés",
+        "Tous droits réservés",
     ]
     collected_text = []
 
@@ -336,6 +342,12 @@ def scrape(
 
         # Get all the sections
         soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        def dump_current():
+            if check_article:
+                filename = os.path.realpath("tmp.html")
+                print(soup, file = open(filename, "w"))
+
 
         assert article_section is None or len(article_section) <= 2
         double_embedding = article_section is not None and len(article_section)>1 
@@ -426,8 +438,16 @@ def scrape(
                     # Get the text
                     soup = BeautifulSoup(driver.page_source, "html.parser")
                     found_paragraphs = False
+                    other_paragraph_classes = []
                     for paragraph in soup.find_all('p'):
-                        if paragraph.get('class') not in paragraph_classes:
+                        paragraph_class = paragraph.get('class')
+                        if isinstance(paragraph_class, list):
+                            for p in paragraph_classes:
+                                if isinstance(p, list) and len(paragraph_class) > len(p) and paragraph_class[:len(p)] == p:
+                                    paragraph_class = p
+                        if paragraph_class not in paragraph_classes:
+                            if paragraph_class not in other_paragraph_classes:
+                                other_paragraph_classes.append(paragraph_class)
                             continue
                         text = norm_text(paragraph.text)
                         if "Une page 404 est une page renvoyée par le serveur d’un site" in text:
@@ -467,12 +487,16 @@ def scrape(
                                 print("Number of pages", num_pages)
                                 return num_pages
                     if not found_paragraphs:
-                        print("WARNING: no paragraph found in", sublink)
+                        dump_current()
+                        print(f"WARNING: no paragraph found in {sublink}.\n{paragraph_classes=}\n{other_paragraph_classes=}")
                 if not found_articles:
+                    dump_current()
                     print("WARNING: No articles found ({article_section})")
             if not found_subsections:
+                dump_current()
                 raise RuntimeError(f"No subsections found with {article_section}")
         if not found_sections:
+            dump_current()
             raise RuntimeError(f"No sections found with {category_section}")
         #driver.close()
 
@@ -521,7 +545,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Scrape a website.')
     parser.add_argument('output', type=str, default="data", help='Output folder', nargs="?")
-    parser.add_argument("--no-close", action="store_true", help="Do not close the browser at the end", default=False)
+    parser.add_argument("--browser", action="store_true", help="Open a web browser while scraping", default=False)
     parser.add_argument("--loop", action="store_true", help="Do loop infinity", default=False)
     parser.add_argument("--max_articles_per_website", default=None, type=int, help="Maximum number of articles per website")
     parser.add_argument("--verbose", action="store_true", help="More verbose", default=False)
@@ -532,8 +556,8 @@ if __name__ == "__main__":
     TEST_MODE = args.max_articles_per_website is not None
 
     kwargs = {
-        "open_browser": args.no_close,
-        "close_at_the_end" : not args.no_close,
+        "open_browser": args.browser,
+        "close_at_the_end" : not args.browser,
         "verbose" : 2 if args.verbose or TEST_MODE else 1,
         "max_pages" : args.max_articles_per_website,
         "check_article": TEST_MODE,
