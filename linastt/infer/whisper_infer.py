@@ -147,11 +147,21 @@ def load_model(
     # Load HF Model
     if peft_folder is not None:
         from peft import PeftConfig, PeftModel
-        from transformers import WhisperForConditionalGeneration
+        import transformers
+
         peft_config = PeftConfig.from_pretrained(peft_folder)
         base_model = peft_config.base_model_name_or_path
-        model = WhisperForConditionalGeneration.from_pretrained(base_model)
+
+        # quantization_config = transformers.BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
+        # model = transformers.WhisperForConditionalGeneration.from_pretrained(base_model,
+        #     load_in_8bit=True,
+        #     device_map="auto", 
+        #     quantization_config=quantization_config,
+        # )
+        model = transformers.WhisperForConditionalGeneration.from_pretrained(base_model)
+
         model = PeftModel.from_pretrained(model, peft_folder)
+        # model = model.float().get_base_model() # back to transformers (not needed...)
         hf_state_dict = model.state_dict()
         del model
     else:
