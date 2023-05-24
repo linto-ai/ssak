@@ -431,8 +431,9 @@ if __name__ == "__main__":
     model.config.use_cache = False 
 
     # training
+    tic()
     trainer.train(resume_from_checkpoint=checkpoint) # resume_from_checkpoint=resume_from_checkpoint
-    
+    toc("Training", stream = readme)
     # Save model
     processor.save_pretrained(save_path+"/finals")
     model.save_pretrained(save_path+"/finals")
