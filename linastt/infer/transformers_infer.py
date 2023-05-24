@@ -16,6 +16,7 @@ def transformers_infer(
     audios,
     batch_size = 1,
     device = None,
+    language = None,
     arpa_path = None, alpha = 0.5, beta = 1.0,
     sort_by_len = False,
     output_ids = False,
@@ -65,8 +66,13 @@ def transformers_infer(
             if output_ids:
                 ids = [x[1] for x in batch]
                 batch = [x[0] for x in batch]
-            log_probas = transformers_compute_logits(model, processor, batch, device = device, sample_rate = sample_rate)
-            pred = processor.batch_decode(torch.argmax(log_probas, dim=-1))
+            log_probas = transformers_compute_logits(model, processor, batch, device = device, language = language, sample_rate = sample_rate)
+            need_argmax = log_probas.dtype not in [torch.int, torch.int32, torch.int64]
+            if need_argmax:
+                log_probas = torch.argmax(log_probas, dim=-1)
+                pred = processor.batch_decode(log_probas)
+            else:
+                pred = processor.batch_decode(log_probas, skip_special_tokens=True)
             if output_ids:
                 for id, p in zip(ids, pred):
                     yield (id, p)
@@ -87,7 +93,7 @@ def transformers_infer(
             if output_ids:
                 ids = [x[1] for x in batch]
                 batch = [x[0] for x in batch]
-            log_probas = transformers_compute_logits(model, processor, batch, device = device, sample_rate = sample_rate)
+            log_probas = transformers_compute_logits(model, processor, batch, device = device, language = language, sample_rate = sample_rate)
             if output_ids:
                 logits.append((ids, log_probas))
             else:
@@ -117,8 +123,20 @@ def transformers_load_model(source, device = None):
         device = auto_device()
 
     if isinstance(source, str):
-        model = transformers.Wav2Vec2ForCTC.from_pretrained(source).to(device)
-        processor = transformers.Wav2Vec2Processor.from_pretrained(source)
+        peft_folder = None
+        if os.path.isdir(source):
+            if "adapter_config.json" in os.listdir(source):
+                peft_folder = source
+        if peft_folder:
+            from peft import PeftConfig, PeftModel
+            peft_config = PeftConfig.from_pretrained(peft_folder)
+            base_model = peft_config.base_model_name_or_path
+            model = auto_model(base_model)
+            model = PeftModel.from_pretrained(model, peft_folder).to(device)
+        else: 
+
+            model = auto_model(source, device)
+        processor = transformers.AutoProcessor.from_pretrained(source)
     elif isinstance(source, (list, tuple)) and len(source) == 2:
         model, processor = source
         assert isinstance(model, transformers.Wav2Vec2ForCTC)
@@ -129,6 +147,15 @@ def transformers_load_model(source, device = None):
 
     return model, processor
 
+# AutoModel does produce a WhisperModel that latter fails to decode with "generate"
+def auto_model(source, device = None):
+    model = transformers.AutoModel.from_pretrained(source)
+    if isinstance(model, transformers.models.whisper.modeling_whisper.WhisperModel):
+        model = transformers.WhisperForConditionalGeneration.from_pretrained(source)
+    if device is not None:
+        model = model.to(device)
+    return model
+
 def conform_torch_logit(x, num_outputs):
     n = x.shape[-1]
     if n < num_outputs:
@@ -137,36 +164,65 @@ def conform_torch_logit(x, num_outputs):
         return x[:,:,:num_outputs]
     return x
 
-def transformers_compute_logits(model, processor, batch, device = None, sample_rate = None, max_len = 2240400):
+def transformers_compute_logits(model, processor, batch, device = None, language = None, sample_rate = None, max_len = 2240400):
+
+    use_wav2vec_api = isinstance(model, transformers.Wav2Vec2ForCTC)
 
     if sample_rate == None:
         sample_rate = processor.feature_extractor.sampling_rate
     if device == None:
         device = model.device
 
-    processed_batch = processor(batch, sampling_rate = sample_rate, padding = "longest")
+    def do_infer_sub(batch, i, j):
+        raise NotImplementedError
 
-    padded_batch = processor.pad(
-        processed_batch,
-        padding = True,
-        max_length = None,
-        pad_to_multiple_of = None,
-        return_tensors="pt",
-    )
+    if use_wav2vec_api:
+        # Wav2Vec style
 
-    l = padded_batch.input_values.shape[1]
+        processed_batch = processor(batch, sampling_rate = sample_rate, padding = "longest")
 
+        padded_batch = processor.pad(
+            processed_batch,
+            padding = True,
+            max_length = None,
+            pad_to_multiple_of = None,
+            return_tensors="pt",
+        )
+
+        l = padded_batch.input_values.shape[1]
+
+        def do_infer(batch):
+            return model(batch.input_values.to(device), attention_mask = batch.attention_mask.to(device)).logits.cpu()
+        def do_infer_sub(batch, i, j):
+            return model(batch.input_values[:,i:j].to(device), attention_mask = batch.attention_mask[:,i:j].to(device)).logits.cpu()
+
+    else:
+        # Whisper style
+
+        # input_features = [{"input_features": feature} for feature in processed_batch.input_features]
+        # padded_batch = processor.feature_extractor.pad(input_features, return_tensors="pt")
+
+        padded_batch = processor(batch, return_tensors="pt", sampling_rate = sample_rate)
+
+        l = -1
+
+
+        forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task="transcribe")
+
+        def do_infer(batch):
+            input_features = batch.input_features.to(device)
+            return model.generate(input_features=input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=448)
+        
     with torch.no_grad():
         if l > max_len:
             # Split batch in smaller chunks
             logits = []
             for i in range(0, l, max_len):
                 j = min(i + max_len, l)
-                logits.append(model(padded_batch.input_values[:,i:j].to(device), attention_mask = padded_batch.attention_mask[:,i:j].to(device)).logits.cpu())
+                logits.append(do_infer_sub(padded_batch, i, j))
             logits = torch.cat(logits, dim = 1)
         else:
-            logits = model(padded_batch.input_values.to(device), attention_mask = padded_batch.attention_mask.to(device)).logits
-            logits = logits.cpu()
+            logits = do_infer(padded_batch)
 
     return logits
 
@@ -210,6 +266,7 @@ if __name__ == "__main__":
         default = "Ilyes/wav2vec2-large-xlsr-53-french"
 
     )
+    parser.add_argument('--language', help="Language (if needed by the ASR model, for instance Whisper model)", default=None, type=str)
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
@@ -233,6 +290,7 @@ if __name__ == "__main__":
         batch_size = args.batch_size,
         sort_by_len = args.sort_by_len,
         output_ids = args.use_ids,
+        language = args.language,
         arpa_path = args.arpa,
         log_memtime = args.enable_logs,
     ):
