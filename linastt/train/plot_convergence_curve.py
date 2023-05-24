@@ -205,23 +205,30 @@ if __name__ == "__main__":
     best_wer = []
     argbest = []
     for i, (dir, data) in enumerate(datas.items()):
-        best_wer.append( min([x for x in data["WER/valid"] if x is not None]) )
-        argbest.append( data["WER/valid"].index(best_wer[-1]) )
+        if "WER/valid" not in data.keys():
+            best_wer.append(None)
+            best_loss = min([x for x in data["loss/valid"] if x is not None])
+            argbest.append(data["loss/valid"].index(best_loss))
+        else:
+            best_wer.append( min([x for x in data["WER/valid"] if x is not None]) )
+            argbest.append( data["WER/valid"].index(best_wer[-1]) )
 
     plt.subplot(nplots, 1, 1)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.plot(get_x(data), data["loss/train"], colors[i]+"--", label="train" if len(dirs) == 1 else None)
-        plt.plot(get_x(data), data["loss/valid"], colors[i], label="valid" if len(dirs) == 1 else dir)
-        plt.plot(get_x(data), data["loss/valid"], colors[i]+"+")
-        plt.axvline(get_x(data)[argbest[i]], color = colors[i], linestyle = ":")
+        plt.plot(get_x(data), data["loss/train"], colors[i%len(colors)]+"--", label="train" if len(dirs) == 1 else None)
+        plt.plot(get_x(data), data["loss/valid"], colors[i%len(colors)], label="valid" if len(dirs) == 1 else dir)
+        plt.plot(get_x(data), data["loss/valid"], colors[i%len(colors)]+"+")
+        plt.axvline(get_x(data)[argbest[i]], color = colors[i%len(colors)], linestyle = ":")
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("loss")
     plt.subplot(nplots, 1, 2)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.plot(get_x(data), data["WER/valid"], colors[i], label="best: {:.4g}%".format(best_wer[i]))
-        plt.plot(get_x(data), data["WER/valid"], colors[i]+"+")
-        plt.axvline(get_x(data)[argbest[i]], color = colors[i], linestyle = ":")
+        plt.axvline(get_x(data)[argbest[i]], color = colors[i%len(colors)], linestyle = ":")
+        if "WER/valid" not in data.keys():
+            continue
+        plt.plot(get_x(data), data["WER/valid"], colors[i%len(colors)], label="best: {:.4g}%".format(best_wer[i]))
+        plt.plot(get_x(data), data["WER/valid"], colors[i%len(colors)]+"+")
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("WER")
@@ -230,7 +237,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["lr_model"], colors[i], label="learning rate" if i == 0 else None)
+            plt.plot(get_x(data), data["lr_model"], colors[i%len(colors)], label="learning rate" if i == 0 else None)
         #plt.ylabel("Learning Rate")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -238,7 +245,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["train_time_norm"], colors[i], label="train time (sec/batch)" if i == 0 else None)
+            plt.plot(get_x(data), data["train_time_norm"], colors[i%len(colors)], label="train time (sec/batch)" if i == 0 else None)
         #plt.ylabel("Training Time")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -246,7 +253,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["valid_time_norm"], colors[i], label="valid time (min)" if i == 0 else None)
+            plt.plot(get_x(data), data["valid_time_norm"], colors[i%len(colors)], label="valid time (min)" if i == 0 else None)
         #plt.ylabel("Validation Time")
         plt.xlim(xmin, xmax)
         plt.legend()
