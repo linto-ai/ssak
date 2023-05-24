@@ -11,10 +11,11 @@ from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
 
 import jiwer
- 
+import logging
+
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR , get_last_checkpoint
 
 import transformers
 import torch
@@ -39,6 +40,7 @@ from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
+logger = logging.getLogger(__name__)
 
 def move_model_to_device(model, device):
     if not isinstance(device, torch.device):
@@ -122,13 +124,25 @@ class SavePeftModelCallback(TrainerCallback):
         checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
 
         peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
+        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
         kwargs["model"].save_pretrained(peft_model_path)
-
         # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
         # if os.path.exists(pytorch_model_path):
         #     os.remove(pytorch_model_path)
         return control
 
+
+def args_to_str(args, ignore = ["data_augment_rir", "data_augment_noise", "train", "valid","output_dir", "overwrite_output_dir"]):
+    d = args.__dict__
+
+    s = "_".join(("{}-{}".format("".join([a[0] for a in k.replace("-","_").split("_")]),
+            {True: 1, False: 0}.get(v, str(v).replace("/","_"))
+        )) for k,v in d.items()
+        if k not in ignore
+    )
+    while "__" in s:
+        s = s.replace("__","_")
+    return s
 
 # Main()
 if __name__ == "__main__":
@@ -159,22 +173,22 @@ if __name__ == "__main__":
     # hyparams :
     parser.add_argument('--batch_size', help='Batch size',default=8, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size to eval',default=8, type=int)
-    parser.add_argument('--learning_rate', help='Learning rate',default=3e-06, type=float)
+    parser.add_argument('--learning_rate', help='Learning rate',default=1e-03, type=float)
     parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
     parser.add_argument('--num_epochs', help='Num of Epochs',default=3, type=int)
     parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=512, type=int)
-    parser.add_argument('--warmup_steps', help='warmup steps',default=500, type=int)
-    parser.add_argument('--fp16', help='FP16',default=False, action = "store_true")
     parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
+    parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
 
     parser.add_argument('--output_dir', help='Output trained model', default="./Model")
     args = parser.parse_args()
     
-     # HyperParams 
+
+    
+    # HyperParams 
     SAMPLE_RATE = 16000
     BATCH_SIZE = args.batch_size
-    WARMUP_STEPS = args.warmup_steps
     BATCH_SIZE_EVAL = args.batch_size_eval
     WEIGHT_DECAY= args.weight_decay
     GRADIENT_ACCUMULATION_STEPS=args.gradient_accumulation_steps
@@ -183,9 +197,9 @@ if __name__ == "__main__":
     AUDIO_MAX_LENGTH = 480000
     TEXT_MAX_LENGTH = args.text_max_length
     PEFT = args.use_peft
-    FP16 = args.fp16
     SEED = args.seed
-
+    warmup_ratio = 0.1
+    
     if not args.gpus:
         args.gpus = ",".join([str(i) for i in range(get_num_gpus())])
 
@@ -202,16 +216,36 @@ if __name__ == "__main__":
     args.online = (args.online or args.data_augmentation)
     online_dev = False
     
-    output_dir = args.output_dir
     base_model = args.base_model
     task = args.task
     data_augmentation = args.data_augmentation
 
-    print("Output Folder:", output_dir)
-    if not os.path.isdir(output_dir):
-        os.makedirs(output_dir)
+    tasks_train = args_to_str(args)
+    save_path = f'{args.output_dir}/t-{os.path.basename(args.train)}_v-{os.path.basename(args.valid)}_{tasks_train}/'
+    
+    # Detecting last checkpoint.
+    last_checkpoint = None
+    if os.path.isdir(save_path) and not args.overwrite_output_dir:
+        last_checkpoint = get_last_checkpoint(save_path)
+        if last_checkpoint is None and len(os.listdir(save_path)) > 0:
+            last_checkpoint = get_last_checkpoint(save_path)
+        elif last_checkpoint is None and len(os.listdir(save_path)) > 0:
+            raise ValueError(
+                f"Output directory ({save_path}) already exists and is not empty. "
+                "Use --overwrite_output_dir to overcome."
+            )
+    elif last_checkpoint is not None:
+        logger.info(
+            f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
+            "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
+        )
+    
+    if os.path.isdir(os.path.join(save_path, 'finals')):
+        print(f"Output folder{save_path} already exists: skipping it.")
+        sys.exit(0)
+    os.makedirs(save_path, exist_ok=True)
 
-    readme = open(output_dir+"/README.txt", "a")
+    readme = open(save_path+"/README.txt", "a")
 
     # Print the date and time
     print(datetime.datetime.now(), file=readme)
@@ -222,8 +256,6 @@ if __name__ == "__main__":
     task = args.task  
     language = args.lang.lower()
     
-    # Get the last checkpoint
-    resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_dir)
     tokenizer = WhisperTokenizer.from_pretrained(base_model, language=language, task=task)
     feature_extractor = WhisperFeatureExtractor.from_pretrained(base_model)
     
@@ -246,7 +278,7 @@ if __name__ == "__main__":
         data_val,
         shuffle = False,
         online = online_dev,
-        max_data = (2 * args.batch_size) if args.debug else 480,
+        max_data = (2 * args.batch_size) if args.debug else None,
         choose_data_with_max_len = args.debug,
         min_len = args.min_len,
         max_len = args.max_len,
@@ -259,6 +291,8 @@ if __name__ == "__main__":
     BATCH_SIZE = min(trainset_len, BATCH_SIZE)
     max_steps = round(NUM_EPOCH * trainset_len / BATCH_SIZE)
     eval_steps = round(max_steps / NUM_EPOCH)
+    warmup_steps = round(max_steps * warmup_ratio)
+
     num_devices = len(gpus) or 1
     
     trainsetmeta = ", ".join("{} {}".format(v,k) for k,v in trainsetmeta.items())
@@ -289,8 +323,8 @@ if __name__ == "__main__":
             sample_rate =16000,
         )
         
-    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = args.batch_size, logstream = readme)
-    testset = process_dataset(processor, testset, batch_size = args.batch_size_eval, logstream = readme)
+    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = BATCH_SIZE, logstream = readme)
+    testset = process_dataset(processor, testset, batch_size = BATCH_SIZE_EVAL, logstream = readme)
     if readme is not None:
         readme.flush()
 
@@ -300,28 +334,17 @@ if __name__ == "__main__":
         raise RuntimeError("Empty dataset.")
           
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-    device_map = {
-        "transformer.word_embeddings": 0,
-        "transformer.word_embeddings_layernorm": 0,
-        "lm_head": "cpu",
-        "transformer.h": 0,
-        "transformer.ln_f": 0,
-    }
-
+    
     quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
     
     if PEFT: 
-        model = WhisperForConditionalGeneration.from_pretrained(base_model, load_in_8bit=True, device_map="auto", quantization_config=quantization_config)
-    else :
-        model = WhisperForConditionalGeneration.from_pretrained(base_model)
-    
-    model.config.forced_decoder_ids = None
-    model.config.suppress_tokens = []
-    model.train(True)
-    if not PEFT:
-        model.gradient_checkpointing_enable()
-
-    if PEFT:    
+        model = WhisperForConditionalGeneration.from_pretrained(
+            base_model, 
+            load_in_8bit=True,
+            device_map="auto", 
+            quantization_config=quantization_config
+            ) 
+        
         model = prepare_model_for_int8_training(model)
 
         # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
@@ -334,8 +357,15 @@ if __name__ == "__main__":
 
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
-        
-    gpu_log = open(os.path.join(output_dir, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
+    else :
+        model = WhisperForConditionalGeneration.from_pretrained(base_model)
+        model.gradient_checkpointing_enable()
+    
+    model.config.forced_decoder_ids = None
+    model.config.suppress_tokens = []
+    model.train(True)
+       
+    gpu_log = open(os.path.join(save_path, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
     gpu_usage("START", stream = gpu_log)
     device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     if use_gpu:
@@ -345,17 +375,25 @@ if __name__ == "__main__":
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
 
+    if last_checkpoint is not None:
+        checkpoint = last_checkpoint
+    elif base_model is not None and os.path.isdir(base_model):
+        checkpoint = base_model
+    else:
+        checkpoint = None
+    
+    
     random.seed(SEED)
     transformers.set_seed(SEED)
     training_args = Seq2SeqTrainingArguments(
-        output_dir=output_dir, # change to a repo name of your choice
+        output_dir=save_path, # change to a repo name of your choice
         label_names = ['labels'],
         evaluation_strategy="steps",
-        max_steps = max_steps,
+        max_steps =  max_steps,
         eval_steps=eval_steps,
         logging_steps=eval_steps,
         save_steps=eval_steps,
-        save_total_limit=1,
+        save_total_limit=2,
         metric_for_best_model="loss",
         greater_is_better=False,
         load_best_model_at_end=True,
@@ -366,17 +404,18 @@ if __name__ == "__main__":
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=LR,
         weight_decay=WEIGHT_DECAY,
-        warmup_steps=WARMUP_STEPS,
+        warmup_steps=warmup_steps,
         lr_scheduler_type="linear",
         predict_with_generate=True,
         fp16= use_gpu,
         generation_max_length=TEXT_MAX_LENGTH,
-        logging_dir=f'{output_dir}/logs',
+        logging_dir=f'{save_path}/logs',
         remove_unused_columns=not PEFT,
-        resume_from_checkpoint=resume_from_checkpoint,
+        resume_from_checkpoint=checkpoint,
         data_seed=SEED,
         seed=SEED,
         no_cuda = not use_gpu,
+        overwrite_output_dir=args.overwrite_output_dir,
     )
 
     trainer = Seq2SeqTrainer(
@@ -386,13 +425,14 @@ if __name__ == "__main__":
         eval_dataset=dataset["val"],
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        compute_metrics=compute_metrics, # if not PEFT else None, 
+        compute_metrics =  None if PEFT else compute_metrics, 
         callbacks=[transformers.EarlyStoppingCallback(early_stopping_patience= 15)] + ([SavePeftModelCallback] if PEFT else []),
     )
     model.config.use_cache = False 
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint) # resume_from_checkpoint=resume_from_checkpoint
+    # training
+    trainer.train(resume_from_checkpoint=checkpoint) # resume_from_checkpoint=resume_from_checkpoint
     
     # Save model
-    processor.save_pretrained(output_dir+"/final")
-    model.save_pretrained(output_dir+"/final")
+    processor.save_pretrained(save_path+"/finals")
+    model.save_pretrained(save_path+"/finals")
