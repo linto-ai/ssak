@@ -81,7 +81,8 @@ def whisper_infer(
                 beam_size = beam_size,
                 temperature = temperature, best_of = best_of,
                 condition_on_previous_text = condition_on_previous_text,
-                no_speech_threshold = no_speech_threshold, logprob_threshold = logprob_threshold, compression_ratio_threshold = compression_ratio_threshold
+                no_speech_threshold = no_speech_threshold, logprob_threshold = logprob_threshold, compression_ratio_threshold = compression_ratio_threshold,
+                without_timestamps = False,
             )
             # Note: other interesting keys of res are:
             #   "segments": {"start", "end", "seek", "text", "tokens", "temperature", "avg_logprob", "no_speech_prob", "compression_ratio"}
@@ -166,7 +167,12 @@ def load_model(
 
     # Init Whisper Model and replace model weights
     dims = whisper.model.ModelDimensions(**states_to_dim(hf_state_dict))
-    whisper_model = whisper.model.Whisper(dims)
+    if "proj_out.weight" in hf_state_dict:
+        hf_state_dict["decoder.proj_out.weight"] = hf_state_dict.pop("proj_out.weight")
+        print("WARNING: Using untied projection layer")
+        whisper_model = WhisperUntied(dims)
+    else:
+        whisper_model = whisper.model.Whisper(dims)
     whisper_model.load_state_dict(hf_state_dict)
     del hf_state_dict
     whisper_model = whisper_model.to(device)
@@ -181,11 +187,10 @@ def hf_to_whisper_states(text):
     
     # From PEFT
     if "default" in text:
+        # print(f"WARNING: Ignoring {text}")
         return None
     if text.startswith("base_model.model."):
         text = text[len("base_model.model."):]
-    if not text.startswith("model."):
-        return None
     
     text = re.sub('.layers.', '.blocks.', text)
     text = re.sub('.self_attn.', '.attn.', text)
@@ -223,6 +228,45 @@ def states_to_dim(state_dict):
         "n_text_head":   n_text_state // 64,    # 6 / 8 / 12 / 16 / 20
         "n_text_layer":  len(set([".".join(k.split(".")[:3]) for k in state_dict.keys() if "decoder.blocks." in k])), # 4 / 6 / 12 / 24 / 32
     }
+
+
+class TextDecoderUntied(whisper.model.TextDecoder):
+    """
+    Same as TextDecoder but with untied weights
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        n_vocab, n_state = self.token_embedding.weight.shape
+
+        self.proj_out = torch.nn.Linear(n_state, n_vocab, bias=False)
+
+    def forward(self, x, xa, kv_cache = None):
+        offset = next(iter(kv_cache.values())).shape[1] if kv_cache else 0
+        x = self.token_embedding(x) + self.positional_embedding[offset : offset + x.shape[-1]]
+        x = x.to(xa.dtype)
+
+        for block in self.blocks:
+            x = block(x, xa, mask=self.mask, kv_cache=kv_cache)
+
+        x = self.ln(x)
+
+        # logits = self.proj_out(x).float()
+        # logits = (x @ torch.transpose(self.proj_out.weight.to(x.dtype), 0, 1)).float()
+        logits = self.proj_out.to(x.dtype)(x).float()
+
+        return logits
+
+class WhisperUntied(whisper.model.Whisper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.decoder = TextDecoderUntied(
+            self.dims.n_vocab,
+            self.dims.n_text_ctx,
+            self.dims.n_text_state,
+            self.dims.n_text_head,
+            self.dims.n_text_layer,
+        )
 
 if __name__ == "__main__":
 
