@@ -80,10 +80,6 @@ def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
     return re.sub(r"[^"+what_to_keep+"]+", " ", text)
 
 
-# this function can remove the repeating chars
-def remove_repeating_char(text):
-    return re.sub(r'(['+_regex_arabic_chars+' ])\1+', r'\1', text)
-
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
     input_line = line
@@ -95,7 +91,6 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
         line = remove_arabic_diacritics(line)
         line = normalize_punct(line)
         line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
-        line = remove_repeating_char(line)
         if bw:
             line = bw_transliterate(line)    
     except Exception as err:
