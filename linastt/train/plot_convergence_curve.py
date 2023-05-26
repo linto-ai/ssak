@@ -160,11 +160,23 @@ if __name__ == "__main__":
     parser.add_argument('--use-time', help='Whether to use training time as abscisses (training audio data duration otherwise)', default = False, action='store_true')
     args = parser.parse_args()
 
+    x_to_legend = {
+        "train_time_h": "Training time (h)",
+        "total_audio_h": "Training audio data duration (h)",
+        "step": "Training steps",
+    }
+    x_key = None
+
     dirs = args.dirs
     xkeys = ["train_time_h"] if args.use_time else ["total_audio_h"] + ["step"]
     def get_x(log_history):
+        global x_key
+        if x_key is not None:
+            assert x_key in log_history.keys(), f"{x_key} not in {log_history.keys()}"
+            return log_history[x_key]
         for k in xkeys:
             if k in log_history.keys():
+                x_key = k
                 return log_history[k]
         raise RuntimeError(f"Could not find x keys among {log_history.keys()}")
     dirs = [dir for dir in dirs if get_monitoring_file(dir) is not None]
@@ -193,8 +205,15 @@ if __name__ == "__main__":
         print("No data found. Please specify one or several relevant folders.")
         sys.exit(1)
     
+
     colors = ['red', 'green', 'blue', 'black', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta']
     colors = "brgcmk"
+    def get_color(i):
+        return colors[i % len(colors)]
+    linestyles = ["-", "--", "-.", ":"]
+    def get_linestyle(i):
+        j = i // len(colors)
+        return linestyles[j % len(linestyles)]
 
     nplots = 2 + boole(PLOT_LEARNING_RATE) + boole(PLOT_TRAINING_TIME) + boole(PLOT_VALIDATION_TIME)
 
@@ -215,20 +234,20 @@ if __name__ == "__main__":
 
     plt.subplot(nplots, 1, 1)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.plot(get_x(data), data["loss/train"], colors[i%len(colors)]+"--", label="train" if len(dirs) == 1 else None)
-        plt.plot(get_x(data), data["loss/valid"], colors[i%len(colors)], label="valid" if len(dirs) == 1 else dir)
-        plt.plot(get_x(data), data["loss/valid"], colors[i%len(colors)]+"+")
-        plt.axvline(get_x(data)[argbest[i]], color = colors[i%len(colors)], linestyle = ":")
+        plt.plot(get_x(data), data["loss/train"], get_color(i), linestyle=get_linestyle(i), label="train" if len(dirs) == 1 else None)
+        plt.plot(get_x(data), data["loss/valid"], get_color(i), linewidth=3, linestyle=get_linestyle(i), label="valid" if len(dirs) == 1 else dir)
+        plt.plot(get_x(data), data["loss/valid"], get_color(i)+"+", linewidth=3)
+        plt.axvline(get_x(data)[argbest[i]], color = get_color(i), linestyle = ":")
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("loss")
     plt.subplot(nplots, 1, 2)
     for i, (dir, data) in enumerate(datas.items()):
-        plt.axvline(get_x(data)[argbest[i]], color = colors[i%len(colors)], linestyle = ":")
+        plt.axvline(get_x(data)[argbest[i]], color = get_color(i), linestyle = ":")
         if "WER/valid" not in data.keys():
             continue
-        plt.plot(get_x(data), data["WER/valid"], colors[i%len(colors)], label="best: {:.4g}%".format(best_wer[i]))
-        plt.plot(get_x(data), data["WER/valid"], colors[i%len(colors)]+"+")
+        plt.plot(get_x(data), data["WER/valid"], get_color(i), linewidth=3, linestyle=get_linestyle(i), label="best: {:.4g}%".format(best_wer[i]))
+        plt.plot(get_x(data), data["WER/valid"], get_color(i)+"+", linewidth=3, linestyle=get_linestyle(i))
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("WER")
@@ -237,7 +256,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["lr_model"], colors[i%len(colors)], label="learning rate" if i == 0 else None)
+            plt.plot(get_x(data), data["lr_model"], get_color(i), label="learning rate" if i == 0 else None)
         #plt.ylabel("Learning Rate")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -245,7 +264,7 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["train_time_norm"], colors[i%len(colors)], label="train time (sec/batch)" if i == 0 else None)
+            plt.plot(get_x(data), data["train_time_norm"], get_color(i), label="train time (sec/batch)" if i == 0 else None)
         #plt.ylabel("Training Time")
         plt.xlim(xmin, xmax)
         plt.legend()
@@ -253,10 +272,10 @@ if __name__ == "__main__":
         iplot += 1
         plt.subplot(nplots, 1, iplot)
         for i, (dir, data) in enumerate(datas.items()):
-            plt.plot(get_x(data), data["valid_time_norm"], colors[i%len(colors)], label="valid time (min)" if i == 0 else None)
+            plt.plot(get_x(data), data["valid_time_norm"], get_color(i), label="valid time (min)" if i == 0 else None)
         #plt.ylabel("Validation Time")
         plt.xlim(xmin, xmax)
         plt.legend()
 
-    plt.xlabel("Training Time (hrs)" if args.use_time else "Training Data Duration (hrs)")
+    plt.xlabel(x_to_legend[x_key])
     plt.show()
