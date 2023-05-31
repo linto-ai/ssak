@@ -6,15 +6,27 @@ def convert_video_to_audio(video_path, audio_path):
     subprocess.call(['ffmpeg', '-y', '-i', video_path, '-ar', '16000', '-ac','1', audio_path])
 
 if __name__ == '__main__':
-    input_= sys.argv[1]
-    output_= sys.argv[2]
-    for filename in os.listdir(input_):
-        if filename.endswith(".mp4"):
-            video = os.path.join(input_, filename)
-            output_filename = os.path.splitext(filename)[0] + ".mp3"
-            if not os.path.exists(output_):
-                os.makedirs(output_)
-            audio = os.path.join(output_, output_filename)
-            if os.path.isfile(audio):
-                continue
-            convert_video_to_audio(video, audio)
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", type=str, help="Input file or folder")
+    parser.add_argument("output", type=str, help="Output file or folder")
+    args = parser.parse_args()
+    
+    args.input= sys.argv[1]
+    args.output= sys.argv[2]
+
+    if os.path.isfile(args.input):
+        convert_video_to_audio(args.input, args.output)
+    else:
+        assert os.path.isfile(args.input), f"Failed to find {args.input} (not a file nor folder)"
+        for filename in os.listdir(args.input):
+            if filename.endswith(".mp4"):
+                video = os.path.join(args.input, filename)
+                outputfilename = os.path.splitext(filename)[0] + ".mp3"
+                if not os.path.exists(args.output):
+                    os.makedirs(args.output)
+                audio = os.path.join(args.output, outputfilename)
+                if os.path.isfile(audio):
+                    continue
+                convert_video_to_audio(video, audio)
