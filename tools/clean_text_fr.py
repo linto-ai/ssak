@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from linastt.utils.text import format_text_latin
+from linastt.utils.text_latin import format_text_latin
 
 if __name__ == "__main__":
 
@@ -18,6 +18,7 @@ if __name__ == "__main__":
     parser.add_argument('--keep_case', help="Keep case (otherwise, everything will be lowercased)", default= False, action="store_true")
     parser.add_argument('--remove_suspicious_entry', help="To remove entries that are probably written in bad French", default= False, action="store_true")
     parser.add_argument('--extract_parenthesis', help="To pull out parenthesis and process them separately (as new lines)", default= False, action="store_true")
+    parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
     parser.add_argument('--file_special_char', help="A file to list special characters that were removed", default= None, type = str)
     args = parser.parse_args()
@@ -43,6 +44,10 @@ if __name__ == "__main__":
 
     try:
         for line in tqdm(open(input_file, "r", encoding="utf-8"), total=num_lines):
+            if args.ignore_first:
+                words = line.split()
+                assert len(words) >= args.ignore_first, f"Line {line} has less than {args.ignore_first} words"
+                line = " ".join(words[args.ignore_first:])
             line = format_text_latin(line,
                 lower_case = not args.keep_case,
                 keep_punc = args.keep_punc,
@@ -54,6 +59,8 @@ if __name__ == "__main__":
             for subline in line.splitlines():
                 subline = subline.strip()
                 if subline:
+                    if args.ignore_first:
+                        subline = " ".join(words[:args.ignore_first]) + " " + subline
                     fout.write(subline+"\n")
                     fout.flush()
     finally:

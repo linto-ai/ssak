@@ -43,7 +43,7 @@ def to_linstt_transcription(transcription,
 
     # Whisper augmented with words
     # (whisper-timestamped or whisperX)
-    if "text" in transcription and "segments" in transcription:
+    if "segments" in transcription: # and ("text" in transcription or "word_segments" in transcription):
         word_keys = ["words", "word-level", "word_timestamps"]
         word_key = None
         new_segments = []
@@ -64,12 +64,20 @@ def to_linstt_transcription(transcription,
                 if warn_if_missing_words:
                     print(f"WARNING: could not find word-level information for segment {i}")
             else:
+                confidences = []
                 new_words = []
                 for j, word in enumerate(seg[word_key]):
                     for expected_key, canbe_key in {"start": "begin", "end": "end", "text": "word"}.items():
                         if expected_key not in word and canbe_key in word:
                             word[expected_key] = word.pop(canbe_key)
-                        assert expected_key in word, f"Missing '{expected_key}' in word {j} of segment {i} (that has keys {list(word.keys())})"
+                        if expected_key not in word:
+                            if expected_key in ["start", "end"]:
+                                # WhisperX can ommit to specify this
+                                word[expected_key] = None
+                                if expected_key == "start":
+                                    print(f"WARNING: missing timestamp for word {j} of segment {i}")
+                            else:
+                                assert expected_key in word, f"Missing '{expected_key}' in word {j} of segment {i} (that has keys {list(word.keys())})"
                     
                     # WhisperX can have None for start/end (for digits...)
                     if word["start"] is None:
@@ -80,7 +88,7 @@ def to_linstt_transcription(transcription,
                     if word["end"] is None:
                         next = j + 1
                         while next <= len(seg[word_key]) - 1:
-                            word["end"] = seg[word_key][j + 1]["start"]
+                            word["end"] = seg[word_key][j + 1].get("start", None)
                             if word["end"] is not None:
                                 break
                             next += 1
@@ -102,9 +110,18 @@ def to_linstt_transcription(transcription,
                                 last_word["end"] = word["end"]
                             last_word["text"] += word["text"]
                             continue
+
+                    if "score" in word: # WhisperX
+                        word["confidence"] = word.pop("score")
+                    if "confidence" in word:
+                        confidences.append(word["confidence"])
+
                     new_words.append(word)
 
                 seg[word_key] = new_words
+                if len(confidences) and "avg_logprob" not in seg:
+                    seg["avg_logprob"] = np.mean([np.log(c) for c in confidences])
+
             new_segments.append(seg)
 
         transcription["segments"] = new_segments
@@ -124,7 +141,7 @@ def to_linstt_transcription(transcription,
         return {
             "transcription_result": text,
             "raw_transcription": text,
-            "confidence": np.mean([np.exp(seg.get("avg_logprob", 1)) for seg in transcription["segments"]]),
+            "confidence": round(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]), 3),
             "segments": [
                 {
                     "spk_id": None,
@@ -201,7 +218,6 @@ def to_linstt_transcription(transcription,
             "confidence": 1.0,
             "segments": segments
         }
-
 
     raise ValueError(f"Unknown transcription format: {list(transcription.keys())}")
 
@@ -419,6 +435,7 @@ if __name__ == "__main__":
     
     if os.path.isdir(args.input):
         input_files = [f for f in os.listdir(args.input) if max([f.endswith(e) for e in EXTENSIONS]) and os.path.splitext(f)[0] not in "README"]
+        input_files = sorted(input_files)
         output_files = [os.path.join(args.output, f) for f in input_files]
         input_files = [os.path.join(args.input, f) for f in input_files]
         if not os.path.isdir(args.output):

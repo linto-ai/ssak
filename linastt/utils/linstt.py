@@ -26,7 +26,7 @@ def linstt_transcribe(
         wordsub={},
         verbose=False,
         timeout = 3600,
-        timeout_progress0 = 60, # For transcription that is never starting (seems to be a bug currently)
+        timeout_progress0 = 3600, # For transcription that is never starting (seems to be a bug currently)
         ping_interval = 1,
         delete_temp_files = True,
         transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
