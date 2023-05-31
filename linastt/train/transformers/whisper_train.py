@@ -3,6 +3,7 @@
 ## ____HN____
 import os
 import datetime
+import shutil
 from linastt.utils.text_ar import format_text_ar
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
@@ -177,10 +178,10 @@ if __name__ == "__main__":
     parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
     parser.add_argument('--num_epochs', help='Num of Epochs',default=3, type=int)
-    parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=512, type=int)
+    parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=448, type=int)
     parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
     parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
-
+    # parser.add_argument('--warmup_steps', help='warmup steps',default=500, type=int)
     parser.add_argument('--output_dir', help='Output trained model', default="./Model")
     args = parser.parse_args()
     
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     PEFT = args.use_peft
     SEED = args.seed
     warmup_ratio = 0.1
-    
+    # warmup_steps = args.warmup_steps
     if not args.gpus:
         args.gpus = ",".join([str(i) for i in range(get_num_gpus())])
 
@@ -244,6 +245,7 @@ if __name__ == "__main__":
         print(f"Output folder{save_path} already exists: skipping it.")
         sys.exit(0)
     os.makedirs(save_path, exist_ok=True)
+    shutil.copy2(__file__, os.path.join(save_path, os.path.basename(__file__)))
 
     readme = open(save_path+"/README.txt", "a")
 
@@ -394,15 +396,15 @@ if __name__ == "__main__":
         logging_steps=eval_steps,
         save_steps=eval_steps,
         save_total_limit=2,
-        metric_for_best_model="loss",
+        metric_for_best_model="wer",
         greater_is_better=False,
         load_best_model_at_end=True,
-        save_on_each_node=True,
         num_train_epochs=NUM_EPOCH,
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE_EVAL,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=LR,
+        optim="adamw_torch",
         weight_decay=WEIGHT_DECAY,
         warmup_steps=warmup_steps,
         lr_scheduler_type="linear",
@@ -416,6 +418,7 @@ if __name__ == "__main__":
         seed=SEED,
         no_cuda = not use_gpu,
         overwrite_output_dir=args.overwrite_output_dir,
+        dataloader_num_workers=1,
     )
 
     trainer = Seq2SeqTrainer(
@@ -425,7 +428,7 @@ if __name__ == "__main__":
         eval_dataset=dataset["val"],
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        compute_metrics =  None if PEFT else compute_metrics, 
+        compute_metrics = compute_metrics, 
         callbacks=[transformers.EarlyStoppingCallback(early_stopping_patience= 15)] + ([SavePeftModelCallback] if PEFT else []),
     )
     model.config.use_cache = False 
@@ -434,6 +437,7 @@ if __name__ == "__main__":
     tic()
     trainer.train(resume_from_checkpoint=checkpoint) # resume_from_checkpoint=resume_from_checkpoint
     toc("Training", stream = readme)
+    
     # Save model
     processor.save_pretrained(save_path+"/finals")
     model.save_pretrained(save_path+"/finals")

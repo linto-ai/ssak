@@ -107,10 +107,11 @@ if __name__ == '__main__':
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
+    parser.add_argument('--ignore_ids', help="Whether to ignore wav ids in input", default= False, action="store_true")
     args = parser.parse_args()
 
     input = args.input
-
+    ignore_ids = args.ignore_ids
     kwargs = {
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
@@ -120,7 +121,20 @@ if __name__ == '__main__':
     if len(input) == 1 and os.path.isfile(input[0]):
         with open(input[0], "r") as f:
             text = f.read()
-            for line in text.splitlines():
-                print(format_text_ar(line, **kwargs))
+            if ignore_ids:
+                dict_text = {}
+                for line in text.splitlines():
+                    line = line.strip()
+                    parts = line.split()
+                    wav_id = parts[0]
+                    transcription = " ".join(parts[1:])
+                    formatted_text = format_text_ar(transcription, **kwargs)
+                    print(f"{wav_id} {formatted_text}") 
+            else:
+                for line in text.splitlines():
+                    formatted_text = format_text_ar(line, **kwargs)
+                    print(formatted_text)
     else:
-        print(format_text_ar(" ".join(input), **kwargs))
+        formatted_input = format_text_ar(" ".join(input), **kwargs)
+        print(formatted_input)
+
