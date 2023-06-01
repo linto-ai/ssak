@@ -1,6 +1,5 @@
 accelerate==0.19.0
 audiomentations
-audio_recorder_streamlit
 bitsandbytes
 datasets
 datasets[audio]
