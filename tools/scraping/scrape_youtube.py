@@ -55,7 +55,7 @@ def norm_language_code(language_code):
         return language_code.split("-")[0]
     return language_code
 
-def get_transcripts_if(vid, if_lang="fr", verbose=True):
+def get_transcripts_if(vid, if_lang="fr", all_auto=False, verbose=True):
     try:
         transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
     except TranscriptsDisabled:
@@ -70,17 +70,20 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
         print("WARNING: Error", str(e))
         print("Waiting 120 seconds...")
         time.sleep(120)
-        return get_transcripts_if(vid, if_lang=if_lang, verbose=verbose)
+        return get_transcripts_if(vid, if_lang=if_lang, all_auto=all_auto, verbose=verbose)
     
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
-    has_language = max([norm_language_code(t.language_code) == if_lang and not is_automatic(t.language) for t in transcripts])
+    has_language = max([norm_language_code(t.language_code) == if_lang and (all_auto or not is_automatic(t.language)) for t in transcripts])
     only_has_language = has_language and len(transcripts) == 1
-    if not has_language or (not has_auto and not only_has_language):
+    discarded = not has_language
+    if not all_auto:
+        discarded = discarded or (not has_auto and not only_has_language)
+    if discarded:
         msg = f"Video {vid} discarded. Languages: {', '.join(t.language for t in transcripts)}"
         if verbose:
             print(msg)
         return msg
-
+        
     res = {}
     try:
         for t in transcripts:
@@ -90,6 +93,7 @@ def get_transcripts_if(vid, if_lang="fr", verbose=True):
             lang = norm_language_code(language_code) if not is_automatic(language) else norm_language_code(language_code)+"_auto"
             # This can fail with "xml.etree.ElementTree.ParseError: not well-formed (invalid token): line XXX, column XXX"
             res[lang] = t.fetch()
+
     except Exception as e:
         msg = f"Video {vid} discarded. Error when getting transcript:\n{traceback.format_exc()}"
         print(msg)
@@ -142,7 +146,7 @@ def search_videos_ids(search_query, open_browser=False, use_global_driver=True):
     return video_ids
 
 
-def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if_exists=True, verbose=True):
+def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_auto=False, skip_if_exists=True, verbose=True):
     output_audio_dir = f"{path}/mp4"
     if not os.path.isdir(output_audio_dir):
         os.makedirs(output_audio_dir)
@@ -160,7 +164,7 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, skip_if
             continue
 
         # Get transcription
-        transcripts = get_transcripts_if(vid, if_lang=if_lang, verbose=verbose)
+        transcripts = get_transcripts_if(vid, if_lang=if_lang, all_auto=all_auto, verbose=verbose)
         if not isinstance(transcripts, dict) or not transcripts:
             register_discarded_id(vid, path, reason = transcripts)
             continue
@@ -296,11 +300,12 @@ if __name__ == '__main__':
     )
     parser.add_argument('path', help= "Output folder path where audio and annotations will be saved (default: YouTubeFr, or YouTubeLang for another language than French).", type=str, nargs='?', default=None)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
+    parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
+    parser.add_argument('--all_auto', help= "Extract Youtube content as soon as there is the language in the target language", action="store_true", default=False)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. If neither --search_query nor --video_ids are specified, a series of queries will be generated automatically.", type=str)
+    parser.add_argument('--ngram', default="3", type=str, help= "n-gram to generate queries (integer or list of integers separated by commas).")
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
-    parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
-    parser.add_argument('--ngram', default="3", type=str, help= "n-gram to generate queries (integer or list of integers separated by commas).")
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
     args = parser.parse_args()
 
@@ -346,7 +351,7 @@ if __name__ == '__main__':
                 video_ids = search_videos_ids(query, open_browser=args.open_browser)
 
             print(f'========== get subtitles for videos in {lang} =========')
-            scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio)
+            scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio, all_auto=args.all_auto)
 
             isok = True
         
