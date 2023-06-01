@@ -121,20 +121,7 @@ if __name__ == '__main__':
     if len(input) == 1 and os.path.isfile(input[0]):
         with open(input[0], "r") as f:
             text = f.read()
-            if ignore_ids:
-                dict_text = {}
-                for line in text.splitlines():
-                    line = line.strip()
-                    parts = line.split()
-                    wav_id = parts[0]
-                    transcription = " ".join(parts[1:])
-                    formatted_text = format_text_ar(transcription, **kwargs)
-                    print(f"{wav_id} {formatted_text}") 
-            else:
-                for line in text.splitlines():
-                    formatted_text = format_text_ar(line, **kwargs)
-                    print(formatted_text)
+            for line in text.splitlines():
+                print(format_text_ar(line, **kwargs))
     else:
-        formatted_input = format_text_ar(" ".join(input), **kwargs)
-        print(formatted_input)
-
+        print(format_text_ar(" ".join(input), **kwargs))

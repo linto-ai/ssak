@@ -1,5 +1,6 @@
 accelerate==0.19.0
 audiomentations
+audio_recorder_streamlit
 bitsandbytes
 datasets
 datasets[audio]
@@ -28,7 +29,9 @@ pypi-kenlm
 python-slugify
 soundfile
 soxbindings
+streamlit
 tensorboard
+tempfile
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision

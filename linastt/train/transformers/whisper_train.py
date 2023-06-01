@@ -409,7 +409,7 @@ if __name__ == "__main__":
         warmup_steps=warmup_steps,
         lr_scheduler_type="linear",
         predict_with_generate=True,
-        fp16= use_gpu,
+        fp16 = use_gpu,
         generation_max_length=TEXT_MAX_LENGTH,
         logging_dir=f'{save_path}/logs',
         remove_unused_columns=not PEFT,
