@@ -7,7 +7,9 @@ if __name__ == "__main__":
     import json
 
     import argparse
-    parser = argparse.ArgumentParser(description='Transcribe audio file with LinSTT')
+    parser = argparse.ArgumentParser(description='Transcribe audio file with LinSTT',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument('audio_file', type=str, help='Audio file to transcribe', nargs='+')
     parser.add_argument('--output_file', type=str, default=None, help='Output file')
     parser.add_argument('--output_dir', type=str, default=None, help='Output folder')
