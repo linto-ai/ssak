@@ -179,7 +179,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
     parser.add_argument('--num_epochs', help='Num of Epochs',default=3, type=int)
-    parser.add_argument('--text_max_length', help='text max length of each sentence in label',default=448, type=int)
+    parser.add_argument('--max_text_length', help='text max length of each sentence in label',default=448, type=int)
     parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
     parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
     # parser.add_argument('--warmup_steps', help='warmup steps',default=500, type=int)
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     LR = args.learning_rate
     NUM_EPOCH = args.num_epochs
     AUDIO_MAX_LENGTH = 480000
-    TEXT_MAX_LENGTH = args.text_max_length
+    MAX_TEXT_LENGTH = args.max_text_length
     PEFT = args.use_peft
     SEED = args.seed
     warmup_ratio = 0.1
@@ -263,6 +263,8 @@ if __name__ == "__main__":
     
     # Create the processor
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
+
+    tokenizer_func = lambda x: processor.tokenizer(x).input_ids
     
     data_train = args.train
     data_val = args.valid
@@ -274,6 +276,7 @@ if __name__ == "__main__":
         choose_data_with_max_duration = args.debug,
         min_duration = args.min_duration,
         max_duration = args.max_duration,
+        max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
     testsetmeta, testset = kaldi_folder_to_dataset(
@@ -284,6 +287,7 @@ if __name__ == "__main__":
         choose_data_with_max_duration = args.debug,
         min_duration = args.min_duration,
         max_duration = args.max_duration,
+        max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
     trainset = trainset.shuffle(seed = SEED)
@@ -439,7 +443,7 @@ if __name__ == "__main__":
         lr_scheduler_type="linear",
         predict_with_generate=True,
         fp16 = use_gpu,
-        generation_max_length=TEXT_MAX_LENGTH,
+        generation_max_length=MAX_TEXT_LENGTH,
         logging_dir=f'{save_path}/logs',
         remove_unused_columns=not PEFT,
         resume_from_checkpoint=checkpoint,

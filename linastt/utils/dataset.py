@@ -30,6 +30,7 @@ def kaldi_folder_to_dataset(
     max_data = None,
     min_duration = None,
     max_duration = None,
+    max_text_length = None,
     choose_data_with_max_duration = False,
     sort_by_len = 0,
     weights = 1,
@@ -61,6 +62,8 @@ def kaldi_folder_to_dataset(
         Minimum length in seconds of audio. If None, no limit.
     max_duration : int
         Maximum length in seconds of audio. If None, no limit.
+    max_text_length : int or tuple (function, int)
+        Maximum length of text, in number of characters. Or a tuple (tokenizer function, maximum number of tokens).
     weights : float
         Weight of this dataset. Has an interest if several datasets are specified.
         Data will be duplicated (upsampled when weights > 1).
@@ -91,6 +94,16 @@ def kaldi_folder_to_dataset(
     opts = dict((k,v) for k,v in locals().items() if "kaldi_path" not in k)
 
     assert return_format in ["dataset", "csv", "pandas"], f"return_format {return_format} must be 'dataset', 'csv' or 'pandas'"
+
+    if max_text_length is None:
+        text_tokenizer = None
+    elif isinstance(max_text_length, int):
+        text_tokenizer = lambda x: x
+    else:
+        assert isinstance(max_text_length, tuple) and len(max_text_length) == 2 and isinstance(max_text_length[1], int), \
+                f"max_text_length must be an integer or a tuple (function, integer)"
+        text_tokenizer, max_text_length = max_text_length
+    assert max_text_length > 0, f"max_text_length must be > 0 (got {max_text_length})"
 
     if return_format == "pandas":
         opts["return_format"] = "csv"
@@ -198,6 +211,27 @@ def kaldi_folder_to_dataset(
             annots = list(annots)
         except Exception as err:
             raise RuntimeError("Error while parsing %s/text" % (kaldi_path)) from err
+        
+    if max_text_length:
+        print("Filtering too long texts")
+        num_annots = len(annots)
+        is_short_enough = lambda text: len(text_tokenizer(text)) <= max_text_length
+        # if verbose:
+        #     def is_short_enough(text):
+        #         text = remove_special_words(text)
+        #         l = len(text_tokenizer(text))
+        #         res = l <= max_text_length
+        #         if verbose and not res:
+        #             print(f"Discarding '{text}' of length {l} > {max_text_length}")
+        #         return res
+        uttids, annots = zip(*[(uttid, annot) for uttid, annot in zip(uttids, annots) if is_short_enough(annot)])
+        uttids = list(uttids)
+        annots = list(annots)
+        if len(annots) == 0:
+            print("WARNING: No data selected! (with max_text_length: {})".format(max_text_length))
+            return empty_dataset
+        if len(annots) != num_annots:
+            print(f"WARNING: filtered out {num_annots - len(annots)}/{num_annots} utterances with text longer than {max_text_length}.")
 
     if not choose_data_with_max_duration and max_data and max_data < len(uttids):
         random.seed(69)
@@ -221,14 +255,10 @@ def kaldi_folder_to_dataset(
                 end = float(fields[3])
                 duration = end - start
                 assert duration > 0, f"Error in {kaldi_path}/segments:\nDuration of utterance {uttid} is negative: {duration}"
-                if max_duration and duration > max_duration:
-                    try:
-                        i = uttids.index(uttid)
-                    except ValueError: continue
-                    uttids.pop(i)
-                    annots.pop(i)
-                    continue
-                elif min_duration and duration < min_duration:
+                discarded = \
+                    (max_duration and duration > max_duration) or \
+                    (min_duration and duration < min_duration)
+                if discarded:
                     try:
                         i = uttids.index(uttid)
                     except ValueError: continue
