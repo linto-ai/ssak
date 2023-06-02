@@ -144,7 +144,6 @@ def main():
             visualize_audio(audio, sr)
             for transcription in whisper_infer(
                 model_name, file_path,
-                batch_size = 1,
                 language = language,
                 ):
                 st.header('Transcription')
