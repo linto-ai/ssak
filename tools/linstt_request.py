@@ -21,6 +21,7 @@ if __name__ == "__main__":
     parser.add_argument('--diarization_server', type=str, help='Diarization server', default= None)
     parser.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
     parser.add_argument('--convert_numbers', default = False, action='store_true', help='Convert numbers to text')
+    parser.add_argument('--min_vad_duration', default=30, type=float, help='Minimum duration of speech segments after VAD')
     parser.add_argument('--disable_punctuation', default = False, action='store_true', help='Disable punctuation')
     parser.add_argument('--diarization_service_name', default = "stt-diarization-simple", help='Diarization service name')
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
@@ -44,6 +45,7 @@ if __name__ == "__main__":
                     diarization=args.num_spearkers,
                     convert_numbers=args.convert_numbers,
                     punctuation=not args.disable_punctuation,
+                    min_vad_duration=args.min_vad_duration,
                     diarization_service_name=args.diarization_service_name,
                     verbose=args.verbose,
                 )
