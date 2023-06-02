@@ -16,6 +16,7 @@ DIARIZATION_SERVICES = {
 def linstt_transcribe(
         audio_file,
         transcription_server="https://api.linto.ai/stt-french-generic",
+        min_vad_duration=30,
         diarization_server=None,
         diarization_service_name=DIARIZATION_SERVICES["simple"],
         force_16k = False,
@@ -73,6 +74,11 @@ def linstt_transcribe(
             "type": "audio/x-wav",
             "timestamps": "",
             "transcriptionConfig": {
+                "vadCongig": {
+                    "enableVad": True,
+                    "methodName": "WebRTC",
+                    "minDuration": min_vad_duration,
+                },
                 "punctuationConfig": {
                     "enablePunctuation": punctuation,
                     "serviceName": None,
