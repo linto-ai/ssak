@@ -476,6 +476,7 @@ def format_cache_files(cache_files):
 def process_dataset(processor, dataset,
     batch_size = 32, num_proc = 1,
     data_augmenter = None,
+    text_augmenter = None,
     verbose = True, force_cache = True, logstream = None):
     """
     Process a dataset with a HuggingFace processor.
@@ -488,6 +489,8 @@ def process_dataset(processor, dataset,
         Dataset to process
     batch_size : int (default: 32)
         Batch size to use
+    data_augmenter: function to augment audio
+    text_augmenter: function to augment text
     num_proc : int (default: 1)
         Number of processes to use (not: may be disabled in online mode).
         WARNING: using more than 1 process may lead to hang
@@ -528,11 +531,15 @@ def process_dataset(processor, dataset,
     if verbose and hasattr(dataset, "_fingerprint"):
         print("Loading audios", dataset._fingerprint)
 
-    if data_augmenter:
+    if data_augmenter or text_augmenter:
+        if not data_augmenter:
+            data_augmenter = lambda x: x
+        if not text_augmenter:
+            text_augmenter = lambda x: x
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
                 "input_values" : data_augmenter(load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate)),
-                "labels": remove_special_words(row["text"])
+                "labels": text_augmenter(remove_special_words(row["text"]))
             },
             remove_columns = column_names,
             **map_kwargs

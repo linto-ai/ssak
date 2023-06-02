@@ -11,7 +11,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import re
 import fitz
-from linastt.utils.text_utils import regex_unescape
+from linastt.utils.text_utils import regex_escape
 
 EXTENSIONS = [".docx", ".odt", ".pdf"]
 
@@ -62,14 +62,14 @@ def extract_paragraph_in_pdf(page):
     # Remove possible header
     global pdf_headers
     for header in pdf_headers:
-        page = re.sub(rf"^\s*{regex_unescape(header)}\s*\n","", page)
+        page = re.sub(rf"^\s*{regex_escape(header)}\s*\n","", page)
     pdf_headers.append(page.split("\n")[0].strip())
     # Remove page number
     page = re.sub(r"\n\s*[0-9]+\s*$","\n", page)
     # Remove possible pdf_footers
     global pdf_footers
     for footer in pdf_footers:
-        page = re.sub(rf"\s*{regex_unescape(footer)}\s*$","", page)
+        page = re.sub(rf"\s*{regex_escape(footer)}\s*$","", page)
     pdf_footers.append(page.split("\n")[-1].strip())
     # Split into probable paragraphs
     lines = re.split(r'([\.?!»"])\s*\n', page)

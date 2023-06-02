@@ -2,7 +2,7 @@ import re
 import math
 import warnings
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, regex_unescape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
+from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, regex_escape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
 
 def remove_special_words(text,
     glue_apostrophe = True,
@@ -29,16 +29,15 @@ def remove_special_words(text,
         text = re.sub(r"[^\S]+\-[^\S]+", "-", text)
     elif glue_dash is False:
         text = re.sub(r"\-", "- ", text).strip()
-    if glue_dash == "right":
+    elif glue_dash == "right":
         text = re.sub(r"\-[^\S]+", "-", text)
         text = re.sub("-", " -", text)
-    if glue_dash == "left":
+    elif glue_dash == "left":
         text = re.sub(r"[^\S]+\-", "-", text)
         text = re.sub("-", "- ", text)
 
     text = collapse_whitespace(text)
 
-    text = text.lower() # TCOF
     return text
 
 def _rm_key(d, key):
@@ -92,7 +91,7 @@ def format_text_latin(text,
             in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
             if len(in_parenthesis):
                 in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
-                regex = "("+")|(".join(["\("+regex_unescape(p)+"\)" for p in in_parenthesis])+")"
+                regex = "("+")|(".join(["\("+regex_escape(p)+"\)" for p in in_parenthesis])+")"
                 without_parenthesis = re.sub(regex, "", text)
                 # assert without_parenthesis != text
                 if without_parenthesis != text: # Avoid infinite recursion
@@ -115,7 +114,7 @@ def format_text_latin(text,
         coma = "," if lang in ["fr"] else "\."
         for c in _currencies:
             if c in text:
-                c = regex_unescape(c)
+                c = regex_escape(c)
                 text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
                             c, r"\1 " + c + r" \2", text)
 

@@ -164,7 +164,8 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--online', help="load and process audio files on the fly", default=False, action="store_true")
     # Data augmentation
-    parser.add_argument('--data_augmentation', help='To use data augmentation method',default=False , action = "store_true")
+    parser.add_argument('--data_augmentation', help='To use data augmentation on audio', default=False, action = "store_true")
+    parser.add_argument('--text_augmentation', help='To use data augmentation on text', default=False, action = "store_true")
     parser.add_argument('--data_augment_noise', help="Folder with audio files to simulate noises (used only with --data_augment)",
         default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/distant_noises", type=str
     )
@@ -324,8 +325,37 @@ if __name__ == "__main__":
             apply_prob =1,
             sample_rate =16000,
         )
+    text_augmenter = None
+    if args.text_augmentation:
+        if language == "ar":
+            import random
+            from linastt.utils.text_ar import \
+                convert_symbols_to_words, \
+                normalize_arabic_currencies, \
+                digit2word, \
+                remove_arabic_diacritics, \
+                normalize_punct, \
+                get_arabic_only
+            from linastt.utils.text_utils import remove_punctuations
+            def text_augmenter(text):
+                text = remove_arabic_diacritics(text)
+                if random.random() < 0.5:
+                    text = convert_symbols_to_words(text, language, lower_case=False)
+                    text = normalize_arabic_currencies(text)
+                if random.random() < 0.5:
+                    text = digit2word(text)
+                if random.random() < 0.5:
+                    text = remove_punctuations(text)
+                else:
+                    # Keep punctuations / add terminal dot if not there
+                    text = normalize_punct(text)
+                    if text[-1] not in ',-:!;.؛؟،?_':
+                        text += "."
+                return text
+        else:
+            raise NotImplementedError(f"Text augmentation is not implemented for language {language}")
         
-    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, batch_size = BATCH_SIZE, logstream = readme)
+    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, text_augmenter = text_augmenter, batch_size = BATCH_SIZE, logstream = readme)
     testset = process_dataset(processor, testset, batch_size = BATCH_SIZE_EVAL, logstream = readme)
     if readme is not None:
         readme.flush()

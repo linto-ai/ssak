@@ -252,14 +252,14 @@ _ar_currencies = {
 
 def replace_keeping_word_boundaries(orig, dest, text):
     if orig in text:
-        _orig = regex_unescape(orig)
+        _orig = regex_escape(orig)
         text = re.sub(r"(\W)"+_orig+r"(\W)", r"\1"+dest+r"\2", text)
         text = re.sub(_orig+r"(\W)", " "+dest+r"\1", text)
         text = re.sub(r"(\W)"+_orig, r"\1"+dest+" ", text)
         text = re.sub(_orig, " "+dest+" ", text)
     return text
 
-def normalize_arabic_currencies(text, lang):
+def normalize_arabic_currencies(text, lang="ar"):
     symbol_table = _ar_currencies.get(lang, {})
     for k, v in symbol_table.items():
          text = replace_keeping_word_boundaries(k, v, text)
@@ -303,24 +303,10 @@ def remove_special_characters(
                 _ALL_SPECIAL_CHARACTERS.append(char)
     return output
 
-def regex_unescape(text):
-    return text.replace("\\","\\\\")\
-        .replace("*","\*")\
-        .replace(".","\.")\
-        .replace("(","\(")\
-        .replace(")","\)")\
-        .replace("[","\[")\
-        .replace("]","\]")\
-        .replace("{","\{")\
-        .replace("}","\}")\
-        .replace("|","\|")\
-        .replace("+","\+")\
-        .replace("-","\-")\
-        .replace("^","\^")\
-        .replace("$","\$")\
-        .replace("?","\?")
+def regex_escape(text):
+    return re.escape(text)
 
-_punctuation_strong = string.punctuation + "。，！？：”、…"
+_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛'
 _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 
 # Should we precompute?

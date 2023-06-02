@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_unescape, convert_symbols_to_words, normalize_arabic_currencies
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_escape, convert_symbols_to_words, normalize_arabic_currencies
 from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
@@ -8,9 +8,9 @@ _arabic_punctuation = "؟!،.?,"
 _latin_punctuation = "!?.,:;"
 _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
 # Need unescape for regex
-_regex_arabic_punctuation = regex_unescape(_arabic_punctuation)
-_regex_latin_punctuation = regex_unescape(_latin_punctuation)
-_regex_all_punctuation = regex_unescape(_all_punctuation)
+_regex_arabic_punctuation = regex_escape(_arabic_punctuation)
+_regex_latin_punctuation = regex_escape(_latin_punctuation)
+_regex_all_punctuation = regex_escape(_all_punctuation)
 
 def bw_transliterate(text):
     return bw.transliterate(text)
@@ -107,11 +107,9 @@ if __name__ == '__main__':
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
-    parser.add_argument('--ignore_ids', help="Whether to ignore wav ids in input", default= False, action="store_true")
     args = parser.parse_args()
 
     input = args.input
-    ignore_ids = args.ignore_ids
     kwargs = {
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
