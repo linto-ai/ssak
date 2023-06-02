@@ -18,11 +18,6 @@ from slugify import slugify
 
 def custom_text_normalization(transcript):
     transcript = remove_special_words(transcript)
-    transcript = transcript.replace("numérohuit8", "numéro huit")
-    transcript = transcript.replace('"','')
-    # DEPRECATED (encoding issues)
-    # transcript = transcript.replace("disaisâ", "disais ah").replace('à§','ç').replace("à¨","è").replace("à©", "é").replace("àª", "ê").replace("à´","ô").replace("à¹","ù").replace("à®","î").replace("à¢","â")
-    # transcript = transcript.strip("â")
     transcript = re.sub(r" +", " ", transcript).strip()
     return transcript
 
@@ -100,8 +95,6 @@ def split_long_audio_kaldifolder(
         wavid, start, end = id2seg[id]
         path = wav2path[wavid]
         audio = load_audio(path, start, end, sample_rate)
-        if os.path.basename(path) in ["fr-sb-145.wav"]: # Garbage files
-            continue
         if verbose:
             print(f"max processed = {MAX_LEN_PROCESSED} / {MAX_LEN_PROCESSED_}")
             print(f"Splitting: {path} // {start}-{end} ({dur})")
