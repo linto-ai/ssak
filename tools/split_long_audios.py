@@ -33,7 +33,7 @@ def split_long_audio_kaldifolder(
     dirin,
     dirout,
     model,
-    max_len = 15,
+    max_duration = 15,
     verbose = True,
     debug_folder = None, # "check_audio/split",
     ):
@@ -86,7 +86,7 @@ def split_long_audio_kaldifolder(
     for id, dur in id2dur.items():
         if id not in id2text: continue # Removed because empty transcription
         if id == "linagora_p2_beg--55:15_linstt_julie_spk-001_Section01_Topic-None_Turn-002_seg-0000012": continue # Crappy transcription
-        if dur <= max_len:
+        if dur <= max_duration:
             new_id2text[id] = custom_text_normalization(id2text[id])
             new_id2spk[id] = id2spk[id]
             new_id2dur[id] = id2dur[id]
@@ -119,8 +119,8 @@ def split_long_audio_kaldifolder(
             index += 1
             new_start = start+last_start
             new_end = start+last_end
-            if new_end - new_start > max_len:
-                print(f"WARNING: GOT LONG SEQUENCE {new_end-new_start} > {max_len}")
+            if new_end - new_start > max_duration:
+                print(f"WARNING: GOT LONG SEQUENCE {new_end-new_start} > {max_duration}")
             if last_end <= last_start:
                 print(f"WARNING: {new_transcript} {last_start}-{last_end} ignored")
             else:
@@ -148,7 +148,7 @@ def split_long_audio_kaldifolder(
         assert len(word_segments) == len(all_words), f"{[w.label for w in word_segments]}\n{all_words}\n{len(word_segments)} != {len(all_words)}"
         for i, (segment, word) in enumerate(zip(word_segments, all_words)):
             end = segment.end * ratio
-            if end - last_start > max_len:
+            if end - last_start > max_duration:
                 process()
             last_end = end
             if new_transcript:
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument('dirin', help='Input folder', type=str)
     parser.add_argument('dirout', help='Output folder', type=str)
     parser.add_argument('--model', help="Acoustic model", type=str, default = "speechbrain/asr-wav2vec2-commonvoice-fr")
-    parser.add_argument('--max_len', help="Maximum length (in seconds)", default = 15, type = float)
+    parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 15, type = float)
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     args = parser.parse_args()
@@ -200,6 +200,6 @@ if __name__ == "__main__":
     assert not os.path.exists(dirout), "Output folder already exists. Please remove it first.\nrm -R {}".format(dirout)
     split_long_audio_kaldifolder(dirin, dirout,
         model = args.model,
-        max_len = args.max_len,
+        max_duration = args.max_duration,
         debug_folder = args.debug_folder,
     )

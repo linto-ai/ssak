@@ -28,9 +28,9 @@ def kaldi_folder_to_dataset(
     online = False,
     shuffle = False,
     max_data = None,
-    min_len = None,
-    max_len = None,
-    choose_data_with_max_len = False,
+    min_duration = None,
+    max_duration = None,
+    choose_data_with_max_duration = False,
     sort_by_len = 0,
     weights = 1,
     split = None,
@@ -57,14 +57,14 @@ def kaldi_folder_to_dataset(
         If True, the dataset will be shuffled.
     max_data : int
         Maximum number of data to use. If None, use all files in the kaldi folder
-    min_len : int
+    min_duration : int
         Minimum length in seconds of audio. If None, no limit.
-    max_len : int
+    max_duration : int
         Maximum length in seconds of audio. If None, no limit.
     weights : float
         Weight of this dataset. Has an interest if several datasets are specified.
         Data will be duplicated (upsampled when weights > 1).
-    choose_data_with_max_len : bool
+    choose_data_with_max_duration : bool
         If True and max_data is not None, the longest utterances will be chosen (good for testing if everything fits in memory).
     return_format : "dataset" / "csv" / "pandas"
         Output format:
@@ -199,7 +199,7 @@ def kaldi_folder_to_dataset(
         except Exception as err:
             raise RuntimeError("Error while parsing %s/text" % (kaldi_path)) from err
 
-    if not choose_data_with_max_len and max_data and max_data < len(uttids):
+    if not choose_data_with_max_duration and max_data and max_data < len(uttids):
         random.seed(69)
         random.shuffle(uttids)
         random.seed(69)
@@ -221,14 +221,14 @@ def kaldi_folder_to_dataset(
                 end = float(fields[3])
                 duration = end - start
                 assert duration > 0, f"Error in {kaldi_path}/segments:\nDuration of utterance {uttid} is negative: {duration}"
-                if max_len and duration > max_len:
+                if max_duration and duration > max_duration:
                     try:
                         i = uttids.index(uttid)
                     except ValueError: continue
                     uttids.pop(i)
                     annots.pop(i)
                     continue
-                elif min_len and duration < min_len:
+                elif min_duration and duration < min_duration:
                     try:
                         i = uttids.index(uttid)
                     except ValueError: continue
@@ -237,7 +237,7 @@ def kaldi_folder_to_dataset(
                     continue
                 segments[uttid] = [wavid, start, end]
 
-        if (choose_data_with_max_len and max_data and max_data < len(uttids)) or sort_by_len not in [0, None]:
+        if (choose_data_with_max_duration and max_data and max_data < len(uttids)) or sort_by_len not in [0, None]:
             # We select the longest utterances
             uttids, annots = zip(*sorted(zip(uttids, annots), key= lambda i:(segments[i[0]][2]-segments[i[0]][1], len(i[1]))))
             if max_data and max_data < len(uttids):
@@ -253,7 +253,7 @@ def kaldi_folder_to_dataset(
                 annots.reverse()
         
         if len(uttids) == 0:
-            print("WARNING: No data selected! (with min-max duration: {}-{})".format(min_len, max_len))
+            print("WARNING: No data selected! (with min-max duration: {}-{})".format(min_duration, max_duration))
             return empty_dataset
         wavids, starts, ends = zip(*map(lambda id:segments[id], uttids))
         paths = list(map(lambda id:wav[id], wavids))
@@ -279,26 +279,26 @@ def kaldi_folder_to_dataset(
         with open(kaldi_path + "/utt2dur") as f:
             durations = dict([parse_line(line) for line in f if line.strip()])
 
-        if max_len or min_len or (choose_data_with_max_len and max_data) or sort_by_len:
+        if max_duration or min_duration or (choose_data_with_max_duration and max_data) or sort_by_len:
             uttids, annots = zip(*sorted(zip(uttids, annots), key= lambda i:(durations[i[0]], len(i[1]))))
         durations = itemgetter(*uttids)(durations)
         durations = [durations] if isinstance(durations, float) else list(durations) # Tuple to list conversion
-        if max_len or min_len:
+        if max_duration or min_duration:
             a = 0
             b = 0
             for d in durations:
-                if min_len and d < min_len:
+                if min_duration and d < min_duration:
                     a += 1
-                if max_len and d > max_len:
+                if max_duration and d > max_duration:
                     break
                 b += 1
             if b <= a:
-                print("WARNING: No data selected! (with min-max duration: {}-{})".format(min_len, max_len))
+                print("WARNING: No data selected! (with min-max duration: {}-{})".format(min_duration, max_duration))
                 return empty_dataset
             uttids = uttids[a:b]
             annots = annots[a:b]
             durations = durations[a:b]
-        if choose_data_with_max_len and max_data and max_data < len(uttids):
+        if choose_data_with_max_duration and max_data and max_data < len(uttids):
             uttids = uttids[-max_data:]
             annots = annots[-max_data:]
             durations = durations[-max_data:]

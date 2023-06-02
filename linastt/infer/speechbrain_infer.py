@@ -142,9 +142,9 @@ def model_cannot_compute_logits(model):
         logger.warning(f"Model of type {type(model)} cannot be used to compute logits. And memory overflow might occur when processing a long audio")
     return res
 
-def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logprobas = False, language = "fr"):
-    if (plot_logprobas or max([len(a) for a in audios]) > max_len) and not model_cannot_compute_logits(model):
-        reco, logits = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas, compute_predictions = True)
+def speechbrain_transcribe_batch(model, audios, max_duration = MAX_LEN, plot_logprobas = False, language = "fr"):
+    if (plot_logprobas or max([len(a) for a in audios]) > max_duration) and not model_cannot_compute_logits(model):
+        reco, logits = speechbrain_compute_logits(model, audios, max_duration = max_duration, plot_logprobas = plot_logprobas, compute_predictions = True)
     else:
         device = speechbrain_get_device(model)
         batch, wav_lens = pack_sequences(audios, device = device)
@@ -187,24 +187,24 @@ def speechbrain_transcribe_batch(model, audios, max_len = MAX_LEN, plot_logproba
             reco = model.transcribe_batch(batch, wav_lens)[0]
     return reco
 
-def speechbrain_compute_logits(model, audios, max_len = MAX_LEN, plot_logprobas = False, compute_predictions = False):
+def speechbrain_compute_logits(model, audios, max_duration = MAX_LEN, plot_logprobas = False, compute_predictions = False):
     if isinstance(model, HuggingFaceWhisper):
         raise NotImplementedError("Computing log probability is not implemented for HuggingFaceWhisper models")
     if not isinstance(audios, list):
         audios = [audios]
-        reco, log_probas = speechbrain_compute_logits(model, audios, max_len = max_len, plot_logprobas = plot_logprobas, compute_predictions = compute_predictions)
+        reco, log_probas = speechbrain_compute_logits(model, audios, max_duration = max_duration, plot_logprobas = plot_logprobas, compute_predictions = compute_predictions)
         return reco[0], log_probas[0]
     assert len(audios) > 0, "audios must be a non-empty list"
     if not isinstance(audios[0], torch.Tensor):
         audios = [torch.from_numpy(a) for a in audios]
     blank_id = model.decoding_function.keywords.get("blank_id", 0)
-    if max([len(a) for a in audios]) > max_len:
-        # Split audios into chunks of max_len
+    if max([len(a) for a in audios]) > max_duration:
+        # Split audios into chunks of max_duration
         batch_size = len(audios)
         chunks = []
         i_audio = []
         for a in audios:
-            chunks.extend([a[i:min(i+max_len, len(a))] for i in range(0, len(a), max_len)])
+            chunks.extend([a[i:min(i+max_duration, len(a))] for i in range(0, len(a), max_duration)])
             i_audio.append(len(chunks))
         log_probas = [[] for i in range(len(audios))]
         for i in range(0, len(chunks), batch_size):

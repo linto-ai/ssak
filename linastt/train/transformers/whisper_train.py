@@ -154,8 +154,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
     parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
-    parser.add_argument('--max_len', help="maximum signal length", default=30, type=int)
-    parser.add_argument('--min_len', help="minimum signal length", default=1, type=int)
+    parser.add_argument('--max_duration', help="maximum signal length", default=30, type=int)
+    parser.add_argument('--min_duration', help="minimum signal length", default=1, type=int)
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
     parser.add_argument('--lang', help='Language to tune',default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
@@ -259,7 +259,6 @@ if __name__ == "__main__":
     task = args.task  
     language = args.lang.lower()
     
-    tokenizer = WhisperTokenizer.from_pretrained(base_model, language=language, task=task)
     feature_extractor = WhisperFeatureExtractor.from_pretrained(base_model)
     
     # Create the processor
@@ -272,9 +271,9 @@ if __name__ == "__main__":
         shuffle = True,
         online = args.online,
         max_data = (2 * args.batch_size) if args.debug else None,
-        choose_data_with_max_len = args.debug,
-        min_len = args.min_len,
-        max_len = args.max_len,
+        choose_data_with_max_duration = args.debug,
+        min_duration = args.min_duration,
+        max_duration = args.max_duration,
         logstream = readme,
     )
     testsetmeta, testset = kaldi_folder_to_dataset(
@@ -282,9 +281,9 @@ if __name__ == "__main__":
         shuffle = False,
         online = online_dev,
         max_data = (2 * args.batch_size) if args.debug else None,
-        choose_data_with_max_len = args.debug,
-        min_len = args.min_len,
-        max_len = args.max_len,
+        choose_data_with_max_duration = args.debug,
+        min_duration = args.min_duration,
+        max_duration = args.max_duration,
         logstream = readme,
     )
     trainset = trainset.shuffle(seed = SEED)

@@ -146,8 +146,8 @@ if __name__ == "__main__":
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--online', help="load and process audio files on the fly", default=False, action="store_true")
-    parser.add_argument('--max_len', help="maximum signal length", default=15, type=int)
-    parser.add_argument('--min_len', help="minimum signal length", default=1, type=int)
+    parser.add_argument('--max_duration', help="maximum signal length", default=15, type=int)
+    parser.add_argument('--min_duration', help="minimum signal length", default=1, type=int)
     parser.add_argument('--base_model', default="Ilyes/wav2vec2-large-xlsr-53-french", type=str, help="Model to adapt. \
         ex: samirt8/wav2vec2-xls-r-1b-fr / \
             Ilyes/wav2vec2-large-xlsr-53-french")
@@ -277,9 +277,9 @@ if __name__ == "__main__":
         shuffle = True,
         online = args.online,
         max_data = (2 * args.batch_size) if args.debug else None,
-        choose_data_with_max_len = args.debug,
-        min_len = args.min_len,
-        max_len = args.max_len,
+        choose_data_with_max_duration = args.debug,
+        min_duration = args.min_duration,
+        max_duration = args.max_duration,
         logstream = readme,
     )
     testsetmeta, testset = kaldi_folder_to_dataset(
@@ -287,9 +287,9 @@ if __name__ == "__main__":
         shuffle = False,
         online = online_dev,
         max_data = (2 * args.batch_size) if args.debug else 480,
-        choose_data_with_max_len = args.debug,
-        min_len = args.min_len,
-        max_len = args.max_len,
+        choose_data_with_max_duration = args.debug,
+        min_duration = args.min_duration,
+        max_duration = args.max_duration,
         logstream = readme,
     )   
 

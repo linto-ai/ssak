@@ -20,8 +20,8 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 batch_size: 4
 test_batch_size: 4
 
-min_len: 1
-max_len: 15
+min_duration: 1
+max_duration: 15
 
 freeze_wav2vec: False
 
@@ -39,7 +39,7 @@ valid: !PLACEHOLDER
 
 output_folder_prefix: ''
 
-output_folder: !ref <output_folder_prefix>speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-<min_len>-<max_len>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
+output_folder: !ref <output_folder_prefix>speechbrain_LeBenchmark-wav2vec2-FR-7K-large_len-<min_duration>-<max_duration>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
 
 save_folder: !ref <output_folder>/save
 

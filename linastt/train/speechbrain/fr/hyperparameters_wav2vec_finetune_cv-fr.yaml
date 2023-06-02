@@ -21,8 +21,8 @@ batch_size: 32
 test_batch_size: 8
 
 data_weighting: True
-min_len: 0.5
-max_len: 15
+min_duration: 0.5
+max_duration: 15
 
 freeze_wav2vec: True
 
@@ -41,7 +41,7 @@ valid: !PLACEHOLDER
 output_folder_prefix: ''
 
 base_model: speechbrain/asr-wav2vec2-commonvoice-fr
-output_folder: !ref <output_folder_prefix>speechbrain_asr-wav2vec2-commonvoice-fr_len-<min_len>-<max_len>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
+output_folder: !ref <output_folder_prefix>speechbrain_asr-wav2vec2-commonvoice-fr_len-<min_duration>-<max_duration>_fr<freeze_wav2vec>_lr<lr>-<lr_wav2vec>_bs<batch_size>_s<seed>_<sorting>
 
 save_folder: !ref <output_folder>/save
 wer_file: !ref <output_folder>/wer.txt

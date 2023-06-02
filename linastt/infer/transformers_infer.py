@@ -164,7 +164,7 @@ def conform_torch_logit(x, num_outputs):
         return x[:,:,:num_outputs]
     return x
 
-def transformers_compute_logits(model, processor, batch, device = None, language = None, sample_rate = None, max_len = 2240400):
+def transformers_compute_logits(model, processor, batch, device = None, language = None, sample_rate = None, max_duration = 2240400):
 
     use_wav2vec_api = isinstance(model, transformers.Wav2Vec2ForCTC)
 
@@ -214,11 +214,11 @@ def transformers_compute_logits(model, processor, batch, device = None, language
             return model.generate(input_features=input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=448)
         
     with torch.no_grad():
-        if l > max_len:
+        if l > max_duration:
             # Split batch in smaller chunks
             logits = []
-            for i in range(0, l, max_len):
-                j = min(i + max_len, l)
+            for i in range(0, l, max_duration):
+                j = min(i + max_duration, l)
                 logits.append(do_infer_sub(padded_batch, i, j))
             logits = torch.cat(logits, dim = 1)
         else:

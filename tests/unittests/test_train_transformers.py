@@ -33,7 +33,7 @@ class TestTrainTransformers(Test):
             "--batch_size", "4",
             "--num_epochs", "1",
             "--eval_steps", "1",
-            "--max_len", "10",
+            "--max_duration", "10",
         ])
 
         self.assertTrue(os.path.isdir(dir0))
@@ -66,7 +66,7 @@ class TestTrainTransformers(Test):
             "--batch_size", "4",
             "--num_epochs", "1",
             "--eval_steps", "1",
-            "--max_len", "10",
+            "--max_duration", "10",
             "--data_augment",
             "--data_augment_noise", self.get_data_path("noise"),
             "--data_augment_rir", self.get_data_path("[rirs/smallroom/rir_list,rirs/mediumroom/rir_list,rirs/largeroom/rir_list]", check = False),

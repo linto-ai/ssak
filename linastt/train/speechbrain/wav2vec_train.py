@@ -351,9 +351,9 @@ def dataio_prepare(hparams, tokenizer):
         return_format = "csv", include_duration = True,
         shuffle = True,
         max_data = max(1, int((hparams["debug_num_batches"] * hparams["batch_size"]))) if DEBUG else None,
-        choose_data_with_max_len = DEBUG,
-        min_len = hparams["min_len"],
-        max_len = hparams["max_len"],
+        choose_data_with_max_duration = DEBUG,
+        min_duration = hparams["min_duration"],
+        max_duration = hparams["max_duration"],
         logstream = readme,
     )
     testsetmeta, testcsv = kaldi_folder_to_dataset(
@@ -361,9 +361,9 @@ def dataio_prepare(hparams, tokenizer):
         return_format = "csv", include_duration = True,
         shuffle = False,
         max_data = max(1, int((2 * hparams["test_batch_size"]))) if DEBUG else 480,
-        choose_data_with_max_len = DEBUG,
-        min_len = max(1, hparams["min_len"]),
-        max_len = hparams["max_len"],
+        choose_data_with_max_duration = DEBUG,
+        min_duration = max(1, hparams["min_duration"]),
+        max_duration = hparams["max_duration"],
         logstream = readme,
     )
 

@@ -20,7 +20,7 @@ class TestTrainSpeechbrain(Test):
             "--valid", self.get_data_path("kaldi/minimal"),
             "--batch_size", "4",
             "--num_epochs", "2",
-            "--max_len", "10",
+            "--max_duration", "10",
         ]
 
     def test_train_speechbrain_fromscratch(self):
