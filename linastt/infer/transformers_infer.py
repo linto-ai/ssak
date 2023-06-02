@@ -118,6 +118,11 @@ def transformers_infer(
                     yield p
         if log_memtime: toc("apply language model", log_mem_usage = True)
 
+WAV2VEC_CLASSES = (
+    transformers.Wav2Vec2ForCTC,
+    transformers.models.wav2vec2.modeling_wav2vec2.Wav2Vec2Model
+)
+
 def transformers_load_model(source, device = None):
     if device is None:
         device = auto_device()
@@ -139,7 +144,7 @@ def transformers_load_model(source, device = None):
         processor = transformers.AutoProcessor.from_pretrained(source)
     elif isinstance(source, (list, tuple)) and len(source) == 2:
         model, processor = source
-        assert isinstance(model, transformers.Wav2Vec2ForCTC)
+        assert isinstance(model, WAV2VEC_CLASSES)
         assert isinstance(processor, transformers.Wav2Vec2Processor)
         model = model.to(device)
     else:
@@ -152,6 +157,8 @@ def auto_model(source, device = None):
     model = transformers.AutoModel.from_pretrained(source)
     if isinstance(model, transformers.models.whisper.modeling_whisper.WhisperModel):
         model = transformers.WhisperForConditionalGeneration.from_pretrained(source)
+    if isinstance(model, transformers.models.wav2vec2.modeling_wav2vec2.Wav2Vec2Model):
+        model = transformers.Wav2Vec2ForCTC.from_pretrained(source)
     if device is not None:
         model = model.to(device)
     return model
@@ -166,7 +173,7 @@ def conform_torch_logit(x, num_outputs):
 
 def transformers_compute_logits(model, processor, batch, device = None, language = None, sample_rate = None, max_duration = 2240400):
 
-    use_wav2vec_api = isinstance(model, transformers.Wav2Vec2ForCTC)
+    use_wav2vec_api = isinstance(model, WAV2VEC_CLASSES)
 
     if sample_rate == None:
         sample_rate = processor.feature_extractor.sampling_rate
@@ -191,10 +198,16 @@ def transformers_compute_logits(model, processor, batch, device = None, language
 
         l = padded_batch.input_values.shape[1]
 
+        def get_output(output):
+            if hasattr(output, "logits"):
+                output = output.logits
+            else:
+                raise NotImplementedError(f"Cannot find logits in {dir(output)}")
+            return output.cpu()
         def do_infer(batch):
-            return model(batch.input_values.to(device), attention_mask = batch.attention_mask.to(device)).logits.cpu()
+            return get_output(model(batch.input_values.to(device), attention_mask = batch.attention_mask.to(device)))
         def do_infer_sub(batch, i, j):
-            return model(batch.input_values[:,i:j].to(device), attention_mask = batch.attention_mask[:,i:j].to(device)).logits.cpu()
+            return get_output(model(batch.input_values[:,i:j].to(device), attention_mask = batch.attention_mask[:,i:j].to(device)))
 
     else:
         # Whisper style

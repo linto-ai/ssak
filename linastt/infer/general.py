@@ -2,7 +2,7 @@ import speechbrain as sb
 import transformers
 import torch
 from linastt.infer.speechbrain_infer import speechbrain_load_model, speechbrain_compute_logits
-from linastt.infer.transformers_infer import transformers_load_model, transformers_compute_logits
+from linastt.infer.transformers_infer import transformers_load_model, transformers_compute_logits, WAV2VEC_CLASSES
 
 def load_model(source, device = None):
     try:
@@ -23,7 +23,10 @@ def compute_log_probas(model, batch):
         reco, logits = speechbrain_compute_logits(model, batch)
         logits = torch.log_softmax(logits, dim=-1)
     
-    elif isinstance(model, tuple) and len(model) == 2 and isinstance(model[0], transformers.Wav2Vec2ForCTC) and isinstance(model[1], transformers.Wav2Vec2Processor):
+    elif isinstance(model, tuple) and len(model) == 2:
+        assert isinstance(model[0], WAV2VEC_CLASSES), \
+                          f"Unknown model type: {type(model[0])}"
+        assert isinstance(model[1], transformers.Wav2Vec2Processor), f"Unknown processor type: {type(model[1])}"
         model, processor = model
         logits = transformers_compute_logits(model, processor, batch)
         logits = torch.log_softmax(logits, dim=-1)

@@ -126,10 +126,12 @@ def split_long_audio_kaldifolder(
                 if debug_folder:
                     if not os.path.isdir(debug_folder):
                         os.makedirs(debug_folder)
-                    fname = f"{dbname}_{idx_processed:03}_{index:02}" + new_transcript.replace(" ", "_").replace("'","").replace("/","-")
+                    new_transcript_ = new_transcript.replace(" ", "_").replace("'","").replace("/","-")
+                    fname = f"{dbname}_{idx_processed:03}_{index:02}" + new_transcript_
+                    ratio = len(new_transcript_.encode("utf8"))/len(new_transcript)
                     #fname = f"{dbname}_{idx_processed:03}_{index:02}" + slugify(new_transcript)
-                    if len(fname) > 200-4:
-                        fname = fname[:200-4-23] + "..." + fname[-20:]  
+                    if len(fname) > (200/ratio)-4:
+                        fname = fname[:int(200/ratio)-4-23] + "..." + fname[-20:]  
                     sox.write(debug_folder+"/"+fname+".wav", load_audio(path, new_start, new_end, sample_rate), sample_rate)
             last_start = last_end
             last_end = last_start
