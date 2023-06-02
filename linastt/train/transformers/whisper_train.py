@@ -215,7 +215,7 @@ if __name__ == "__main__":
     use_gpu = len(gpus) > 0
     USE_MIXED_PRECISION = False # use_gpu
     USE_MIXED_PRECISION_CPU = False # Too many problems
-    args.online = (args.online or args.data_augmentation)
+    args.online = (args.online or args.data_augmentation or args.text_augmentation)
     online_dev = False
     
     base_model = args.base_model
