@@ -12,7 +12,6 @@ langid
 lang-trans
 librosa
 loralib
-loralib
 matplotlib
 num2words
 onnxruntime
