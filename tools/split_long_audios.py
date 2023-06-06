@@ -3,10 +3,9 @@
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
 from linastt.utils.text import remove_special_words
-from linastt.utils.dataset import parse_kaldi_wavscp
+from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
 from linastt.infer.general import load_model, get_model_sample_rate
 from linastt.utils.inspect_reco import compute_alignment
-from linastt.utils.kaldi import check_kaldi_dir
 
 import os
 import shutil

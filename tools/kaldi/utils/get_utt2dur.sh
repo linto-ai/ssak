@@ -103,10 +103,19 @@ elif [ -f $data/wav.scp ]; then
     utils/split_data.sh --per-utt $data $nj
     sdata=$data/split${nj}utt
 
-    DATAPATH=$DATAPATH $cmd JOB=1:$nj $data/log/get_durations.JOB.log \
+    DATAPATH=$DATAPATH $cmd JOB=1:$nj $data/log/wav-to-duration.JOB.log \
       ./wav-to-duration --read-entire-file=$read_entire_file \
-      scp:$sdata/JOB/wav.scp ark,t:$sdata/JOB/utt2dur || \
-        { echo "$0: there was a problem getting the durations"; exit 1; }
+      scp:$sdata/JOB/wav.scp ark,t:$sdata/JOB/utt2dur;
+    
+    if [[ $? != 0 ]]; then
+      echo "$0: could not run wav-to-duration (check $data/log/wav-to-duration.*.log), using get_audio_duration.py"
+      $cmd JOB=1:$nj $data/log/get_audio_duration.JOB.log \
+      ../get_audio_duration.py $sdata/JOB/wav.scp $sdata/JOB/utt2dur;
+      if [[ $? != 0 ]]; then
+        tail $data/log/get_audio_duration.*.log
+        echo "$0: there was a problem getting the durations"; exit 1;
+      fi
+    fi
 
     for n in `seq $nj`; do
       cat $sdata/$n/utt2dur

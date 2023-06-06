@@ -157,3 +157,9 @@ def save_audio(path, audio, sample_rate = 16_000):
         audio = audio.transpose()
     sox.write(path, audio, sample_rate)
 
+def get_audio_duration(path):
+    """ 
+    Return the duration of an audio file in seconds.
+    """
+    info = sox.get_info(path)[0]
+    return info.length / info.rate
