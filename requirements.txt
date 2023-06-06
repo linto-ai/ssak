@@ -33,5 +33,6 @@ tempfile
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
-transformers==4.29.1
+# transformers
+git+https://github.com/huggingface/transformers.git@539e2281cd97c35ef4122757f26c88f44115fa94
 vosk
