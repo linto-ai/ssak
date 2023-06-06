@@ -72,9 +72,10 @@ def linstt_transcribe(
         {
             "file": audio_file,
             "type": "audio/x-wav",
+            # "file": "@"+audio_file+";type=audio/x-wav",
             "timestamps": "",
             "transcriptionConfig": {
-                "vadCongig": {
+                "vadConfig": {
                     "enableVad": True,
                     "methodName": "WebRTC",
                     "minDuration": min_vad_duration,

@@ -10,12 +10,14 @@ import re
 ####################
 # Curl helpers
 
-def format_option_for_curl(option, c, use_unicode=True):
+def format_option_for_curl(option, c, use_unicode=False, as_in_cmd=False):
     if isinstance(option, bool):
         return "true" if option else "false"
     if isinstance(option, dict):
         return json.dumps(option) # TODO: ensure_ascii= ?
     if isinstance(option, str) and os.path.isfile(option):
+        if as_in_cmd:
+            return format_option_for_curl(f"@{option}", c, use_unicode=use_unicode)
         return (c.FORM_FILE, option)
     if isinstance(option, str):
         if use_unicode:
@@ -24,9 +26,9 @@ def format_option_for_curl(option, c, use_unicode=True):
             return option
     return format_option_for_curl(str(option), c, use_unicode)
 
-def format_options_for_curl(options, c, use_unicode=True):
+def format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=False):
     return [
-        (key, format_option_for_curl(value, c, use_unicode)) for key, value in (options.items() if isinstance(options, dict) else options)
+        (key, format_option_for_curl(value, c, use_unicode=use_unicode, as_in_cmd=as_in_cmd)) for key, value in (options.items() if isinstance(options, dict) else options)
     ]
 
 def curl_post(url, options, headers=[], post_as_fields=False, default=None, verbose=False):
@@ -47,11 +49,13 @@ def _curl_do(action, url, options, headers=[], post_as_fields=False, default=Non
         # ("type", "audio/x-wav"),
         # ("timestamps", ""),
         # ("transcriptionConfig", json.dumps(transcription_config)),
-        # ("force_sync", "false")   
+        # ("force_sync", "false")
     if post_as_fields:
         options_curl = format_option_for_curl(options, c, use_unicode=(action != "GET"))
+        options_curl2 = format_option_for_curl(options, c, use_unicode=False, as_in_cmd=True)
     else:
-        options_curl = format_options_for_curl(options, c, use_unicode=(action != "GET"))
+        options_curl = format_all_options_for_curl(options, c, use_unicode=(action != "GET"))
+        options_curl2 = format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=True)
     options_str = ""
 
     if action == "GET":
@@ -66,10 +70,10 @@ def _curl_do(action, url, options, headers=[], post_as_fields=False, default=Non
     if action == "POST":
         if post_as_fields:
             c.setopt(c.POSTFIELDS, options_curl)
-            options_str = " \\\n\t".join([f"-d '{options_curl}'"])
+            options_str = " \\\n\t".join([f"-d '{options_curl2}'"])
         else:
             c.setopt(c.HTTPPOST, options_curl)
-            options_str = " \\\n\t".join([f"-F '{key}={value}'" for key, value in options_curl])
+            options_str = " \\\n\t".join([f"-F '{key}={value}'" for key, value in options_curl2])
     buffer = io.BytesIO()
     c.setopt(c.WRITEDATA, buffer)
 

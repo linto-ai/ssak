@@ -10,15 +10,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Transcribe audio file with LinSTT',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('audio_file', type=str, help='Audio file to transcribe', nargs='+')
-    parser.add_argument('--output_file', type=str, default=None, help='Output file')
-    parser.add_argument('--output_dir', type=str, default=None, help='Output folder')
-    parser.add_argument('--transcription_server', type=str, help='Transcription server',
+    parser.add_argument('audio_file', help='Audio file to transcribe', nargs='+')
+    parser.add_argument('--output_file', default=None, help='Output file')
+    parser.add_argument('--output_dir', default=None, help='Output folder')
+    parser.add_argument('--transcription_server', help='Transcription server',
         # default="http://biggerboi.linto.ai:8000",
         # default="https://alpha.api.linto.ai/stt-french-generic",
         default="https://api.linto.ai/stt-french-generic",
     )
-    parser.add_argument('--diarization_server', type=str, help='Diarization server', default= None)
+    parser.add_argument('--diarization_server', help='Diarization server', default= None)
     parser.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
     parser.add_argument('--convert_numbers', default = False, action='store_true', help='Convert numbers to text')
     parser.add_argument('--min_vad_duration', default=30, type=float, help='Minimum duration of speech segments after VAD')
