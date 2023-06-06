@@ -47,7 +47,17 @@ def transformers_infer(
     """
 
     model, processor = transformers_load_model(source, device)
-    
+
+    if language is not None and hasattr(processor, "tokenizer") and hasattr(processor.tokenizer, "vocab"):
+        languages = list(processor.tokenizer.vocab.keys())
+        if language not in languages:
+            candidate_languages = [l for l in languages if l.startswith(language)]
+            if len(candidate_languages) == 0:
+                raise ValueError(f"Language {language} not in {languages}")
+            elif len(candidate_languages) > 1:
+                raise ValueError(f"Language {language} not in {languages}.\nCould it be one of {candidate_languages}?")
+            language = candidate_languages[0]
+
     sample_rate = processor.feature_extractor.sampling_rate
     device = model.device
 
@@ -100,7 +110,9 @@ def transformers_infer(
                 logits.append(log_probas)
             if log_memtime: gpu_mempeak()
         if log_memtime: toc("apply network", log_mem_usage = True)
-   
+
+        if language:
+            tokenizer = to_simple_tokenizer(tokenizer, language)
         decoder = transformers_decoder_with_lm(tokenizer, arpa_path, alpha = alpha, beta = beta)
 
         # Apply language model
@@ -138,8 +150,7 @@ def transformers_load_model(source, device = None):
             base_model = peft_config.base_model_name_or_path
             model = auto_model(base_model)
             model = PeftModel.from_pretrained(model, peft_folder).to(device)
-        else: 
-
+        else:
             model = auto_model(source, device)
         processor = transformers.AutoProcessor.from_pretrained(source)
     elif isinstance(source, (list, tuple)) and len(source) == 2:
@@ -186,6 +197,11 @@ def transformers_compute_logits(model, processor, batch, device = None, language
     if use_wav2vec_api:
         # Wav2Vec style
 
+        if language is not None:
+            processor.tokenizer.vocab.keys()
+            processor.tokenizer.set_target_lang(language)
+            model.load_adapter(language)
+
         processed_batch = processor(batch, sampling_rate = sample_rate, padding = "longest")
 
         padded_batch = processor.pad(
@@ -218,7 +234,6 @@ def transformers_compute_logits(model, processor, batch, device = None, language
         padded_batch = processor(batch, return_tensors="pt", sampling_rate = sample_rate)
 
         l = -1
-
 
         forced_decoder_ids = processor.get_decoder_prompt_ids(language=language, task="transcribe")
 
@@ -265,6 +280,25 @@ def transformers_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
     )
     return processor
 
+def to_simple_tokenizer(tokenizer, language):
+    import json
+    import tempfile
+    tmpfile = tempfile.mktemp(suffix=".json")
+    with open(tmpfile, "w") as f:
+        json.dump(tokenizer.vocab[language], f)
+    return transformers.Wav2Vec2CTCTokenizer(
+        vocab_file=tmpfile,
+        bos_token=tokenizer.bos_token,
+        eos_token=tokenizer.eos_token,
+        unk_token=tokenizer.unk_token,
+        pad_token=tokenizer.pad_token,
+        word_delimiter_token=tokenizer.word_delimiter_token,
+        replace_word_delimiter_char=tokenizer.replace_word_delimiter_char,
+        do_lower_case=tokenizer.do_lower_case,
+        target_lang=None,
+    )
+
+
 
 if __name__ == "__main__":
 
@@ -279,7 +313,7 @@ if __name__ == "__main__":
         default = "Ilyes/wav2vec2-large-xlsr-53-french"
 
     )
-    parser.add_argument('--language', help="Language (if needed by the ASR model, for instance Whisper model)", default=None, type=str)
+    parser.add_argument('--language', help="Language (if needed by the ASR model, for instance Whisper model or MMS model)", default=None, type=str)
     parser.add_argument('--arpa', help="Path to a n-gram language model", default = None)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
@@ -296,6 +330,8 @@ if __name__ == "__main__":
         # output nothing
         args.output = open(os.devnull,"w")
     else:
+        if not os.path.isdir(os.path.dirname(args.output)):
+            os.makedirs(os.path.dirname(args.output))
         args.output = open(args.output, "w")
 
     for reco in transformers_infer(
