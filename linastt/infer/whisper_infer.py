@@ -13,7 +13,7 @@ import re
 def whisper_infer(
     model,
     audios,
-    batch_size = 1,
+    # batch_size = 1,
     device = None,
     language = "fr",
     no_speech_threshold = 0.6,
@@ -29,14 +29,12 @@ def whisper_infer(
     seed=1234,
     ):
     """
-    Transcribe audio(s) with speechbrain model
+    Transcribe audio(s) with Whisper model
 
     Args:
-        model: SpeechBrain model or a path to the model
+        model: Whisper model or a path to the model
         audios:
             Audio file path(s), or Kaldi folder(s), or Audio waveform(s)
-        batch_size: int
-            Batch size (default 1).
         device: str
             Device to use (default "cuda:0" if GPU available else "cpu").
             Can be: "cpu", "cuda:0", "cuda:1", etc.
@@ -50,8 +48,8 @@ def whisper_infer(
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    if batch_size == 0:
-        batch_size = 1
+    # if batch_size == 0:
+    #     batch_size = 1
 
     if device is None:
         device = auto_device()
@@ -61,7 +59,7 @@ def whisper_infer(
 
     batches = to_audio_batches(audios, return_format = 'torch',
         sample_rate = whisper.audio.SAMPLE_RATE,
-        batch_size = batch_size,
+        batch_size = 1,
         sort_by_len = sort_by_len,
         output_ids = output_ids,
     )

@@ -103,7 +103,7 @@ def kaldi_folder_to_dataset(
         assert isinstance(max_text_length, tuple) and len(max_text_length) == 2 and isinstance(max_text_length[1], int), \
                 f"max_text_length must be an integer or a tuple (function, integer)"
         text_tokenizer, max_text_length = max_text_length
-    assert max_text_length > 0, f"max_text_length must be > 0 (got {max_text_length})"
+    assert max_text_length is None or max_text_length > 0, f"max_text_length must be > 0 (got {max_text_length})"
 
     if return_format == "pandas":
         opts["return_format"] = "csv"
