@@ -319,6 +319,81 @@ def remove_punctuations(text, strong = False):
         return text.translate(str.maketrans('', '', _punctuation_strong))
     return text.translate(str.maketrans('', '', _punctuation))
 
+def format_special_characters(text):
+
+    for before, after in [
+        ("â","â"),
+        ("à","à"),
+        ("á","á"),
+        ("ê","ê"),
+        ("é","é"),
+        ("è","è"),
+        ("ô","ô"),
+        ("û","û"),
+        ("î","î"),
+
+        ('…','...'),
+        (r"[«“][^\S\r\n]*", '"'),
+        (r"[^\S\r\n]*[»”″„]", '"'),
+        (r"[’‘‛ʿ]", "'"),
+        ("‚", ","),
+        (r"–", "-"),
+        (" "," "),
+
+        ("·","."),
+        (r"ᵉʳ","er"),
+        (r"ᵉ","e"),
+    ]:
+        text = re.sub(before, after, text)
+
+    # text = re.sub('--+',' ', text)
+    # text = re.sub('—+',' ', text)
+    # text = re.sub('#+',' ', text)
+    # text = re.sub('_',' ', text)
+    # text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
+    # text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
+    # text = re.sub(' - | -$|^- ','', text)
+    # text = re.sub("'+", "'", text)
+    # text = re.sub('\*+', ' ', text)
+
+    return text
+
+def remove_special_words(text,
+    glue_apostrophe = True,
+    glue_dash = None,
+    ):
+    """
+    Small process designed for text that has ALREADY been processed (ex: "8" -> "huit"), but some special words might still be present (ex: "<noise>")
+    """
+    # sometimes empty text could have been transformed to None (ex: in CSV)
+    if not text: return ""
+
+    try:
+        text = re.sub(r"<.*?>", "", text)
+    except:
+        print("PROBLEM WITH TEXT:", text, type(text))
+        text = re.sub(r"<.*?>", "", text)
+    
+    if glue_apostrophe is True:
+        text = re.sub(r"[^\S]+'[^\S]+", "'", text)
+    elif glue_apostrophe is False:
+        text = re.sub(r"'", "' ", text).strip()
+
+    if glue_dash is True:
+        text = re.sub(r"[^\S]+\-[^\S]+", "-", text)
+    elif glue_dash is False:
+        text = re.sub(r"\-", "- ", text).strip()
+    elif glue_dash == "right":
+        text = re.sub(r"\-[^\S]+", "-", text)
+        text = re.sub("-", " -", text)
+    elif glue_dash == "left":
+        text = re.sub(r"[^\S]+\-", "-", text)
+        text = re.sub("-", "- ", text)
+
+    text = collapse_whitespace(text)
+
+    return text
+
 # this function can split sentences.
 def split_around(
         text,
