@@ -24,7 +24,6 @@ pyarabic
 pyctcdecode
 pypi-kenlm
 python-slugify
-soundfile
 soxbindings
 tensorboard
 tempfile
