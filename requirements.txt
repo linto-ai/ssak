@@ -14,6 +14,7 @@ loralib
 matplotlib
 num2words
 onnxruntime
+openai-whisper
 # peft
 git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
 psutil
@@ -23,6 +24,7 @@ pyannote.pipeline
 pyarabic
 pyctcdecode
 pypi-kenlm
+python-magic
 python-slugify
 soxbindings
 tensorboard

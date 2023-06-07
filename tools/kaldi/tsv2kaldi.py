@@ -72,16 +72,16 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
             yield {key: value for key, value in zip(column_names, field_values)}
 
 
-def tsv2kaldi(input_file, audio_folder, dest):
+def tsv2kaldi(input_file, audio_folder, output_folder, language=None):
     
     rows = generate_examples(input_file, audio_folder)
 
-    os.makedirs(dest, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)
 
     speakers=[]
-    with open(dest + '/utt2spk', 'w') as utt2spk_file, \
-        open(dest + '/text', 'w') as text_file, \
-        open(dest + '/wav.scp', 'w') as wavscp_file:
+    with open(output_folder + '/utt2spk', 'w') as utt2spk_file, \
+        open(output_folder + '/text', 'w') as text_file, \
+        open(output_folder + '/wav.scp', 'w') as wavscp_file:
 
         uniq_spks=[]
         for row in rows:
@@ -106,27 +106,28 @@ def tsv2kaldi(input_file, audio_folder, dest):
                 text_file.write(utt_id+" "+text+"\n")
                 wavscp_file.write(utt_id+" sox "+ row['path'] +" -t wav -r 16k -b 16 -c 1 - |\n")
 
-    with open(dest + '/spk2gender', 'w') as spk2gender_file:
+    with open(output_folder + '/spk2gender', 'w') as spk2gender_file:
         for speaker in speakers:
             spk2gender_file.write(speaker['id']+" "+speaker['gender']+"\n")
 
-    return check_kaldi_dir(dest)
+    return check_kaldi_dir(output_folder, language=language)
 
 if __name__ == '__main__':
 
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Converts a dataset in CSV or TSV format (like CommonVoice) into kaldi format')
     parser.add_argument("input_file", type=str, help="Input TSV or CSV file")
     parser.add_argument("audio_folder", type=str, help="Input folder with audio files inside")
-    parser.add_argument("dest", type=str, help="Output folder")
+    parser.add_argument("output_folder", type=str, help="Output folder")
+    parser.add_argument('--language', default="fr", type=str, help='Main language (only for checking the charset and giving warnings)')
     args = parser.parse_args()
 
     input_file = args.input_file
-    dest = args.dest    
+    output_folder = args.output_folder    
     audio_folder = args.audio_folder
 
     assert os.path.isdir(audio_folder), f"Input folder not found: {audio_folder}"
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
-    assert not os.path.exists(dest), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {dest}"
+    assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    tsv2kaldi(input_file, audio_folder, dest)
+    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language)

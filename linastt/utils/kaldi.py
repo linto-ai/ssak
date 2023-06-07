@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import re
 
 from envsubst import envsubst
 
@@ -41,7 +42,19 @@ def parse_line(line):
         return id_text[0], ""
     return id_text
 
-def check_kaldi_dir(dirname):
+SPECIAL_CHARS = {
+    "en": "",
+    "fr": "".join(func("àâäéèêëîïôöùûüÿç") for func in [str.upper, str.lower]),
+    "es": "".join(func("áéíóúüñ") for func in [str.upper, str.lower]),
+    "de": "".join(func("äöüß") for func in [str.upper, str.lower]),
+    "it": "".join(func("àèéìíîòóùú") for func in [str.upper, str.lower]),
+    "pt": "".join(func("áâãàéêíóôõúüç") for func in [str.upper, str.lower]),
+    "ru": "".join(func("абвгдеёжзийклмнопрстуфхцчшщъыьэюя") for func in [str.upper, str.lower]),
+    "tr": "".join(func("âçğıöşü") for func in [str.upper, str.lower]),
+    "ar": "".join(func("ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهويىي") for func in [str.upper, str.lower]),
+}
+
+def check_kaldi_dir(dirname, language="fr"):
 
     tool_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),
@@ -50,7 +63,7 @@ def check_kaldi_dir(dirname):
 
     if os.path.isfile(os.path.join(dirname, "text")):
         with open(os.path.join(dirname, "text")) as f:
-            text = dict(parse_line(line) for line in f)
+            texts = dict(parse_line(line) for line in f)
 
     p = subprocess.Popen([tool_dir + "/fix_data_dir.sh", dirname])
     p.communicate()
@@ -68,12 +81,29 @@ def check_kaldi_dir(dirname):
     if p.returncode != 0:
         raise RuntimeError("ERROR when running validate_data_dir.sh")
     
-    # Report if some ids were filtered out
-    with open(os.path.join(dirname, "text")) as f:
+    # Report
+    # - if some ids were filtered out
+    # - if some texts are empty
+    # - if there were weird characters in the text
+    weird_characters = {}
+    with open(os.path.join(dirname, "text"), "r", encoding="utf8") as f:
         ids = [s.split()[0] for s in f.read().splitlines()]
-    for id in text:
+    for id, text in texts.items():
         if id not in ids:
-            print("WARNING: Filtered out:", id, text[id])
+            print("WARNING: Filtered out:", id, text)
+        elif not text.strip():
+            print("WARNING: Empty text:", id, text)
+        else:
+            # Filter out usual characters
+            if language:
+                weirdos = re.sub(r"[a-zA-Z0-9 \.,\?\!\-\'\:\;"+ re.escape(SPECIAL_CHARS.get(language, "")) + r"]", "", text)
+            else:
+                weirdos = ""
+            for c in weirdos:
+                if c in weird_characters:continue
+                weird_characters[c] = text
+    for c, example in weird_characters.items():
+        print(f"WARNING: Got character {c} (example: {example})")
 
     for tmpdir in ".backup", "log", "split4utt":
         tmpdir = os.path.join(dirname, tmpdir)
