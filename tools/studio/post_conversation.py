@@ -61,7 +61,7 @@ def cm_import(
             "membersRight": "0",
         },
         headers=[f"Authorization: Bearer {token}"],
-        verbose=verbose,
+        verbose="short" if verbose else False,
     )
 
     assert "message" in result, f"'message' not found in response: {result}"
@@ -113,20 +113,18 @@ def cm_find_conversation(
 
     token = cm_get_token(url, email, password, verbose=verbose)
 
+    organization_id = cm_get_organization(url, email, password, verbose=verbose)
+
     conversations = curl_get(
-        url + "/api/conversations/search",
-        {
-            "searchType": "title",
-            "text": name,
-        },
+        url + f"/api/organizations/{organization_id}/conversations",
+        {"name": name},
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
         default={"conversations": []},
     )
 
-    assert "conversations" in conversations, f"'conversations' not found in response: {conversations}"
-    conversations = conversations["conversations"]
-
+    assert isinstance(conversations, dict) and "list" in conversations, f"'list' not found in response: {conversations}"
+    conversations = conversations["list"]
     if strict:
         conversations = [c for c in conversations if c["name"] == name]
 
@@ -389,7 +387,7 @@ if __name__ == "__main__":
         args.audio,
         args.transcription,
         name=name,
-        tags=[t for t in args.tag.split(",") if t],
+        tags=[t for t in args.tag.split(",") if t] if args.tag else [],
         url=args.url,
         email=args.email,
         password=args.password,

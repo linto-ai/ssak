@@ -10,25 +10,36 @@ import re
 ####################
 # Curl helpers
 
-def format_option_for_curl(option, c, use_unicode=False, as_in_cmd=False):
+def shorten(s, maximum=500):
+    if len(s) > maximum:
+        return s[:maximum//2] + "<<...>>" + s[-maximum//2:]
+    return s
+
+def format_option_for_curl(option, c, use_unicode=False, as_in_cmd=False, short=False):
     if isinstance(option, bool):
         return "true" if option else "false"
     if isinstance(option, dict):
-        return json.dumps(option) # TODO: ensure_ascii= ?
+        s = json.dumps(option)
+        if short:
+            return shorten(s)
+        return s
     if isinstance(option, str) and os.path.isfile(option):
         if as_in_cmd:
             return format_option_for_curl(f"@{option}", c, use_unicode=use_unicode)
         return (c.FORM_FILE, option)
     if isinstance(option, str):
         if use_unicode:
-            return option.encode("utf8")
+            s = option.encode("utf8")
         else:
-            return option
+            s = option
+        if short:
+            return shorten(s)
+        return s
     return format_option_for_curl(str(option), c, use_unicode)
 
-def format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=False):
+def format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=False, short=False):
     return [
-        (key, format_option_for_curl(value, c, use_unicode=use_unicode, as_in_cmd=as_in_cmd)) for key, value in (options.items() if isinstance(options, dict) else options)
+        (key, format_option_for_curl(value, c, use_unicode=use_unicode, as_in_cmd=as_in_cmd, short=short)) for key, value in (options.items() if isinstance(options, dict) else options)
     ]
 
 def curl_post(url, options, headers=[], post_as_fields=False, default=None, verbose=False):
@@ -52,10 +63,10 @@ def _curl_do(action, url, options, headers=[], post_as_fields=False, default=Non
         # ("force_sync", "false")
     if post_as_fields:
         options_curl = format_option_for_curl(options, c, use_unicode=(action != "GET"))
-        options_curl2 = format_option_for_curl(options, c, use_unicode=False, as_in_cmd=True)
+        options_curl2 = format_option_for_curl(options, c, use_unicode=False, as_in_cmd=True, short=(verbose == "short"))
     else:
         options_curl = format_all_options_for_curl(options, c, use_unicode=(action != "GET"))
-        options_curl2 = format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=True)
+        options_curl2 = format_all_options_for_curl(options, c, use_unicode=False, as_in_cmd=True, short=(verbose == "short"))
     options_str = ""
 
     if action == "GET":
