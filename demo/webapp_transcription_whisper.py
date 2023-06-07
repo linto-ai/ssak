@@ -1,4 +1,3 @@
-
 from audio_recorder_streamlit import audio_recorder
 import streamlit as st
 from linastt.infer.whisper_infer import *
@@ -63,7 +62,7 @@ def main():
     sample_rate = 16_000
 
     models = {
-        #"ALG_small" : '/home/linagora/Transcriberlit/Model_alg/finals',
+        "ALG_small" : '/home/linagora/Transcriberlit/Model_alg/finals',
         "Tiny" : 'tiny',
         "Base" : 'base',
         "Small" : 'small',
@@ -120,30 +119,24 @@ def main():
         icon_size="2x",
     )
 
-    # If an audio clip was recorded, write it to a file
-    # if audio_bytes:
-        
-
-
 
     # If the "Transcribe Audio" button is clicked, transcribe the audio
     if st.sidebar.button('Transcribe Audio'):
         if audio_file is not None:
+            
             # Create a temporary directory to store the file
             temp_dir = tempfile.TemporaryDirectory()
             temp_path = os.path.join(temp_dir.name, audio_file.name)
-
+            
             # Save the file to the temporary location
             with open(temp_path, 'wb') as f:
                 f.write(audio_file.read())
-
-            # Retrieve the path of the saved file
-            file_path = temp_path
-            audio, sr = load_audio(file_path)
-            st.audio(audio_file.read())
+                
+            audio, sr = load_audio(temp_path)
+            st.audio(temp_path)
             visualize_audio(audio, sr)
             for transcription in whisper_infer(
-                model_name, file_path,
+                model_name, temp_path,
                 language = language,
                 ):
                 st.header('Transcription')
@@ -154,30 +147,28 @@ def main():
                     st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
                 
 
-        elif audio_bytes is not None:
+        elif audio_bytes:
             filename = "audio_record.wav"
-            try:
-                # Create a temporary directory to store the file
-                temp_dir = tempfile.TemporaryDirectory()
-                temp_path = os.path.join(temp_dir.name, filename)
-                with open(temp_path, "wb") as audio_f:
-                    audio_f.write(audio_bytes)
-            except Exception as e:
-                st.error(f"Error writing audio file: {e}")
-            file_path = temp_path
-            audio, sr = load_audio(file_path)
-            with open(file_path, "rb") as audio_file:
-                st.audio(audio_file.read())
+            # Create a temporary directory to store the file
+            temp_dir = tempfile.TemporaryDirectory()
+            temp_path = os.path.join(temp_dir.name, filename)
+            with open(temp_path, "wb") as audio_f:
+                audio_f.write(audio_bytes)
+            
+            
+            audio, sr = load_audio(temp_path)
+            
+            with open(temp_path, "rb") as audio_file:
+                st.audio(audio_file.read(), format="audio/wav")
                 visualize_audio(audio, sr)
                 for transcription in whisper_infer(
-                    model_name, file_path,
+                    model_name, audio_file.name,
                     batch_size = 1,
                     language = language,
                     ):
                     st.header('Transcription')
                     if isinstance(transcription, str):
                         st.markdown(border_style, unsafe_allow_html=True)
-
                         st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
                     else:
                         st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
@@ -187,4 +178,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -396,7 +396,14 @@ if __name__ == "__main__":
         model = WhisperForConditionalGeneration.from_pretrained(base_model)
         model.gradient_checkpointing_enable()
     
-    model.config.forced_decoder_ids = None
+    # Note: we do not train language identification, but rather focus on the target language
+    special_tokens_ids = processor.tokenizer.additional_special_tokens_ids
+    special_tokens = processor.tokenizer.additional_special_tokens
+    model.config.forced_decoder_ids =  [
+        [1, special_tokens_ids[special_tokens.index(f"<|{language}|>")]],
+        [2, special_tokens_ids[special_tokens.index("<|transcribe|>")]],
+        [3, special_tokens_ids[special_tokens.index("<|notimestamps|>")]],
+    ]
     model.config.suppress_tokens = []
     model.train(True)
        

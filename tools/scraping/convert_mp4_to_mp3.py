@@ -19,7 +19,7 @@ if __name__ == '__main__':
     if os.path.isfile(args.input):
         convert_video_to_audio(args.input, args.output)
     else:
-        assert os.path.isfile(args.input), f"Failed to find {args.input} (not a file nor folder)"
+        assert os.path.isdir(args.input), f"Failed to find {args.input} (not a file nor folder)"
         for filename in os.listdir(args.input):
             if filename.endswith(".mp4"):
                 video = os.path.join(args.input, filename)
