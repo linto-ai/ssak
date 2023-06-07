@@ -6,7 +6,6 @@ datasets[audio]
 dtw-python
 envsubst
 huggingface_hub
-ipython
 jiwer
 langid
 lang-trans
@@ -27,7 +26,6 @@ pypi-kenlm
 python-slugify
 soundfile
 soxbindings
-streamlit
 tensorboard
 tempfile
 torch
