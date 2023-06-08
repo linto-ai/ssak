@@ -51,6 +51,7 @@ def check_language(
         "best": str, # the best predicted language
         "gap": float, # score gap with the best predicted language
         }
+    param max_gap: maximum gap between the (normalized) scores of the target language and the best predicted language, to accept the target language
     """
 
     # Restrict (or not the list of languages)
