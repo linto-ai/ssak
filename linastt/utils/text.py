@@ -6,6 +6,7 @@ from .text_utils import (
     remove_special_words,
     remove_special_characters,
     format_special_characters,
+    remove_parenthesis,
     regex_escape,
     transliterate,
     undigit,
@@ -14,3 +15,10 @@ from .text_utils import (
     split_around_space_and_apostrophe,
     split_around
 )
+
+def format_text(text, language, **kwargs):
+    if language in ["fr", "en"]:
+        return format_text_latin(text, lang=language, **kwargs)
+    if language == "ar":
+        return format_text_ar(text, **kwargs)
+    raise NotImplementedError(f"Language {language} not supported yet")

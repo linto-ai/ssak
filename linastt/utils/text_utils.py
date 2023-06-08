@@ -280,6 +280,9 @@ _not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
 
+def remove_parenthesis(text):
+    return collapse_whitespace(re.sub(r"\([^)]*\)", "", text))
+
 def remove_special_characters(
     string,
     replace_by = "",
@@ -346,13 +349,13 @@ def format_special_characters(text):
     ]:
         text = re.sub(before, after, text)
 
+    text = re.sub(' - | -$|^- ', ' ', text)
     # text = re.sub('--+',' ', text)
     # text = re.sub('—+',' ', text)
     # text = re.sub('#+',' ', text)
     # text = re.sub('_',' ', text)
     # text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
     # text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
-    # text = re.sub(' - | -$|^- ','', text)
     # text = re.sub("'+", "'", text)
     # text = re.sub('\*+', ' ', text)
 
