@@ -311,7 +311,9 @@ def speechbrain_load_model(source, device = None):
         except requests.exceptions.HTTPError:
             yaml_file = None
 
-    overrides = make_yaml_overrides(yaml_file, {"save_path": None})
+    # Using save_path=None started to fail in speechbrain 0.5.14
+    save_path = None if sb.__version__ <= "0.5.13" else get_cache_dir("huggingface/hub")
+    overrides = make_yaml_overrides(yaml_file, {"save_path": save_path})
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError:
