@@ -28,7 +28,6 @@ python-magic
 python-slugify
 soxbindings
 tensorboard
-tempfile
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
