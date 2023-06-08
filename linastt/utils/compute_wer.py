@@ -23,7 +23,7 @@ def parse_text_without_ids(file_name):
     return dict(enumerate([normalize_line(l) for l in open(file_name,'r',encoding='utf-8').readlines()]))
 
 def compute_wer(refs, preds,
-                use_ids=True,
+                use_ids=False,
                 normalization=None,
                 character_level=False,
                 debug=False,
