@@ -322,6 +322,8 @@ def remove_punctuations(text, strong = False):
         return text.translate(str.maketrans('', '', _punctuation_strong))
     return text.translate(str.maketrans('', '', _punctuation))
 
+_non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
+
 def format_special_characters(text):
 
     for before, after in [
@@ -341,7 +343,10 @@ def format_special_characters(text):
         (r"[’‘‛ʿ]", "'"),
         ("‚", ","),
         (r"–", "-"),
-        (" "," "),
+
+        # non
+        ("[  ]"," "), # weird whitespace
+        (_non_printable_pattern, ""), # non-printable characters
 
         ("·","."),
         (r"ᵉʳ","er"),
@@ -359,7 +364,7 @@ def format_special_characters(text):
     # text = re.sub("'+", "'", text)
     # text = re.sub('\*+', ' ', text)
 
-    return text
+    return collapse_whitespace(text)
 
 def remove_special_words(text,
     glue_apostrophe = True,

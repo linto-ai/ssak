@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from linastt.utils.kaldi import check_kaldi_dir
+from linastt.utils.text import format_special_characters
 
 import os
 import csv
@@ -117,6 +118,7 @@ def tsv2kaldi(input_file, audio_folder, output_folder, language=None):
                 })
 
             text = row["text"]
+            text = format_special_characters(text)
             if text:
                 utt2spk_file.write(utt_id+" "+spk_id+"\n")
                 text_file.write(utt_id+" "+text+"\n")
