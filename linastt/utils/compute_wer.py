@@ -91,8 +91,9 @@ def compute_wer(refs, preds,
                     f.write(
                         "------------------------------------------------------------------------\n")
 
-    # Calculate WER for the whole corpus
+    refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
+    # Calculate WER for the whole corpus
     if character_level:
         cer_transform = jiwer.transforms.Compose(
             [
@@ -109,14 +110,27 @@ def compute_wer(refs, preds,
     else:
         measures = jiwer.compute_measures(refs, preds)
 
-    wer_score = measures['wer']
     sub_score = measures['substitutions']
     del_score = measures['deletions']
     hits_score = measures['hits']
     ins_score = measures['insertions']
+
+    hits_score -= hits_bias
     count = hits_score + del_score + sub_score
 
-    score_details = {
+    if count == 0: # This can happen if all references are empty
+        return {
+            'wer': 1 if ins_score else 0,
+            'del': 0,
+            'ins': 1 if ins_score else 0,
+            'sub': 0,
+            'count': 0,
+        }
+
+    wer_score = (float(del_score + ins_score + sub_score) / count)
+    # wer_score = measures['wer']
+
+    return {
         'wer': wer_score,
         'del': (float(del_score) / count),
         'ins': (float(ins_score) / count),
@@ -124,8 +138,24 @@ def compute_wer(refs, preds,
         'count': count,
     }
 
-    return score_details
 
+def ensure_not_empty_reference(refs, preds, character_level):
+    """
+    This is a workaround to avoid error from jiwer.compute_measures when the reference is empty.
+        ValueError: one or more groundtruths are empty strings
+        ValueError: truth should be a list of list of strings after transform which are non-empty
+    """
+    refs_stripped = [r.strip() for r in refs]
+    hits_bias = 0
+    while "" in refs_stripped:
+        hits_bias += 1
+        i = refs_stripped.index("")
+        refs_stripped[i] = refs[i] = "A"
+        if character_level:
+            preds[i] = "A" + preds[i]
+        else:
+            preds[i] = "A " + preds[i]
+    return refs, preds, hits_bias
 
 def str2bool(string):
     str2val = {"true": True, "false": False}
