@@ -17,7 +17,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main_language = args.language
-    processed_languages = []
     OTHER_GENDER = "other"
 
     # self copy
@@ -27,6 +26,8 @@ if __name__ == "__main__":
     split = ["validation", "test", "train"]
     for i in split:
         print("Collecting", i)
+
+        processed_languages = []
 
         dataset = load_dataset("google/fleurs", main_language, split=i, streaming=True)
 
