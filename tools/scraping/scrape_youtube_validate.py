@@ -3,6 +3,7 @@
 import csv
 import shutil
 import json
+from tqdm import tqdm
 
 from linastt.utils.language import check_language
 from linastt.utils.text import (
@@ -87,7 +88,10 @@ def transcription_dont_match(
             if end - start > max_duration:
                 break
 
-    audio = load_audio(mp3_file, start=start, end=end)
+    try:
+        audio = load_audio(mp3_file, start=start, end=end)
+    except Exception as err:
+        return f"Failed to load audio {mp3_file}: {err}"
 
     reco = infer(model, [audio], language=language)
     reco = next(reco)
@@ -120,7 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
     parser.add_argument('--model', help="An ASR to check that the audio content seems to be right",
         default=None,
-        # default="/home/jlouradour/projects/SpeechBrain/best_model_speechbrain"
+        # default="/home/jlouradour/projects/SpeechBrain/best_model_speechbrain",
     )
     parser.add_argument('--min_num_words', default=7, type = int, help= "Minimum number of words to be retained")
     parser.add_argument('--max_char', default=1000, type = int, help= "Maximum number of characters in a transcription to consider for language identification")
@@ -155,7 +159,7 @@ if __name__ == '__main__':
         from linastt.infer.general import load_model
         model = load_model(args.model) # device?
 
-    for filename in os.listdir(csv_folder):
+    for filename in tqdm(os.listdir(csv_folder)):
         csv_file = os.path.join(csv_folder, filename)
         mp3_file = os.path.join(mp3_folder, filename.replace(".csv", ".mp3"))
         output_file_ok = os.path.join(csv_folder_ok, filename)
@@ -174,9 +178,6 @@ if __name__ == '__main__':
         text_one_line = collapse_whitespace(text)
 
         discarded = False
-
-        if "Samuel Eto'o" in text_one_line:
-            import pdb; pdb.set_trace()
 
         num_chars = len(text_one_line)
         num_words = len(text_one_line.split())
