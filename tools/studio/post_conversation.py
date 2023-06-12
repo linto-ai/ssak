@@ -66,6 +66,8 @@ def cm_import(
 
     assert "message" in result, f"'message' not found in response: {result}"
 
+    assert result["message"] == "Conversation imported", f"Error when posting conversation: {result}"
+
     print("\n"+result["message"])
 
     if len(tags):
