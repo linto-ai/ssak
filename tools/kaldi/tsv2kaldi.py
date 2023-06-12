@@ -27,7 +27,7 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
     # data_fields_old = ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accent", "locale", "segment"]
     # data_fields_csv = ["filename", "text", "up_votes", "down_votes", "age", "gender", "accent", "duration"]
     is_csv = filepath.endswith(".csv")
-    delimiter = "|" if is_csv else "\t"  # some files have '|' as delimiter
+    delimiter = "," if is_csv else "\t"  # some files have '|' as delimiter
     
     with open(filepath, encoding="utf-8") as f:
 
@@ -51,13 +51,12 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
         assert "path" in column_names, f"No path or filename column found in {filepath}."
         assert "text" in column_names, f"No sentence or text column found in {filepath}."
-        print(ignore_missing_gender)
-        if ignore_missing_gender:
-            column_names.append("gender")
-        else:
-            assert "gender" in column_names, f"No gender column found in {filepath}."
+        # assert "gender" in column_names, f"No gender column found in {filepath}."
         # assert "client_id" in column_names, f"No client_id column found in {filepath}."
         must_create_client_id = "client_id" not in column_names
+        if ignore_missing_gender:
+            column_names.append("gender")
+
         if must_create_client_id:
             column_names.append("client_id")
 
@@ -70,12 +69,16 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
             if len(field_values) < len(column_names):
                 field_values += (len(column_names) - len(column_names)) * [None]
 
+            # set gender if not present
+            if ignore_missing_gender:
+                field_values.append(random.choices(["m", "f"]))
+
             # set an id if not present
             if must_create_client_id:
                 field_values.append(os.path.splitext(field_values[path_idx])[0].replace("/","--"))
 
             # set absolute path for mp3 audio file
-            field_values[path_idx] = os.path.join(path_to_clips, field_values[path_idx]) + '.wav'
+            field_values[path_idx] = os.path.join(path_to_clips, field_values[path_idx])
 
             if checked_files < max_existence_file_check:
                 assert os.path.isfile(field_values[path_idx]), f"Audio file {field_values[path_idx]} does not exist."
@@ -99,7 +102,6 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
         open(output_folder + '/utt2dur', 'w') as utt2dur_file:
 
         uniq_spks=[]
-        i = 0
         for row in rows:
             if has_duration is None:
                 has_duration = 'duration' in row
@@ -107,11 +109,7 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
                 assert has_duration == ('duration' in row), "All rows must have the duration or not"
 
             file_id = os.path.splitext(os.path.basename(row['path']))[0]
-            if 'client_id' not in row.keys():
-                spk_id = i.__str__()
-                i+=1
-            else:
-                spk_id = row['client_id']
+            spk_id = row['client_id']
             utt_id = spk_id
             if True: # file_id not in utt_id:
                 utt_id += '_'+ file_id
