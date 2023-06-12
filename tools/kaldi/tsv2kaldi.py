@@ -6,8 +6,9 @@ from linastt.utils.text import format_special_characters
 
 import os
 import csv
+import random
 
-def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
+def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existence_file_check=10):
     """
     Yields examples as dictionaries
     {
@@ -26,7 +27,7 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
     # data_fields_old = ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accent", "locale", "segment"]
     # data_fields_csv = ["filename", "text", "up_votes", "down_votes", "age", "gender", "accent", "duration"]
     is_csv = filepath.endswith(".csv")
-    delimiter = "," if is_csv else "\t"
+    delimiter = "|" if is_csv else "\t"  # some files have '|' as delimiter
     
     with open(filepath, encoding="utf-8") as f:
 
@@ -35,7 +36,7 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
         column_names = next(reader)
 
         aliases = {
-            "path": ["filename"],
+            "path": ["filename", "audio_filepath", "filepath"],
             "accents": ["accent"],
             "text": ["sentence", "raw_transcription", "transcription"],
             "client_id": ["id"],
@@ -50,7 +51,11 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
 
         assert "path" in column_names, f"No path or filename column found in {filepath}."
         assert "text" in column_names, f"No sentence or text column found in {filepath}."
-        assert "gender" in column_names, f"No gender column found in {filepath}."
+        print(ignore_missing_gender)
+        if ignore_missing_gender:
+            column_names.append("gender")
+        else:
+            assert "gender" in column_names, f"No gender column found in {filepath}."
         # assert "client_id" in column_names, f"No client_id column found in {filepath}."
         must_create_client_id = "client_id" not in column_names
         if must_create_client_id:
@@ -70,7 +75,7 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
                 field_values.append(os.path.splitext(field_values[path_idx])[0].replace("/","--"))
 
             # set absolute path for mp3 audio file
-            field_values[path_idx] = os.path.join(path_to_clips, field_values[path_idx])
+            field_values[path_idx] = os.path.join(path_to_clips, field_values[path_idx]) + '.wav'
 
             if checked_files < max_existence_file_check:
                 assert os.path.isfile(field_values[path_idx]), f"Audio file {field_values[path_idx]} does not exist."
@@ -79,9 +84,9 @@ def generate_examples(filepath, path_to_clips, max_existence_file_check=10):
             yield {key: value for key, value in zip(column_names, field_values)}
 
 
-def tsv2kaldi(input_file, audio_folder, output_folder, language=None):
+def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None):
     
-    rows = generate_examples(input_file, audio_folder)
+    rows = generate_examples(input_file, audio_folder, ignore_missing_gender)
 
     os.makedirs(output_folder, exist_ok=True)
 
@@ -94,6 +99,7 @@ def tsv2kaldi(input_file, audio_folder, output_folder, language=None):
         open(output_folder + '/utt2dur', 'w') as utt2dur_file:
 
         uniq_spks=[]
+        i = 0
         for row in rows:
             if has_duration is None:
                 has_duration = 'duration' in row
@@ -101,13 +107,17 @@ def tsv2kaldi(input_file, audio_folder, output_folder, language=None):
                 assert has_duration == ('duration' in row), "All rows must have the duration or not"
 
             file_id = os.path.splitext(os.path.basename(row['path']))[0]
-            spk_id = row['client_id']
+            if 'client_id' not in row.keys():
+                spk_id = i.__str__()
+                i+=1
+            else:
+                spk_id = row['client_id']
             utt_id = spk_id
             if True: # file_id not in utt_id:
                 utt_id += '_'+ file_id
             if spk_id not in uniq_spks:
                 uniq_spks.append(spk_id)
-                gender = row['gender'][0] if row['gender'] != '' else 'm'
+                gender = row['gender'][0].lower() if row['gender'] != '' else 'm'
                 if row['gender'] == "other":
                     gender = "m"
                 if gender not in ["m", "f"]:
@@ -143,6 +153,7 @@ if __name__ == '__main__':
     parser.add_argument("audio_folder", type=str, help="Input folder with audio files inside")
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument('--language', default=None, type=str, help='Main language (only for checking the charset and giving warnings)')
+    parser.add_argument('--ignore_missing_gender', type=bool, default=False, help="True if there's no gender column")
     args = parser.parse_args()
 
     input_file = args.input_file
@@ -153,4 +164,4 @@ if __name__ == '__main__':
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
     assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language)
+    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender)
