@@ -62,8 +62,8 @@ def main():
     sample_rate = 16_000
 
     models = {
-        "ALG_small" : '/home/linagora/stt-end2end-expes/models/Model_alg/finals',
-        "CV13_small" : '/home/linagora/stt-end2end-expes/models/cv13_model/finals',
+        # "ALG_small" : '/home/linagora/stt-end2end-expes/models/Model_alg/finals',
+        # "CV13_small" : '/home/linagora/stt-end2end-expes/models/cv13_model/finals',
         "Tiny" : 'tiny',
         "Base" : 'base',
         "Small" : 'small',
