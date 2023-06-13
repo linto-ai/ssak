@@ -10,6 +10,7 @@ import time
 import re
 import csv
 # from webdriver_manager.firefox import GeckoDriverManager
+from pytube.exceptions import AgeRestrictedError
 
 from google_ngram_downloader import readline_google_store
 # import langid
@@ -145,6 +146,49 @@ def search_videos_ids(search_query, open_browser=False, use_global_driver=True):
             DRIVER.close()
     return video_ids
 
+# scrape the ids using a search query with name of Channels
+def search_videos_ids_from_channels(channel_name, open_browser=False, use_global_driver=True):
+
+    global DRIVER
+    if DRIVER is None or not use_global_driver:
+
+        # Set up Firefox driver
+        options = webdriver.FirefoxOptions()
+        if not open_browser:
+            options.add_argument("--headless")
+
+        try:
+            DRIVER = webdriver.Firefox(options=options)
+        except Exception as err:
+            raise RuntimeError("Could not start Firefox driver. You may need to install Firefox:\n\
+                            apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
+    try:
+        # Navigate to YouTube and search for videos with subtitles
+        DRIVER.get('https://www.youtube.com/@' + urllib.parse.quote(channel_name))
+
+        # Scroll down the page to load more videos
+        SCROLL_PAUSE_TIME = 2
+        last_height = DRIVER.execute_script("return document.documentElement.scrollHeight")
+        num_scrolls = 0
+        while True:
+            DRIVER.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+            time.sleep(SCROLL_PAUSE_TIME)
+            new_height = DRIVER.execute_script("return document.documentElement.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+            num_scrolls += 1
+            print(f"Scrolled {num_scrolls} time{'s' if num_scrolls>1 else ''} for query \"{channel_name}\"...")
+
+        # Extract video IDs from search results
+        video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(DRIVER.page_source)))))
+        print(f'Found {len(video_ids)} video IDs for query \"{channel_name}\"')
+        
+    finally:
+        if not use_global_driver:
+            DRIVER.close()
+    return video_ids
+
 
 def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_auto=False, skip_if_exists=True, verbose=True):
     output_audio_dir = f"{path}/mp4"
@@ -157,12 +201,6 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
     print(f"Got {len(video_ids)} new video ids / {n}")
     
     for vid in video_ids:
-        output_video_file = f"{output_audio_dir}/{vid}.mp3"
-        if skip_if_exists and os.path.isfile(output_video_file):
-            if verbose:
-               print(f"Video {vid} skipped (already extracted)")
-            continue
-
         # Get transcription
         transcripts = get_transcripts_if(vid, if_lang=if_lang, all_auto=all_auto, verbose=verbose)
         if not isinstance(transcripts, dict) or not transcripts:
@@ -184,12 +222,30 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
                 # Write content
                 for line in transcript:
                     csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
-            
         if extract_audio:
-            # Download and save audio
+            extract_audio(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)      
+        
+
+def extract_audio(video_ids, output_audio_dir, skip_if_exists=True, verbose=True):
+    output_audio_dir = f"{output_audio_dir}/mp4"
+    if not os.path.isdir(output_audio_dir):
+        os.makedirs(output_audio_dir)
+    for vid in video_ids:
+        output_video_file = f"{output_audio_dir}/{vid}.mp3"
+        if skip_if_exists and os.path.isfile(output_video_file):
+            if verbose:
+                print(f"Video {vid} skipped (already extracted)")
+            continue
+
+        try:
+            video = YouTube(f'https://www.youtube.com/watch?v={vid}')
+            if video.age_restricted:
+                if verbose:
+                    print(f"Video {vid} is age-restricted. Skipping extraction.")
+                continue
+
             isok = False
-            for _ in range(3): # This can fail so we might try again (up to 3 times)
-                video = YouTube(f'https://www.youtube.com/watch?v={vid}')
+            for _ in range(3):
                 try:
                     stream = video.streams.filter(only_audio=True).first()
                 except (AttributeError, KeyError) as err:
@@ -207,6 +263,10 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
 
             if not isok:
                 print(f"WARNING: could not get video {vid}")
+
+        except AgeRestrictedError:
+            print(f"WARNING: Video {vid} is age-restricted and cannot be accessed without logging in.")
+            continue                  
 
 def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     lang = {
@@ -307,6 +367,8 @@ if __name__ == '__main__':
     parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
+    parser.add_argument('--search_channels', default=False, action="store_true", help= "Whether to search for channels.")
+
     args = parser.parse_args()
 
     args.ngram = [int(n) for n in args.ngram.split(",")]
@@ -346,12 +408,19 @@ if __name__ == '__main__':
                 assert query is None, "--search_query should not be specified when --video_ids is specified"
                 video_ids = args.video_ids.split(",")
             else:
-                assert query is not None
-                print(f'========== get videos id for query: \"{query}\" =========')
-                video_ids = search_videos_ids(query, open_browser=args.open_browser)
-
-            print(f'========== get subtitles for videos in {lang} =========')
-            scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio, all_auto=args.all_auto)
+                if not args.search_channels:
+                    assert query is not None
+                    print(f'========== get videos id for query: \"{query}\" =========')
+                    video_ids = search_videos_ids(query, open_browser=args.open_browser)
+                    print(f'========== get subtitles for videos in {lang} =========')
+                    scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio, all_auto=args.all_auto)
+                    
+                else:
+                    assert query is not None
+                    print(f'========== get videos id from channels for query: \"{query}\" =========')
+                    video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
+                    extract_audio(video_ids, path)
+            
 
             isok = True
         
@@ -362,4 +431,4 @@ if __name__ == '__main__':
                         f.write(query+"\n")
                 else:
                     os.remove(lockfile)
-                
+               

@@ -62,7 +62,8 @@ def main():
     sample_rate = 16_000
 
     models = {
-        "ALG_small" : '/home/linagora/Transcriberlit/Model_alg/finals',
+        "ALG_small" : '/home/linagora/stt-end2end-expes/models/Model_alg/finals',
+        "CV13_small" : '/home/linagora/stt-end2end-expes/models/cv13_model/finals',
         "Tiny" : 'tiny',
         "Base" : 'base',
         "Small" : 'small',
@@ -154,10 +155,7 @@ def main():
             temp_path = os.path.join(temp_dir.name, filename)
             with open(temp_path, "wb") as audio_f:
                 audio_f.write(audio_bytes)
-            
-            
             audio, sr = load_audio(temp_path)
-            
             with open(temp_path, "rb") as audio_file:
                 st.audio(audio_file.read(), format="audio/wav")
                 visualize_audio(audio, sr)
