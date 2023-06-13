@@ -189,6 +189,46 @@ def search_videos_ids_from_channels(channel_name, open_browser=False, use_global
             DRIVER.close()
     return video_ids
 
+def extract_audio_yt(vid, output_audio_dir, skip_if_exists=True, verbose=True):
+    output_audio_dir = f"{output_audio_dir}/mp4"
+    if not os.path.isdir(output_audio_dir):
+        os.makedirs(output_audio_dir)
+    output_video_file = f"{output_audio_dir}/{vid}.mp3"
+    if skip_if_exists and os.path.isfile(output_video_file):
+        if verbose:
+            print(f"Video {vid} skipped (already extracted)")
+
+    try:
+        video = YouTube(f'https://www.youtube.com/watch?v={vid}')
+        if video.age_restricted:
+            if verbose:
+                print(f"Video {vid} is age-restricted. Skipping extraction.")
+            
+
+        isok = False
+        for _ in range(3):
+            try:
+                stream = video.streams.filter(only_audio=True).first()
+            except (AttributeError, KeyError) as err:
+                import traceback
+                traceback.print_exc()
+                print(f"WARNING: got an error trying to extract the video {vid}. Retrying...")
+                time.sleep(1)
+                continue
+            file_tmp = stream.download(output_path=output_audio_dir)
+            file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
+            if file_tmp != file_withid:
+                os.rename(file_tmp, file_withid)
+            isok = True
+            break
+
+        if not isok:
+            print(f"WARNING: could not get video {vid}")
+
+    except AgeRestrictedError:
+        print(f"WARNING: Video {vid} is age-restricted and cannot be accessed without logging in.")
+                          
+
 
 def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_auto=False, skip_if_exists=True, verbose=True):
     output_audio_dir = f"{path}/mp4"
@@ -223,50 +263,9 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
                 for line in transcript:
                     csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
         if extract_audio:
-            extract_audio(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)      
-        
-
-def extract_audio(video_ids, output_audio_dir, skip_if_exists=True, verbose=True):
-    output_audio_dir = f"{output_audio_dir}/mp4"
-    if not os.path.isdir(output_audio_dir):
-        os.makedirs(output_audio_dir)
-    for vid in video_ids:
-        output_video_file = f"{output_audio_dir}/{vid}.mp3"
-        if skip_if_exists and os.path.isfile(output_video_file):
-            if verbose:
-                print(f"Video {vid} skipped (already extracted)")
-            continue
-
-        try:
-            video = YouTube(f'https://www.youtube.com/watch?v={vid}')
-            if video.age_restricted:
-                if verbose:
-                    print(f"Video {vid} is age-restricted. Skipping extraction.")
-                continue
-
-            isok = False
-            for _ in range(3):
-                try:
-                    stream = video.streams.filter(only_audio=True).first()
-                except (AttributeError, KeyError) as err:
-                    import traceback
-                    traceback.print_exc()
-                    print(f"WARNING: got an error trying to extract the video {vid}. Retrying...")
-                    time.sleep(1)
-                    continue
-                file_tmp = stream.download(output_path=output_audio_dir)
-                file_withid = f"{output_audio_dir}/{vid}{os.path.splitext(file_tmp)[1]}"
-                if file_tmp != file_withid:
-                    os.rename(file_tmp, file_withid)
-                isok = True
-                break
-
-            if not isok:
-                print(f"WARNING: could not get video {vid}")
-
-        except AgeRestrictedError:
-            print(f"WARNING: Video {vid} is age-restricted and cannot be accessed without logging in.")
-            continue                  
+            extract_audio_yt(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)  
+            continue    
+                        
 
 def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     lang = {
@@ -370,6 +369,7 @@ if __name__ == '__main__':
     parser.add_argument('--search_channels', default=False, action="store_true", help= "Whether to search for channels.")
 
     args = parser.parse_args()
+    should_extract_audio = args.extract_audio
 
     args.ngram = [int(n) for n in args.ngram.split(",")]
 
@@ -413,13 +413,14 @@ if __name__ == '__main__':
                     print(f'========== get videos id for query: \"{query}\" =========')
                     video_ids = search_videos_ids(query, open_browser=args.open_browser)
                     print(f'========== get subtitles for videos in {lang} =========')
-                    scrape_transcriptions(video_ids, path, lang, extract_audio=args.extract_audio, all_auto=args.all_auto)
+                    scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
                     
                 else:
                     assert query is not None
                     print(f'========== get videos id from channels for query: \"{query}\" =========')
                     video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
-                    extract_audio(video_ids, path)
+                    for vid in video_ids:
+                        extract_audio_yt(vid, path)
             
 
             isok = True
