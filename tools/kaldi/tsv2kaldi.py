@@ -27,7 +27,7 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
     # data_fields_old = ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accent", "locale", "segment"]
     # data_fields_csv = ["filename", "text", "up_votes", "down_votes", "age", "gender", "accent", "duration"]
     is_csv = filepath.endswith(".csv")
-    delimiter = "," if is_csv else "\t"  # some files have '|' as delimiter
+    delimiter = "," if is_csv else "\t"
     
     with open(filepath, encoding="utf-8") as f:
 
@@ -36,10 +36,10 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         column_names = next(reader)
 
         aliases = {
-            "path": ["filename", "audio_filepath", "filepath"],
+            "path": ["filename", "audio_filepath", "filepath", "file_id", "UTTRANS_ID"],
             "accents": ["accent"],
-            "text": ["sentence", "raw_transcription", "transcription"],
-            "client_id": ["id"],
+            "text": ["sentence", "raw_transcription", "transcription", "PROMPT"],
+            "client_id": ["id", "worker_id", "SPEAKER_ID"],
         }
 
         for k, v in aliases.items():
@@ -54,7 +54,9 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         # assert "gender" in column_names, f"No gender column found in {filepath}."
         # assert "client_id" in column_names, f"No client_id column found in {filepath}."
         must_create_client_id = "client_id" not in column_names
-        if ignore_missing_gender:
+        if not ignore_missing_gender:
+            assert "gender" in column_names, f"No gender column found in {filepath}."
+        else:
             column_names.append("gender")
 
         if must_create_client_id:
@@ -115,7 +117,8 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
                 utt_id += '_'+ file_id
             if spk_id not in uniq_spks:
                 uniq_spks.append(spk_id)
-                gender = row['gender'][0].lower() if row['gender'] != '' else 'm'
+                # gender = row['gender'][0].lower() if row['gender'] != '' else 'm'
+                gender = row.get("gender", random.choice(["m", "f"]))[0].lower()
                 if row['gender'] == "other":
                     gender = "m"
                 if gender not in ["m", "f"]:
