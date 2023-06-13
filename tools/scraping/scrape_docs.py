@@ -6,20 +6,47 @@ __author__      = "Jerome Louradour"
 __copyright__   = "Copyright 2022, Linagora"
 
 import os
-import docx
-import zipfile
-import xml.etree.ElementTree as ET
 import re
-import fitz
-from linastt.utils.text_utils import regex_escape
+from enum import Enum
+import warnings
+import xml.etree.ElementTree as ET
 
-EXTENSIONS = [".docx", ".odt", ".pdf"]
+class DocType(Enum):
+    DOCX = 1
+    ODT = 2
+    PDF = 3
+    XLS = 4
+
+EXTENSIONS = {
+    ".docx": DocType.DOCX,
+    ".odt": DocType.ODT,
+    ".pdf": DocType.PDF,
+    ".xlsx": DocType.XLS,
+    ".xlsm": DocType.XLS,
+    ".xltx": DocType.XLS,
+    ".xltm": DocType.XLS,
+    ".ods": DocType.ODT,
+}
 
 def doc2text(filename):
-    if filename.endswith("docx"):
+    doctype = EXTENSIONS.get(os.path.splitext(filename)[1].lower())
+    if doctype == DocType.DOCX:
+
+        try:
+            import docx
+        except ImportError:
+            raise RuntimeError("docx module not found. DOCX files will not be supported.")
+
         document = docx.Document(filename)
         lines = [paragraph.text for paragraph in document.paragraphs]
-    elif filename.endswith(".odt"):
+    
+    elif doctype == DocType.ODT:
+
+        try:
+            import zipfile
+        except ImportError:
+            raise RuntimeError("zipfile module not found. ODT files will not be supported.")
+
         myfile = zipfile.ZipFile(filename)
         listoffiles = myfile.infolist()
         for s in listoffiles:
@@ -33,7 +60,14 @@ def doc2text(filename):
                 # Parse the xml
                 root = ET.fromstring(bh)
                 lines = root.itertext()
-    elif filename.endswith(".pdf"):
+
+    elif doctype == DocType.PDF:
+
+        try:
+            import fitz
+        except ImportError:
+            raise RuntimeError("fitz module not found. PDF files will not be supported.")
+
         global pdf_headers, pdf_footers
         pdf_headers, pdf_footers = [], []
         doc = fitz.open(filename)
@@ -44,6 +78,21 @@ def doc2text(filename):
         # pages = [page.extract_text() for page in reader.pages]
         page = "\n".join(pages)
         lines = extract_paragraph_in_pdf(page)
+
+    elif doctype == DocType.XLS:
+
+        try:
+            import openpyxl
+        except ImportError:
+            raise RuntimeError("openpyxl module not found. XLS files will not be supported.")
+
+        wb = openpyxl.load_workbook(filename)
+        ws = wb.active
+        lines = []
+        for row in ws.rows:
+            for cell in row:
+                if isinstance(cell.value, str):
+                    lines += cell.value.split("\n")
     else:
         raise NotImplementedError(f"Extension {os.path.splitext(filename)[1]} not supported.")
 
@@ -62,14 +111,14 @@ def extract_paragraph_in_pdf(page):
     # Remove possible header
     global pdf_headers
     for header in pdf_headers:
-        page = re.sub(rf"^\s*{regex_escape(header)}\s*\n","", page)
+        page = re.sub(rf"^\s*{re.escape(header)}\s*\n","", page)
     pdf_headers.append(page.split("\n")[0].strip())
     # Remove page number
     page = re.sub(r"\n\s*[0-9]+\s*$","\n", page)
     # Remove possible pdf_footers
     global pdf_footers
     for footer in pdf_footers:
-        page = re.sub(rf"\s*{regex_escape(footer)}\s*$","", page)
+        page = re.sub(rf"\s*{re.escape(footer)}\s*$","", page)
     pdf_footers.append(page.split("\n")[-1].strip())
     # Split into probable paragraphs
     lines = re.split(r'([\.?!»"])\s*\n', page)
@@ -95,6 +144,9 @@ if __name__ == "__main__":
     dir_in = args.input
     dir_out1 = args.output
     dir_out2 = args.output_formatted
+
+    assert os.path.isdir(dir_in), f"Input folder {dir_in} does not exist."
+
     if dir_out2:
         from linastt.utils.text import format_text_latin
         os.makedirs(dir_out2, exist_ok = True)
@@ -105,12 +157,16 @@ if __name__ == "__main__":
         for file in files:
 
             filename = os.path.join(root, file)
-            filenametxt = os.path.splitext(os.path.basename(filename))[0].replace(" ","_") + ".txt"
-
-            if not max([filename.endswith(e) for e in EXTENSIONS]):
+            if not os.path.splitext(filename)[1].lower() in EXTENSIONS:
                 print("Ignoring", filename)
                 continue
-            print("Processing", filename)
+
+            b, e = os.path.splitext(os.path.basename(filename))
+            if e:
+                b+= "_"+e[1:]
+            filenametxt = b.replace(" ","_") + ".txt"
+
+            print("Processing", filename, "->", os.path.join(dir_out1, filenametxt))
             
             text = doc2text(filename)
             with open(os.path.join(dir_out1, filenametxt), "w") as f:
