@@ -388,7 +388,8 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
+    parser = argparse.ArgumentParser(
+        description='Transcribe audio data using a kaldi model (vosk or LinTO format)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
@@ -413,6 +414,9 @@ if __name__ == "__main__":
         # output nothing
         args.output = open(os.devnull,"w")
     else:
+        dname = os.path.dirname(args.output)
+        if dname and not os.path.isdir(dname):
+            os.makedirs(dname)
         args.output = open(args.output, "w")
 
     for reco in kaldi_infer(
