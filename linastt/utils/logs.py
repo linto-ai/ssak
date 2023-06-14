@@ -16,6 +16,7 @@ logger.setLevel(logging.INFO)
 
 TIC = {}
 GPUMEMPEAK = {}
+TIMES = {}
 
 def tic(name = ""):
     """ start clock
@@ -26,7 +27,7 @@ def tic(name = ""):
     TIC[name] = time.time()
     GPUMEMPEAK[name] = gpu_usage(name, verbose = False)
 
-def toc(name = "", stream = None, log_mem_usage = False):
+def toc(name = "", stream = None, log_mem_usage = False, total=False):
     """ end clock and print time elapsed since the last tic 
     Args:
         name: name of the clock
@@ -34,13 +35,17 @@ def toc(name = "", stream = None, log_mem_usage = False):
     """
     global TIC
     t = time.time() - TIC.get(name, TIC[""])
+    TIMES[name] = TIMES.get(name, 0) + t
+    if total:
+        t = TIMES[name]
     s = f"TIMING {name}: took {t} sec"
     logger.info(s)
-    if stream:
+    if stream:        
         print(s, file = stream)
     if log_mem_usage:
         gpu_usage(name)
         log_gpu_gpu_mempeak(name)
+    return t
 
 def get_num_gpus():
     if not torch.cuda.is_available():
