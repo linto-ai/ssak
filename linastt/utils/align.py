@@ -149,10 +149,10 @@ def find_best_position_dtw(subsequence, sequence,
             plt.axvline(index2s[-1]-start, color="black")
 
     if prefer_last:
-        def cmp(previous_dist, d):
+        def cmp_forward(previous_dist, d):
             return previous_dist >= d
     else:
-        def cmp(previous_dist, d):
+        def cmp_forward(previous_dist, d):
             return previous_dist > d
 
     # Compute the index for each word in the transcription
@@ -160,13 +160,21 @@ def find_best_position_dtw(subsequence, sequence,
     argmin_distances = {}
     for i, j in zip(index1s, index2s):
         d = distances[i, j]
-        if cmp(argmin_distances.get(i,float("inf")), d) or (i > 0 and indices[i] == indices[i-1]):
+        if cmp_forward(argmin_distances.get(i,float("inf")), d): # or (i > 0 and indices[i] == indices[i-1]):
             indices[i] = j
             argmin_distances[i] = d
+            if i > 0 and indices[i-1] == j:
+                k = 1
+                while i >= k and j == indices[i-k]:
+                    if cmp_forward(argmin_distances[i-k], d):
+                        indices[i-k] = None # j-1
+                        argmin_distances[i-k] = float("inf") # distances[i-k,j]
+                    else:
+                        break
+                    k += 1
 
-    if None in indices:
-        # import pdb; pdb.set_trace()
-        raise RuntimeError("Unexpected situation")
+    # if None in indices:
+    #     raise RuntimeError("Unexpected situation")
 
     if isinstance(plot, str):
         figure1.savefig(plot+"_1.png")
