@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from linastt.utils.kaldi import check_kaldi_dir
-from linastt.utils.text import format_special_characters
+from linastt.utils.text_utils import format_special_characters
 
 import os
 import csv
@@ -56,8 +56,6 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         must_create_client_id = "client_id" not in column_names
         if not ignore_missing_gender:
             assert "gender" in column_names, f"No gender column found in {filepath}."
-        else:
-            column_names.append("gender")
 
         if must_create_client_id:
             column_names.append("client_id")
@@ -117,8 +115,7 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
                 utt_id += '_'+ file_id
             if spk_id not in uniq_spks:
                 uniq_spks.append(spk_id)
-                # gender = row['gender'][0].lower() if row['gender'] != '' else 'm'
-                gender = row.get("gender", random.choice(["m", "f"]))[0].lower()
+                gender = row["gender"][0].lower() if row.get("gender", "") != '' else random.choice(["m", "f"])
                 if row['gender'] == "other":
                     gender = "m"
                 if gender not in ["m", "f"]:
