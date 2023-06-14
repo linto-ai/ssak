@@ -6,6 +6,7 @@ import tempfile
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.audio import save_audio
+from linastt.utils.logs import tic, toc
 
 def linstt_infer(
     audios,
@@ -15,11 +16,26 @@ def linstt_infer(
     punctuation=False,
     sort_by_len = False,
     output_ids = False,
+    log_memtime = False,
     verbose=False,
 ):
     """
     audios:
             Audio file path(s), or Kaldi folder(s), or Audio waveform(s)
+    transcription_server:
+            URL of the transcription server
+    sample_rate:
+            Sample rate of the audio
+    convert_numbers:
+            Whether to convert numbers in text to numbers
+    punctuation:
+            Whether to add punctuation
+    sort_by_len:
+            Whether to sort the audio by length
+    output_ids:
+            Whether to output the audio id before the transcription
+    verbose:
+            Whether to print verbose information
     """
 
     audios = to_audio_batches(audios, return_format = 'array',
@@ -40,6 +56,7 @@ def linstt_infer(
 
             save_audio(tmp_file, audio, sample_rate = sample_rate)
 
+            tic()
             result = linstt_transcribe(
                 tmp_file,
                 transcription_server=transcription_server,
@@ -48,6 +65,7 @@ def linstt_infer(
                 # min_vad_duration=min_vad_duration,
                 verbose=verbose,
             )
+            if log_memtime: toc()
 
             p = result["transcription_result"]
 
@@ -55,6 +73,8 @@ def linstt_infer(
                 yield (audio_id, p)
             else:
                 yield p
+
+        if log_memtime: toc(total=True)
 
     finally:
 
@@ -98,6 +118,7 @@ if __name__ == "__main__":
         args.data,
         transcription_server=args.server,
         output_ids=args.use_ids,
+        log_memtime = args.enable_logs,
         verbose=args.verbose,
     ):
         if isinstance(reco, str):
