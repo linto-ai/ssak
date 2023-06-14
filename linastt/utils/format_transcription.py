@@ -6,6 +6,7 @@ import csv
 import numpy as np
 
 from linastt.utils.text_utils import _punctuation
+from linastt.utils.transcriber import read_transcriber
 
 EXTENSIONS = [
     ".json",
@@ -19,6 +20,7 @@ def to_linstt_transcription(transcription,
     remove_empty_words=True,
     recompute_text=True,
     warn_if_missing_words=True,
+    verbose=False,
     ):
 
     if isinstance(transcription, str):
@@ -32,6 +34,9 @@ def to_linstt_transcription(transcription,
         elif transcription.lower().endswith(".json"):
             with open(transcription, 'r') as f:
                 transcription = json.load(f)
+        elif transcription.lower().endswith(".trs"):
+            transcription = read_transcriber(transcription, anonymization_level=0, remove_extra_speech=True)
+            transcription = from_groundtruth(transcription)
         else:
             raise ValueError(f"Unknown input format: {os.path.splitext(transcription)[-1]}")
 
@@ -52,7 +57,8 @@ def to_linstt_transcription(transcription,
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
             if remove_empty_words and format_timestamp(seg["end"]) <= format_timestamp(seg["start"]):
-                print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
+                if verbose:
+                    print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
                 continue
 
             if word_key is None and max([k in seg for k in word_keys]):
@@ -98,7 +104,8 @@ def to_linstt_transcription(transcription,
                     new_word = word["text"] = word["text"].strip()
 
                     if remove_empty_words and format_timestamp(word["end"]) <= format_timestamp(word["start"]):
-                        print(f"WARNING: removing word {new_word} with duration {word['end']-word['start']}" )
+                        if verbose:
+                            print(f"WARNING: removing word {new_word} with duration {word['end']-word['start']}" )
                         continue
 
                     if not new_word:
@@ -132,7 +139,7 @@ def to_linstt_transcription(transcription,
                     assert not seg["text"], f"Got segment with empty words but non-empty text: {seg}"
                     continue
                 new_text = " " + " ".join([word["text"] for word in seg[word_key]])
-                if new_text.strip() != seg["text"].strip():
+                if verbose and new_text.strip() != seg["text"].strip():
                     print(f"WARNING: recomputing text from words:\n<< {seg['text']}\n>> {new_text}")
                 seg["text"] = new_text.strip()
 
@@ -144,7 +151,7 @@ def to_linstt_transcription(transcription,
             "confidence": round(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]), 3),
             "segments": [
                 {
-                    "spk_id": None,
+                    "spk_id": seg.get("spk"),
                     "start": format_timestamp(seg["start"]),
                     "end": format_timestamp(seg["end"]),
                     "duration": format_timestamp(seg["end"] - seg["start"]),
@@ -414,9 +421,36 @@ def read_simple_csv(transcription, delimiter=","):
         "segments": segments,
     }
 
+def from_groundtruth(transcriptions):
+    full_text = ""
+    segments = []
+    for segment in transcriptions:
+        segment_text = segment["text"].strip()
+        if not segment_text:
+            continue
+        # if segment["nbrSpk"] > 1: # Overlaps!
+        #     import pdb; pdb.set_trace()
+        speaker = segment["spkId"]
+        start = float(segment["sTime"])
+        end = float(segment["eTime"])
+        if full_text:
+            full_text += " "
+        full_text += segment["text"]
+        words = segment_text.split()
+        average_duration = (end-start)/len(words)
+        words = [{"text": word, "start": start+average_duration*i, "end": start+average_duration*(i+1)} for (i, word) in enumerate(words)]
+        segments.append({
+            "text": segment_text,
+            "words": words,
+            "start": start,
+            "end": end,
+            "spk": speaker,
+        })
 
-
-
+    return {
+        "text": full_text,
+        "segments": segments
+    }
 
 
 if __name__ == "__main__":
@@ -450,7 +484,7 @@ if __name__ == "__main__":
             y = os.path.splitext(y)[0]+".json"
         assert x != y, "Input and output files must be different"
         try:
-            transcription = to_linstt_transcription(x)
+            transcription = to_linstt_transcription(x, verbose=True)
         except Exception as e:
             import traceback
             traceback.print_exc()
