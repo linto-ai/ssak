@@ -63,7 +63,7 @@ def transcription_dont_match(
 
     from linastt.utils.audio import load_audio
     from linastt.infer.general import infer
-    from linastt.utils.compute_wer import compute_wer
+    from linastt.utils.wer import compute_wer
 
     def text_normalize(text):
         text = custom_clean_text(text)
