@@ -1,4 +1,4 @@
-from linastt.utils.output_format import to_linstt_transcription
+from linastt.utils.format_transcription import to_linstt_transcription
 from linastt.utils.misc import commonprefix
 from linastt.utils.text import split_around, remove_punctuations
 from linastt.utils.curl import curl_post

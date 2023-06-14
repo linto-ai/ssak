@@ -9,7 +9,7 @@ import numpy as np
 from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.misc import hashmd5
-from linastt.utils.output_format import to_linstt_transcription as format_transcription
+from linastt.utils.format_transcription import to_linstt_transcription
 
 ####################
 # Conversation Manager 
@@ -350,7 +350,7 @@ if __name__ == "__main__":
             except json.decoder.JSONDecodeError:
                 raise ValueError(f"Transcription file {args.transcription} not found, and not a valid json string.")
     
-    args.transcription = format_transcription(args.transcription)
+    args.transcription = to_linstt_transcription(args.transcription)
 
     name=args.name if args.name else default_name
 
