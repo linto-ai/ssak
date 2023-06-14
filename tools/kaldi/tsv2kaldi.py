@@ -34,11 +34,11 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         reader = csv.reader(f, delimiter=delimiter)
 
         column_names = next(reader)
-
+        
         aliases = {
             "path": ["filename", "audio_filepath", "filepath", "file_id", "UTTRANS_ID"],
             "accents": ["accent"],
-            "text": ["sentence", "raw_transcription", "transcription", "PROMPT"],
+            "text": ["sentence", "raw_transcription", "transcription", "TRANSCRIPTION"],
             "client_id": ["id", "worker_id", "SPEAKER_ID"],
         }
 
