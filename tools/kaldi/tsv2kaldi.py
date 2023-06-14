@@ -34,11 +34,11 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         reader = csv.reader(f, delimiter=delimiter)
 
         column_names = next(reader)
-
+        
         aliases = {
             "path": ["filename", "audio_filepath", "filepath", "file_id", "UTTRANS_ID"],
             "accents": ["accent"],
-            "text": ["sentence", "raw_transcription", "transcription", "PROMPT"],
+            "text": ["sentence", "raw_transcription", "transcription", "TRANSCRIPTION"],
             "client_id": ["id", "worker_id", "SPEAKER_ID"],
         }
 
@@ -68,10 +68,6 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
             # if data is incomplete, fill with empty values
             if len(field_values) < len(column_names):
                 field_values += (len(column_names) - len(column_names)) * [None]
-
-            # set gender if not present
-            if ignore_missing_gender:
-                field_values.append(random.choices(["m", "f"]))
 
             # set an id if not present
             if must_create_client_id:
@@ -116,8 +112,8 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
             if spk_id not in uniq_spks:
                 uniq_spks.append(spk_id)
                 gender = row["gender"][0].lower() if row.get("gender", "") != '' else random.choice(["m", "f"])
-                if row['gender'] == "other":
-                    gender = "m"
+                if row.get("gender") == "other":
+                    row["gender"] = random.choice(["m", "f"])
                 if gender not in ["m", "f"]:
                     raise RuntimeError("Unexpected gender: "+row['gender'])
                 speakers.append({
