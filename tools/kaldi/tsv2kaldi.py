@@ -51,7 +51,6 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
         assert "path" in column_names, f"No path or filename column found in {filepath}."
         assert "text" in column_names, f"No sentence or text column found in {filepath}."
-        # assert "gender" in column_names, f"No gender column found in {filepath}."
         # assert "client_id" in column_names, f"No client_id column found in {filepath}."
         must_create_client_id = "client_id" not in column_names
         if not ignore_missing_gender:
@@ -111,9 +110,9 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
                 utt_id += '_'+ file_id
             if spk_id not in uniq_spks:
                 uniq_spks.append(spk_id)
-                gender = row["gender"][0].lower() if row.get("gender", "") != '' else random.choice(["m", "f"])
                 if row.get("gender") == "other":
                     row["gender"] = random.choice(["m", "f"])
+                gender = row["gender"][0].lower() if row.get("gender", "") != '' else random.choice(["m", "f"])
                 if gender not in ["m", "f"]:
                     raise RuntimeError("Unexpected gender: "+row['gender'])
                 speakers.append({
