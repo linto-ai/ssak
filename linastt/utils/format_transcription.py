@@ -19,6 +19,7 @@ def to_linstt_transcription(transcription,
     include_punctuation_in_timestamp=False,
     remove_empty_words=True,
     recompute_text=True,
+    filter_out_segment_text_func=None,
     warn_if_missing_words=True,
     verbose=False,
     ):
@@ -44,6 +45,25 @@ def to_linstt_transcription(transcription,
 
     # LinTO transcription service
     if "transcription_result" in transcription:
+
+        if filter_out_segment_text_func:
+            has_filtered = False
+            new_segments = []
+            for seg in transcription["segments"]:
+                if filter_out_segment_text_func(seg["segment"]) or filter_out_segment_text_func(seg["raw_segment"]):
+                    has_filtered = True
+                    continue
+                new_segments.append(seg)
+            if has_filtered:
+                text = " ".join([seg["segment"] for seg in new_segments])
+                raw_text = " ".join([seg["raw_segment"] for seg in new_segments])
+                transcription = {
+                    "transcription_result": text,
+                    "raw_transcription": raw_text,
+                    "confidence": transcription["confidence"],
+                    "segments": new_segments
+                }
+
         return transcription
 
     # Whisper augmented with words
@@ -53,6 +73,11 @@ def to_linstt_transcription(transcription,
         word_key = None
         new_segments = []
         for i, seg in enumerate(transcription["segments"]):
+            if filter_out_segment_text_func:
+                seg_text = seg["text"]
+                if filter_out_segment_text_func(seg_text):
+                    continue
+
             for expected_keys in ["start", "end"]:
                 assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
 
@@ -171,6 +196,8 @@ def to_linstt_transcription(transcription,
 
     # LinTO isolated transcription (linto-platform-stt)
     if "text" in transcription and "confidence-score" in transcription and "words" in transcription:
+        if filter_out_segment_text_func:
+            raise NotImplementedError("filter_out_segment_text_func not implemented for LinTO isolated transcription")
         text = transcription["text"]
         words = transcription["words"]
         start = words[0]["start"]
@@ -207,6 +234,9 @@ def to_linstt_transcription(transcription,
             start = seg["timestamp_start_milliseconds"] / 1000.
             end = seg["timestamp_end_milliseconds"] / 1000.
             text = seg["transcript"]
+            if filter_out_segment_text_func:
+                if filter_out_segment_text_func(text):
+                    continue
             if full_text:
                 full_text += " "
             full_text += text
