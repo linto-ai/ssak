@@ -17,9 +17,16 @@ def find_best_position_dtw(subsequence, sequence,
     pad=False,
     plot=False,
     prefer_last=False,
+    distance=None,
     ):
+
+    if len(subsequence) == 0 or len(sequence) == 0:
+        print("WARNING: empty sequence")
+        return {
+            "indices": [],
+        }
     
-    distances = distance_matrix(subsequence, sequence)
+    distances = distance_matrix(subsequence, sequence, distance=distance)
 
     if pad:
         # Add zeros before / after
@@ -256,19 +263,12 @@ _step_pattern = dtw.stepPattern.StepPattern(dtw.stepPattern._c(
 ), "N+M");
 
 
-def distance_matrix(words1, words2):
-    if isinstance(words1, list):
-        return np.array([[float(Levenshtein.distance(w1, w2)) for w2 in words2] for w1 in words1])
-    else:
-        assert isinstance(words1, str)
-        return np.array([[0. if w1 == w2 else 1. for w2 in words2] for w1 in words1])
-
-# def words_to_character(words):
-#     text = ""
-#     indices = []
-#     for i, w in enumerate(words):
-#         w = format_text_latin(w)
-#         text += w + " "
-#         indices.extend([i] * (len(w)+1))
-#     return text, indices
-
+def distance_matrix(words1, words2, distance=None):
+    assert type(words1) == type(words2)
+    assert isinstance(words1, (str,list))
+    if distance is None:
+        if isinstance(words1, list):
+            distance = Levenshtein.distance
+        else:
+            distance = lambda x,y: 0. if x == y else 1.
+    return np.array([[float(distance(w1, w2)) for w2 in words2] for w1 in words1])
