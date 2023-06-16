@@ -9,6 +9,7 @@ huggingface_hub
 jiwer
 langid
 lang-trans
+Levenshtein
 librosa
 loralib
 matplotlib
@@ -33,4 +34,5 @@ torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
 # transformers
 git+https://github.com/huggingface/transformers.git@539e2281cd97c35ef4122757f26c88f44115fa94
+xmltodict
 vosk
