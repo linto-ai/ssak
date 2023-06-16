@@ -375,8 +375,8 @@ if __name__ == '__main__':
 
     lang = args.language
     if not args.search_query and not args.video_ids:
-        queries = robust_generate_ngram(args.ngram, lang, index_start= args.query_index_start)
-    elif os.path.isdir(args.search_query) or os.path.isfile(args.search_query):
+        queries = robust_generate_ngram(args.ngram, lang, index_start=args.query_index_start)
+    elif args.search_query is not None and (os.path.isdir(args.search_query) or os.path.isfile(args.search_query)):
         queries = parse_ngrams(args.search_query, ns=args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
@@ -407,6 +407,8 @@ if __name__ == '__main__':
             if args.video_ids:
                 assert query is None, "--search_query should not be specified when --video_ids is specified"
                 video_ids = args.video_ids.split(",")
+                print(f'========== get subtitles for videos in {lang} =========')
+                scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
             else:
                 if not args.search_channels:
                     assert query is not None
