@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import jiwer
+import numpy as np
 import re
 import os
 
@@ -165,6 +166,98 @@ def str2bool(string):
     else:
         raise ValueError(f"Expected True or False")
 
+
+def plot_wer(
+    wer_dict,
+    label=True,
+    legend=True,
+    show=True,
+    sort_best=-1,
+    small_hatch=True,
+    title=None,
+    label_rotation=15,
+    **kwargs
+    ):
+    """
+    Plot WER statistics.
+    :param wer_dict: dictionary of results, or a list of results, or a dictionary of results,
+        where a result is a dictionary as returned by compute_wer, or a list of such dictionaries
+    :param label: whether to add a label to the bars (as xticks)
+    :param legend: whether to add a legend (Deletion/Substition/Insertion)
+    :param show: whether to show the plot (if True) or save it to the given file name (if string)
+    :param sort_best: whether to sort the results by best WER
+    :param small_hatch: whether to use small hatches for the bars
+    :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
+    """
+    if check_result(wer_dict):
+        wer_dict = {"": wer_dict}
+    elif isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
+        wer_dict = dict(enumerate(wer_dict))
+    elif isinstance(wer_dict, dict) and min([check_result(w) for w in wer_dict.values()]):
+        pass
+    else:
+        raise ValueError(
+            f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
+where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
+
+    import matplotlib.pyplot as plt
+    kwargs_ins = kwargs.copy()
+    kwargs_del = kwargs.copy()
+    kwargs_sub = kwargs.copy()
+    if "color" not in kwargs:
+        kwargs_ins["color"] = "gold"
+        kwargs_del["color"] = "white"
+        kwargs_sub["color"] = "orangered"
+
+    opts = dict(width=0.5, edgecolor="black")
+    keys = list(wer_dict.keys())
+    if sort_best:
+        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
+    positions = range(len(keys))
+    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
+        vals = [get_stat_list(wer_dict[k]) for k in keys]
+        plt.boxplot(vals, positions = positions, whis=100)
+    D = [get_stat_average(wer_dict[k], "del") for k in keys]
+    I = [get_stat_average(wer_dict[k], "ins") for k in keys]
+    S = [get_stat_average(wer_dict[k], "sub") for k in keys]
+    W = [get_stat_average(wer_dict[k], "wer") for k in keys]
+    n = 2 if small_hatch else 1
+    for _, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
+        assert abs(w - (d + i + s)) < 0.0001
+        do_label = label and _ == 0
+        plt.bar([pos], [i], bottom=[d+s], hatch="*"*n, label="Insertion" if do_label else None, **kwargs_ins, **opts)
+        plt.bar([pos], [d], bottom=[s], hatch="O"*n, label="Deletion" if do_label else None, **kwargs_del, **opts)
+        plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
+    plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict={'weight': 'bold'}) # , 'size': 'x-large'
+    # plt.title(f"{len(wer)} values")
+    if legend:
+        plt.legend()
+    if title:
+        plt.title(title)
+    if isinstance(show, str):
+        plt.savefig(show)
+    elif show:
+        plt.show()
+
+def check_result(wer_stats):
+    if isinstance(wer_stats, dict):
+        return min([
+            k in wer_stats and isinstance(wer_stats[k], (int, float)) \
+            for k in ("wer", "del", "ins", "sub")
+        ])
+    if isinstance(wer_stats, list):
+        return min([check_result(w) for w in wer_stats])
+    return False
+
+def get_stat_list(wer_stats, key="wer"):
+    if isinstance(wer_stats, dict):
+        return [wer_stats[key]]
+    if isinstance(wer_stats, list):
+        return [w[key] for w in wer_stats]
+    raise ValueError(f"Invalid type {type(wer_stats)}")
+
+def get_stat_average(wer_stats, key="wer"):
+    return np.mean(get_stat_list(wer_stats, key))
 
 if __name__ == "__main__":
 
