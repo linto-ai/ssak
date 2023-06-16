@@ -164,7 +164,10 @@ def search_videos_ids_from_channels(channel_name, open_browser=False, use_global
                             apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
     try:
         # Navigate to YouTube and search for videos with subtitles
-        DRIVER.get('https://www.youtube.com/@' + urllib.parse.quote(channel_name))
+        DRIVER.get('https://www.youtube.com/@' + urllib.parse.quote(channel_name) + "/videos")
+
+        # Click "ACCEPT ALL" button if it exists
+        click_button(DRIVER, **{"class": "VfPpkd-LgbsSe VfPpkd-LgbsSe-OWXEXe-k8QpJ VfPpkd-LgbsSe-OWXEXe-dgl2Hf nCP5yc AjY5Oe DuMIQc LQeN7 IIdkle"})
 
         # Scroll down the page to load more videos
         SCROLL_PAUSE_TIME = 2
@@ -349,6 +352,26 @@ def parse_ngrams(path, ns):
     else:
         print('Invalid path:', path)
 
+def click_button(driver, *kargs, verbose = True, max_trial = 5, ignore_failure = True, **kwargs):
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.common.by import By
+
+    button = ",".join(["@"+k for k in kargs])+",".join([f'@{k.rstrip("_")}="{v}"' for k,v in kwargs.items()])
+    if verbose>1:
+        print("* Click on:", button)
+    for itrial in range(max_trial):
+        try:
+            return WebDriverWait(driver, 0).until(EC.element_to_be_clickable((By.XPATH,f'//*[{button}]'))).click()
+        except Exception as err:
+            if itrial == max_trial - 1:
+                print(err)
+                if ignore_failure:
+                    return
+                else: 
+                    raise err
+            time.sleep(0.5)
+
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
     import os
@@ -377,7 +400,7 @@ if __name__ == '__main__':
     if not args.search_query and not args.video_ids:
         queries = robust_generate_ngram(args.ngram, lang, index_start=args.query_index_start)
     elif args.search_query is not None and (os.path.isdir(args.search_query) or os.path.isfile(args.search_query)):
-        queries = parse_ngrams(args.search_query, ns=args.ngram)
+        queries = parse_ngrams(args.search_query, ns=1 if args.search_channels else args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
     path = args.path
@@ -408,22 +431,17 @@ if __name__ == '__main__':
                 assert query is None, "--search_query should not be specified when --video_ids is specified"
                 video_ids = args.video_ids.split(",")
                 print(f'========== get subtitles for videos in {lang} =========')
-                scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
+            elif args.search_channels:
+                assert query is not None
+                print(f'========== get videos id from channels for query: \"{query}\" =========')
+                video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
             else:
-                if not args.search_channels:
-                    assert query is not None
-                    print(f'========== get videos id for query: \"{query}\" =========')
-                    video_ids = search_videos_ids(query, open_browser=args.open_browser)
-                    print(f'========== get subtitles for videos in {lang} =========')
-                    scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
-                    
-                else:
-                    assert query is not None
-                    print(f'========== get videos id from channels for query: \"{query}\" =========')
-                    video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
-                    for vid in video_ids:
-                        extract_audio_yt(vid, path)
-            
+                assert query is not None
+                print(f'========== get videos id for query: \"{query}\" =========')
+                video_ids = search_videos_ids(query, open_browser=args.open_browser)
+
+            print(f'========== get subtitles for videos in {lang} =========')
+            scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
 
             isok = True
         
