@@ -3,7 +3,7 @@
 import os
 
 from linastt.utils.player import play_audiofile
-from linastt.utils.output_format import to_linstt_transcription
+from linastt.utils.format_transcription import to_linstt_transcription
 
 import tempfile
 import csv
