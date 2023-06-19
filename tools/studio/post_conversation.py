@@ -42,7 +42,7 @@ def cm_import(
     organizationId = cm_get_organization(url, email, password, verbose=verbose)
 
     result = curl_post(
-        url + "/api/conversations/import?type=transcription",
+        url + f"/api/organizations/{organizationId}/conversations/import?type=transcription",
         {
             "transcription": transcription,
             "file": os.path.realpath(audio_file),
@@ -57,7 +57,6 @@ def cm_import(
                                                           'serviceName': 'Custom' if has_speaker else None},
                                     'enableNormalization': has_digit(transcription)},
             "description": f"Audio: {os.path.basename(audio_file)} / Transcription: {hashmd5(transcription)} / Import: {datestr}",
-            "organizationId": organizationId,
             "membersRight": "0",
         },
         headers=[f"Authorization: Bearer {token}"],
