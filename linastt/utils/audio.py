@@ -51,8 +51,10 @@ def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True
     if verbose:
         print("Loading audio", path, start, end)
     
-    if return_format == 'torch':
-        if start or end:
+    must_cut = start or end
+
+    if return_format == 'torch' and not must_cut:
+        if must_cut: # This path is super slow and has been disabled
             start = float(start if start else 0)
             sr = torchaudio.info(path).sample_rate
             offset = int(start * sr)
@@ -73,7 +75,7 @@ def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True
             # mp3: recoverable MAD error
             # 2/ Could occur with sox.get_info
             # wav: wave header missing extended part of fmt chunk
-            if start or end: # is not None:
+            if must_cut: # is not None:
                 start = float(start)
                 sr = sox.get_info(path)[0].rate
                 offset = int(start * sr)
