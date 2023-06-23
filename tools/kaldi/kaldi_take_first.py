@@ -42,11 +42,13 @@ def create_cut(input_folder, output_folder, n_first):
         open(output_folder + "/spk2utt", 'w') as spk2utt:
         for line in f:
             spk = _get_first_field(line)
-            utt_s = line.split(" ")[1:]
-            for id in utt_ids:
-                if id in utt_s:
-                    spk2utt.write(f"{spk} \t {id} \n")
-                    spk_ids.append(spk)
+            utt_s = line.strip().split(" ")[1:]
+            new_utt_s = [u for u in utt_s if u in utt_ids]
+            if not len(new_utt_s):
+                continue
+            new_utt_s = " ".join(new_utt_s)
+            spk2utt.write(f"{spk}\t{new_utt_s}\n")
+            spk_ids.append(spk)
 
     with open(input_folder + "/spk2gender", 'r') as f, \
         open(output_folder + "/spk2gender", 'w') as spk2gender:
