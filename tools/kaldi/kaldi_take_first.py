@@ -10,14 +10,11 @@ def create_cut(input_folder, output_folder, n_first):
 
     os.makedirs(output_folder, exist_ok=True)
 
-    files = os.listdir(input_folder)
-
     utt_ids = []
-    _ids = []
     spk_ids = []
 
-    for file in files:
-        assert os.path.isfile(input_folder + file), f"No {file} in the input folder"
+    for file in ["text", "wav.scp", "utt2dur", "spk2utt", "spk2gender"]:
+        assert os.path.isfile(input_folder + "/" + file), f"No {file} in the input folder"
 
     with open(input_folder + "/" + "text", 'r') as f:
         new_text = []
