@@ -14,6 +14,9 @@ def create_cut(input_folder, output_folder, n_first):
     for file in ["text", "wav.scp", "utt2dur", "spk2utt", "spk2gender"]:
         assert os.path.isfile(input_folder + "/" + file), f"No {file} in the input folder"
 
+    if os.path.isfile(input_folder + "/segments"):
+        raise NotImplementedError("Not implemented when the input folder contains a 'segments' file")
+
     os.makedirs(output_folder, exist_ok=True)
 
     with open(input_folder + "/text", 'r') as f, \
