@@ -53,9 +53,9 @@ def create_cut(input_folder, output_folder, n_first):
     with open(input_folder + "/spk2gender", 'r') as f, \
         open(output_folder + "/spk2gender", 'w') as spk2gender:
         for line in f:
-            for spk in spk_ids:
-                if spk in line.split(" "):
-                    spk2gender.write(line)
+            spk = _get_first_field(line)
+            if spk in spk_ids:
+                spk2gender.write(line)
 
     return check_kaldi_dir(output_folder, language=None)
 
