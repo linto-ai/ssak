@@ -11,9 +11,6 @@ def create_cut(input_folder, output_folder, n_first):
     for file in ["text", "wav.scp", "utt2dur", "spk2utt", "utt2spk", "spk2gender"]:
         assert os.path.isfile(input_folder + "/" + file), f"Missing file: {input_folder}/{file}"
 
-    if os.path.isfile(input_folder + "/segments"):
-        raise NotImplementedError("Not implemented when the input folder contains a 'segments' file")
-
     os.makedirs(output_folder, exist_ok=True)
 
     utt_ids = []
@@ -23,11 +20,25 @@ def create_cut(input_folder, output_folder, n_first):
             utt_ids.append(_get_first_field(line))
             text_file.write(line)
 
+    if os.path.isfile(input_folder + "/segments"):
+        wav_ids = []
+        with open(input_folder + "/segments", 'r') as f, \
+            open(output_folder + "/segments", 'w') as segments:
+            for i, line in zip(range(n_first), f):
+                id = _get_first_field(line)
+                if id in utt_ids:
+                    wav_id = line.split(" ")[1]
+                    if wav_id not in wav_ids:
+                        wav_ids.append(wav_id)
+                    segments.write(line)
+    else:
+        wav_ids = utt_ids
+
     with open(input_folder + "/wav.scp", 'r') as f, \
         open(output_folder + "/wav.scp", 'w') as wavscp_file:
         for line in f:
             id = _get_first_field(line)
-            if id in utt_ids:
+            if id in wav_ids:
                 wavscp_file.write(line)
 
     with open(input_folder + "/utt2dur", 'r') as f, \
@@ -39,11 +50,11 @@ def create_cut(input_folder, output_folder, n_first):
 
     spk_ids = []
     with open(input_folder + "/utt2spk", 'r') as f, \
-        open(output_folder + "/utt2spk", 'w') as utt2dur:
+        open(output_folder + "/utt2spk", 'w') as utt2spk:
         for line in f:
             id = _get_first_field(line)
             if id in utt_ids:
-                utt2dur.write(line)
+                utt2spk.write(line)
                 spk = line.strip().split(" ")[1]
                 if spk not in spk_ids:
                     spk_ids.append(spk)
