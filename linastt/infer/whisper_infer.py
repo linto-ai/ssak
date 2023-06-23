@@ -342,6 +342,9 @@ if __name__ == "__main__":
         # output nothing
         args.output = open(os.devnull,"w")
     else:
+        dname = os.path.dirname(args.output)
+        if dname and not os.path.isdir(dname):
+            os.makedirs(dname)
         args.output = open(args.output, "w")
 
     if args.max_threads:

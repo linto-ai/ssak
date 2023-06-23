@@ -13,11 +13,20 @@ import matplotlib.pyplot as plt
 from linastt.utils.text_utils import remove_punctuations
 
 def find_best_position_dtw(subsequence, sequence,
-    finetune_start_end=True,
+    finetune_start_end=False,
+    pad=False,
     plot=False,
-    pad=True):
+    prefer_last=False,
+    distance=None,
+    ):
+
+    if len(subsequence) == 0 or len(sequence) == 0:
+        print("WARNING: empty sequence")
+        return {
+            "indices": [],
+        }
     
-    distances = distance_matrix(subsequence, sequence)
+    distances = distance_matrix(subsequence, sequence, distance=distance)
 
     if pad:
         # Add zeros before / after
@@ -146,15 +155,33 @@ def find_best_position_dtw(subsequence, sequence,
             plt.axvline(index2s[0]-start, color="black")
             plt.axvline(index2s[-1]-start, color="black")
 
+    if prefer_last:
+        def cmp_forward(previous_dist, d):
+            return previous_dist >= d
+    else:
+        def cmp_forward(previous_dist, d):
+            return previous_dist > d
+
     # Compute the index for each word in the transcription
     indices = [None] * l1
+    argmin_distances = {}
     for i, j in zip(index1s, index2s):
-        if indices[i] is None or (i > 0 and indices[i] == indices[i-1]):
+        d = distances[i, j]
+        if cmp_forward(argmin_distances.get(i,float("inf")), d): # or (i > 0 and indices[i] == indices[i-1]):
             indices[i] = j
+            argmin_distances[i] = d
+            if i > 0 and indices[i-1] == j:
+                k = 1
+                while i >= k and j == indices[i-k]:
+                    if cmp_forward(argmin_distances[i-k], d):
+                        indices[i-k] = None # j-1
+                        argmin_distances[i-k] = float("inf") # distances[i-k,j]
+                    else:
+                        break
+                    k += 1
 
-    if None in indices:
-        # import pdb; pdb.set_trace()
-        raise RuntimeError("Unexpected situation")
+    # if None in indices:
+    #     raise RuntimeError("Unexpected situation")
 
     if isinstance(plot, str):
         figure1.savefig(plot+"_1.png")
@@ -236,19 +263,12 @@ _step_pattern = dtw.stepPattern.StepPattern(dtw.stepPattern._c(
 ), "N+M");
 
 
-def distance_matrix(words1, words2):
-    if isinstance(words1, list):
-        return np.array([[float(Levenshtein.distance(w1, w2)) for w2 in words2] for w1 in words1])
-    else:
-        assert isinstance(words1, str)
-        return np.array([[0. if w1 == w2 else 1. for w2 in words2] for w1 in words1])
-
-# def words_to_character(words):
-#     text = ""
-#     indices = []
-#     for i, w in enumerate(words):
-#         w = format_text_latin(w)
-#         text += w + " "
-#         indices.extend([i] * (len(w)+1))
-#     return text, indices
-
+def distance_matrix(words1, words2, distance=None):
+    assert type(words1) == type(words2)
+    assert isinstance(words1, (str,list))
+    if distance is None:
+        if isinstance(words1, list):
+            distance = Levenshtein.distance
+        else:
+            distance = lambda x,y: 0. if x == y else 1.
+    return np.array([[float(distance(w1, w2)) for w2 in words2] for w1 in words1])

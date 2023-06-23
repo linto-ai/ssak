@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import subprocess
 import os
 import shutil
@@ -20,6 +22,8 @@ def extract_mp4(vid, foldername):
         sudo chmod a+rx /usr/local/bin/youtube-dl\n\
         ")
     output = f"{vid}.mp4"
+    if not os.path.isfile(output):
+        return
     assert os.path.isfile(output), f"Failed to extract {vid} using {' '.join(CMD)}"
     shutil.move(output, f"{foldername}/{output}")
 
@@ -37,4 +41,6 @@ if __name__ == "__main__":
         output_file = f"{output_mp4}/{id_}.mp4"
         if not os.path.isfile(output_file):
             extract_mp4(id_, output_mp4)
+        if not os.path.isfile(output_file):
+            continue
         assert os.path.isfile(output_file), f"Failed to extract {id_} to {output_file}"

@@ -2,43 +2,16 @@ import re
 import math
 import warnings
 
-from linastt.utils.text_utils import collapse_whitespace, remove_special_characters, regex_escape, transliterate, undigit, cardinal_numbers_to_letters, convert_symbols_to_words
-
-def remove_special_words(text,
-    glue_apostrophe = True,
-    glue_dash = None,
-    ):
-    """
-    Small process designed for text that has ALREADY been processed (ex: "8" -> "huit"), but some special words might still be present (ex: "<noise>")
-    """
-    # sometimes empty text could have been transformed to None (ex: in CSV)
-    if not text: return ""
-
-    try:
-        text = re.sub(r"<.*?>", "", text)
-    except:
-        print("PROBLEM WITH TEXT:", text, type(text))
-        text = re.sub(r"<.*?>", "", text)
-    
-    if glue_apostrophe is True:
-        text = re.sub(r"[^\S]+'[^\S]+", "'", text)
-    elif glue_apostrophe is False:
-        text = re.sub(r"'", "' ", text).strip()
-
-    if glue_dash is True:
-        text = re.sub(r"[^\S]+\-[^\S]+", "-", text)
-    elif glue_dash is False:
-        text = re.sub(r"\-", "- ", text).strip()
-    elif glue_dash == "right":
-        text = re.sub(r"\-[^\S]+", "-", text)
-        text = re.sub("-", " -", text)
-    elif glue_dash == "left":
-        text = re.sub(r"[^\S]+\-", "-", text)
-        text = re.sub("-", "- ", text)
-
-    text = collapse_whitespace(text)
-
-    return text
+from linastt.utils.text_utils import (
+    collapse_whitespace,
+    remove_special_characters,
+    format_special_characters,
+    regex_escape,
+    transliterate,
+    undigit,
+    cardinal_numbers_to_letters,
+    convert_symbols_to_words,
+)
 
 def _rm_key(d, key):
     d = d.copy()
@@ -291,28 +264,7 @@ def format_text_latin(text,
             text = re.sub(reg, replacement, text)
 
         # Special Symbols
-        text = re.sub(' - | -$|^- ','', text)
-        text = re.sub(" '", " ", text)
-        text = re.sub("'+", "'", text)
-        text = re.sub('--+',' ', text)
-        text = re.sub('_',' ', text)
-        text = re.sub('–',' ', text)
-        text = re.sub('—+',' ', text)
-        text = re.sub('…','...', text)
-        text = re.sub('\*+', ' ', text)
-        text = re.sub(r"[«“][^\S\r\n]*", '"', text)
-        text = re.sub(r"[^\S\r\n]*[»”″„]", '"', text)
-        text = re.sub(r"[’‘‛]", "'", text)
-        text = re.sub("‚", ",", text)
-        text = re.sub(r"–", "-", text)
-        text = re.sub('#+',' ', text)
-        text = re.sub(" "," ",text)
-        text = re.sub(' ', '  ',text)
-        text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
-        text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
-        text = re.sub(r"ᵉʳ","er", text)
-        text = re.sub(r"ᵉ","e", text)
-        text = re.sub("·","", text)
+        text = format_special_characters(text)
 
         if not keep_punc:
             text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)

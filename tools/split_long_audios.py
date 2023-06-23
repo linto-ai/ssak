@@ -73,6 +73,8 @@ def split_long_audio_kaldifolder(
     global start, end
     global f_text, f_utt2spk, f_utt2dur, f_segments
 
+    has_shorten = False
+
     with open(dirout+"/text", 'w') as f_text, \
          open(dirout+"/utt2spk", 'w') as f_utt2spk, \
          open(dirout+"/utt2dur", 'w') as f_utt2dur, \
@@ -94,6 +96,7 @@ def split_long_audio_kaldifolder(
                 (wav_, start_, end_) = id2seg[id]
                 f_segments.write(f"{id} {wav_} {start_} {end_}\n")
                 continue
+            has_shorten = True
             ###### special normalizations (1/2)
             transcript = custom_text_normalization(id2text[id])
             all_words = transcript.split()
@@ -162,6 +165,11 @@ def split_long_audio_kaldifolder(
                 last_end = word_segments[-1].end * ratio
                 process()
             idx_processed += 1
+
+    if not has_shorten:
+        print("No audio was shorten. Folder should be (quasi) unchanged")
+        if not has_segments:
+            os.remove(dirout+"/segments")
 
     for file in "wav.scp", "spk2gender",:
         if os.path.isfile(os.path.join(dirin, file)):

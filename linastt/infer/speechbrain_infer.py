@@ -311,7 +311,9 @@ def speechbrain_load_model(source, device = None):
         except requests.exceptions.HTTPError:
             yaml_file = None
 
-    overrides = make_yaml_overrides(yaml_file, {"save_path": None})
+    # Using save_path=None started to fail in speechbrain 0.5.14
+    save_path = None if sb.__version__ <= "0.5.13" else get_cache_dir("huggingface/hub")
+    overrides = make_yaml_overrides(yaml_file, {"save_path": save_path})
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError:
@@ -336,7 +338,8 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
+    parser = argparse.ArgumentParser(
+        description='Transcribe audio(s) using a model from Speechbrain (wav2vec2, Whisper...)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
@@ -361,6 +364,9 @@ if __name__ == "__main__":
         # output nothing
         args.output = open(os.devnull,"w")
     else:
+        dname = os.path.dirname(args.output)
+        if dname and not os.path.isdir(dname):
+            os.makedirs(dname)
         args.output = open(args.output, "w")
 
     for reco in speechbrain_infer(

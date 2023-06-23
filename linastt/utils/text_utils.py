@@ -280,6 +280,9 @@ _not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
 
+def remove_parenthesis(text):
+    return collapse_whitespace(re.sub(r"\([^)]*\)", "", text))
+
 def remove_special_characters(
     string,
     replace_by = "",
@@ -318,6 +321,86 @@ def remove_punctuations(text, strong = False):
     if strong:
         return text.translate(str.maketrans('', '', _punctuation_strong))
     return text.translate(str.maketrans('', '', _punctuation))
+
+_non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
+
+def format_special_characters(text):
+
+    for before, after in [
+        ("â","â"),
+        ("à","à"),
+        ("á","á"),
+        ("ê","ê"),
+        ("é","é"),
+        ("è","è"),
+        ("ô","ô"),
+        ("û","û"),
+        ("î","î"),
+
+        ('…','...'),
+        (r"[«“][^\S\r\n]*", '"'),
+        (r"[^\S\r\n]*[»”″„]", '"'),
+        (r"[’‘‛ʿ]", "'"),
+        ("‚", ","),
+        (r"–", "-"),
+
+        # non
+        ("[  ]"," "), # weird whitespace
+        (_non_printable_pattern, ""), # non-printable characters
+
+        ("·","."),
+        (r"ᵉʳ","er"),
+        (r"ᵉ","e"),
+    ]:
+        text = re.sub(before, after, text)
+
+    text = re.sub(' - | -$|^- ', ' ', text)
+    # text = re.sub('--+',' ', text)
+    # text = re.sub('—+',' ', text)
+    # text = re.sub('#+',' ', text)
+    # text = re.sub('_',' ', text)
+    # text = re.sub('\{|\}|\(|\)|\[|\]|"|=',' ',text)
+    # text = re.sub('(\.|\?|\!|,|;|:)-',r'\1 ', text)
+    # text = re.sub("'+", "'", text)
+    # text = re.sub('\*+', ' ', text)
+
+    return collapse_whitespace(text)
+
+def remove_special_words(text,
+    glue_apostrophe = True,
+    glue_dash = None,
+    ):
+    """
+    Small process designed for text that has ALREADY been processed (ex: "8" -> "huit"), but some special words might still be present (ex: "<noise>")
+    """
+    # sometimes empty text could have been transformed to None (ex: in CSV)
+    if not text: return ""
+
+    try:
+        text = re.sub(r"<.*?>", "", text)
+    except:
+        print("PROBLEM WITH TEXT:", text, type(text))
+        text = re.sub(r"<.*?>", "", text)
+    
+    if glue_apostrophe is True:
+        text = re.sub(r"[^\S]+'[^\S]+", "'", text)
+    elif glue_apostrophe is False:
+        text = re.sub(r"'", "' ", text).strip()
+
+    if glue_dash is True:
+        text = re.sub(r"[^\S]+\-[^\S]+", "-", text)
+    elif glue_dash is False:
+        text = re.sub(r"\-", "- ", text).strip()
+    elif glue_dash == "right":
+        text = re.sub(r"\-[^\S]+", "-", text)
+        text = re.sub("-", " -", text)
+    elif glue_dash == "left":
+        text = re.sub(r"[^\S]+\-", "-", text)
+        text = re.sub("-", "- ", text)
+
+    text = collapse_whitespace(text)
+
+    return text
 
 # this function can split sentences.
 def split_around(

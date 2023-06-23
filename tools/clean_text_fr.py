@@ -29,8 +29,9 @@ if __name__ == "__main__":
         if os.path.exists(output_file):
             raise RuntimeError(f"Output file {output_file} already exists")
             # os.remove(output_file)
-        if not os.path.isdir(os.path.dirname(output_file)):
-            os.makedirs(os.path.dirname(output_file))
+        dname = os.path.dirname(output_file)
+        if dname and not os.path.isdir(dname):
+            os.makedirs(dname)
         fout = open(output_file, "a", encoding="utf-8")
     else:
         fout = sys.stdout

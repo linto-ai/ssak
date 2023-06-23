@@ -54,7 +54,7 @@ SPECIAL_CHARS = {
     "ar": "".join(func("ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهويىي") for func in [str.upper, str.lower]),
 }
 
-def check_kaldi_dir(dirname, language="fr"):
+def check_kaldi_dir(dirname, language=None):
 
     tool_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),

@@ -9,7 +9,7 @@ import numpy as np
 from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.misc import hashmd5
-from linastt.utils.output_format import to_linstt_transcription as format_transcription
+from linastt.utils.format_transcription import to_linstt_transcription
 
 ####################
 # Conversation Manager 
@@ -42,7 +42,7 @@ def cm_import(
     organizationId = cm_get_organization(url, email, password, verbose=verbose)
 
     result = curl_post(
-        url + "/api/conversations/import?type=transcription",
+        url + f"/api/organizations/{organizationId}/conversations/import?type=transcription",
         {
             "transcription": transcription,
             "file": os.path.realpath(audio_file),
@@ -57,7 +57,6 @@ def cm_import(
                                                           'serviceName': 'Custom' if has_speaker else None},
                                     'enableNormalization': has_digit(transcription)},
             "description": f"Audio: {os.path.basename(audio_file)} / Transcription: {hashmd5(transcription)} / Import: {datestr}",
-            "organizationId": organizationId,
             "membersRight": "0",
         },
         headers=[f"Authorization: Bearer {token}"],
@@ -65,6 +64,8 @@ def cm_import(
     )
 
     assert "message" in result, f"'message' not found in response: {result}"
+
+    assert result["message"] == "Conversation imported", f"Error when posting conversation: {result}"
 
     print("\n"+result["message"])
 
@@ -348,7 +349,7 @@ if __name__ == "__main__":
             except json.decoder.JSONDecodeError:
                 raise ValueError(f"Transcription file {args.transcription} not found, and not a valid json string.")
     
-    args.transcription = format_transcription(args.transcription)
+    args.transcription = to_linstt_transcription(args.transcription)
 
     name=args.name if args.name else default_name
 

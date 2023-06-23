@@ -136,6 +136,8 @@ def realign_annotations(annot_file, word_strategy = True, plot = False, verbose 
             indices = find_best_position_dtw(
                 [format_text_latin(w) for w in words],
                 [format_text_latin(w) for w in auto_words],
+                finetune_start_end=True,
+                pad=True,
                 plot = f"{plot}-{i_transcript}",
             )
             indices = indices["indices"]

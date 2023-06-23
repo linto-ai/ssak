@@ -305,7 +305,8 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    parser = argparse.ArgumentParser(description='Train wav2vec2 on a given dataset',
+    parser = argparse.ArgumentParser(
+        description='Transcribe audio(s) using a model from HuggingFace\'s transformers (wav2vec2, Whisper...)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', help="Path to data (audio file(s) or kaldi folder(s))", nargs='+')
@@ -330,8 +331,9 @@ if __name__ == "__main__":
         # output nothing
         args.output = open(os.devnull,"w")
     else:
-        if not os.path.isdir(os.path.dirname(args.output)):
-            os.makedirs(os.path.dirname(args.output))
+        dname = os.path.dirname(args.output)
+        if dname and not os.path.isdir(dname):
+            os.makedirs(dname)
         args.output = open(args.output, "w")
 
     for reco in transformers_infer(
