@@ -8,9 +8,6 @@ from linastt.utils.kaldi import check_kaldi_dir
 
 def create_cut(input_folder, output_folder, n_first):
 
-    utt_ids = []
-    spk_ids = []
-
     for file in ["text", "wav.scp", "utt2dur", "spk2utt", "spk2gender"]:
         assert os.path.isfile(input_folder + "/" + file), f"No {file} in the input folder"
 
@@ -19,6 +16,7 @@ def create_cut(input_folder, output_folder, n_first):
 
     os.makedirs(output_folder, exist_ok=True)
 
+    utt_ids = []
     with open(input_folder + "/text", 'r') as f, \
         open(output_folder + "/text", 'w') as text_file:
         for i, line in zip(range(n_first), f):
@@ -39,6 +37,7 @@ def create_cut(input_folder, output_folder, n_first):
             if id in utt_ids:
                 utt2dur.write(line)
 
+    spk_ids = []
     with open(input_folder + "/spk2utt", 'r') as f, \
         open(output_folder + "/spk2utt", 'w') as spk2utt:
         for line in f:
