@@ -49,7 +49,7 @@ def create_cut(input_folder, output_folder, n_first):
                         spk_ids.append(spk)
 
     with open(input_folder + "/spk2gender", 'r') as f:
-        with open(output_folder + "spk2gender", 'w') as spk2gender:
+        with open(output_folder + "/spk2gender", 'w') as spk2gender:
             lines = f.readlines()
             for line in lines:
                 for spk in spk_ids:
