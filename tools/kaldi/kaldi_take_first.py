@@ -29,32 +29,32 @@ def create_cut(input_folder, output_folder, n_first):
             if i in parsed_wav.keys():
                 wavscp_file.write(i + " sox " + os.path.abspath(parsed_wav[i]) + " -t wav -r 16k -b 16 -c 1 - |\n")
 
-    with open(input_folder + "/utt2dur", 'r') as f:
-        with open(output_folder + "/utt2dur", 'w') as utt2dur:
-            lines = f.readlines()
-            for line in lines:
-                for id in utt_ids:
-                    if id in line.split(" "):
-                        utt2dur.write(line)
+    with open(input_folder + "/utt2dur", 'r') as f, \
+        open(output_folder + "/utt2dur", 'w') as utt2dur:
+        lines = f.readlines()
+        for line in lines:
+            for id in utt_ids:
+                if id in line.split(" "):
+                    utt2dur.write(line)
 
-    with open(input_folder + "/spk2utt", 'r') as f:
-        with open(output_folder + "/spk2utt", 'w') as spk2utt:
-            lines = f.readlines()
-            for line in lines:
-                spk = line.split(" ")[0]
-                utt_s = line.split(" ")[1:]
-                for id in utt_ids:
-                    if id in utt_s:
-                        spk2utt.write(f"{spk} \t {id} \n")
-                        spk_ids.append(spk)
+    with open(input_folder + "/spk2utt", 'r') as f, \
+        open(output_folder + "/spk2utt", 'w') as spk2utt:
+        lines = f.readlines()
+        for line in lines:
+            spk = line.split(" ")[0]
+            utt_s = line.split(" ")[1:]
+            for id in utt_ids:
+                if id in utt_s:
+                    spk2utt.write(f"{spk} \t {id} \n")
+                    spk_ids.append(spk)
 
-    with open(input_folder + "/spk2gender", 'r') as f:
-        with open(output_folder + "/spk2gender", 'w') as spk2gender:
-            lines = f.readlines()
-            for line in lines:
-                for spk in spk_ids:
-                    if spk in line.split(" "):
-                        spk2gender.write(line)
+    with open(input_folder + "/spk2gender", 'r') as f, \
+        open(output_folder + "/spk2gender", 'w') as spk2gender:
+        lines = f.readlines()
+        for line in lines:
+            for spk in spk_ids:
+                if spk in line.split(" "):
+                    spk2gender.write(line)
 
     return check_kaldi_dir(output_folder, language=None)
 
