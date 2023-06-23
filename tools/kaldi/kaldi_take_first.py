@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import os
 from linastt.utils.kaldi import parse_kaldi_wavscp
