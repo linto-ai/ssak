@@ -8,10 +8,19 @@ import random
 from linastt.utils.kaldi import check_kaldi_dir
 
 
-def create_cut(input_folder, output_folder, maximum, random_seed=None):
+def create_cut(
+    input_folder,
+    output_folder,
+    maximum,
+    random_seed=None,
+    throw_if_output_exists=True,
+    ):
 
     for file in ["text", "wav.scp", "utt2dur", "spk2utt", "utt2spk", "spk2gender"]:
         assert os.path.isfile(input_folder + "/" + file), f"Missing file: {input_folder}/{file}"
+
+    if throw_if_output_exists and os.path.isdir(output_folder):
+        raise RuntimeError(f"Output folder already exists. Please remove it first if you want to regenerate it:\n#\trm -R {output_folder}")
 
     os.makedirs(output_folder, exist_ok=True)
 
