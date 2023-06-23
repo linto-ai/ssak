@@ -9,7 +9,7 @@ from linastt.utils.kaldi import check_kaldi_dir
 def create_cut(input_folder, output_folder, n_first):
 
     for file in ["text", "wav.scp", "utt2dur", "spk2utt", "utt2spk", "spk2gender"]:
-        assert os.path.isfile(input_folder + "/" + file), f"No {file} in the input folder"
+        assert os.path.isfile(input_folder + "/" + file), f"Missing file: {input_folder}/{file}"
 
     if os.path.isfile(input_folder + "/segments"):
         raise NotImplementedError("Not implemented when the input folder contains a 'segments' file")
