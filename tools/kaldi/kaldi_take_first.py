@@ -18,7 +18,7 @@ def create_cut(input_folder, output_folder, maximum, random_seed=None):
     utt_ids = []
     with open(input_folder + "/text", 'r') as f, \
         open(output_folder + "/text", 'w') as text_file:
-        if random_seed:
+        if random_seed is not None:
             random.seed(random_seed)
             lines = f.readlines()
             random.shuffle(lines)
