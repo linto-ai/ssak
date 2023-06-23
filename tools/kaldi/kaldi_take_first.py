@@ -22,12 +22,12 @@ def create_cut(input_folder, output_folder, n_first):
             utt_ids.append(line.split(" ")[0])
             text_file.write(line)
 
-    parsed_wav = parse_kaldi_wavscp(input_folder + "/" + "wav.scp")
-
-    with open(output_folder + "/wav.scp", 'w') as wavscp_file:
-        for i in utt_ids:
-            if i in parsed_wav.keys():
-                wavscp_file.write(i + " sox " + os.path.abspath(parsed_wav[i]) + " -t wav -r 16k -b 16 -c 1 - |\n")
+    with open(input_folder + "/wav.scp", 'r') as f, \
+        open(output_folder + "/wav.scp", 'w') as wavscp_file:
+        for line in f:
+            id = line.split(" ")[0]
+            if id in utt_ids:
+                wavscp_file.write(line)
 
     with open(input_folder + "/utt2dur", 'r') as f, \
         open(output_folder + "/utt2dur", 'w') as utt2dur:
