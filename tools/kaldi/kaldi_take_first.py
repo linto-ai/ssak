@@ -4,7 +4,7 @@
 import os
 import random
 
-from linastt.utils.kaldi import parse_kaldi_wavscp
+
 from linastt.utils.kaldi import check_kaldi_dir
 
 
