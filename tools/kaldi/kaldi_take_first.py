@@ -62,6 +62,12 @@ def create_cut(input_folder, output_folder, n_first):
     return check_kaldi_dir(output_folder, language=None)
 
 
+def _get_id(line):
+    f = line.split(" ", 1)
+    assert len(f), "Got an empty line"
+    return f[0]
+
+
 if __name__ == '__main__':
 
     import argparse
