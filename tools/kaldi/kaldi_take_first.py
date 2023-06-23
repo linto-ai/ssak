@@ -101,11 +101,11 @@ def _get_first_field(line):
 if __name__ == '__main__':
 
     import argparse
-    parser = argparse.ArgumentParser(description="Creates a test version of a kaldi folder: taken n first lines")
+    parser = argparse.ArgumentParser(description="Create a kaldi folder with only a subset of utterances from a kaldi folder")
     parser.add_argument("input_folder", type=str, help="Input folder with kaldi files")
-    parser.add_argument("output_folder", type=str, help="Output folder to put the cut files")
-    parser.add_argument("maximum", type=int, help="(maximum) number of lines to keep")
-    parser.add_argument("--random_seed", default=None, type=int, help="Give a random seed to take random lines (if not specified, the first lines will be taken)")
+    parser.add_argument("output_folder", type=str, help="Output folder")
+    parser.add_argument("maximum", type=int, help="Number of lines to keep (maximum)")
+    parser.add_argument("--random_seed", default=None, type=int, help="Random seed to choose randomly the utterances (if not specified, the first utterances will be taken)")
     args = parser.parse_args()
 
     create_cut(args.input_folder, args.output_folder, args.maximum, args.random_seed)
