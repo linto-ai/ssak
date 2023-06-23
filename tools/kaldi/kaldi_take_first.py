@@ -35,9 +35,9 @@ def create_cut(input_folder, output_folder, n_first):
     with open(input_folder + "/utt2dur", 'r') as f, \
         open(output_folder + "/utt2dur", 'w') as utt2dur:
         for line in f:
-            for id in utt_ids:
-                if id in line.split(" "):
-                    utt2dur.write(line)
+            id = _get_first_field(line)
+            if id in utt_ids:
+                utt2dur.write(line)
 
     with open(input_folder + "/spk2utt", 'r') as f, \
         open(output_folder + "/spk2utt", 'w') as spk2utt:
