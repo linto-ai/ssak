@@ -37,25 +37,29 @@ def create_cut(input_folder, output_folder, n_first):
             if id in utt_ids:
                 utt2dur.write(line)
 
+    spk_ids = []
     with open(input_folder + "/utt2spk", 'r') as f, \
         open(output_folder + "/utt2spk", 'w') as utt2dur:
         for line in f:
             id = _get_first_field(line)
             if id in utt_ids:
                 utt2dur.write(line)
+                spk = line.strip().split(" ")[1]
+                if spk not in spk_ids:
+                    spk_ids.append(spk)
 
-    spk_ids = []
     with open(input_folder + "/spk2utt", 'r') as f, \
         open(output_folder + "/spk2utt", 'w') as spk2utt:
         for line in f:
             spk = _get_first_field(line)
-            utt_s = line.strip().split(" ")[1:]
-            new_utt_s = [u for u in utt_s if u in utt_ids]
-            if not len(new_utt_s):
-                continue
-            new_utt_s = " ".join(new_utt_s)
-            spk2utt.write(f"{spk}\t{new_utt_s}\n")
-            spk_ids.append(spk)
+            if spk in spk_ids:
+                utt_s = line.strip().split(" ")[1:]
+                new_utt_s = [u for u in utt_s if u in utt_ids]
+                if not len(new_utt_s):
+                    continue
+                new_utt_s = " ".join(new_utt_s)
+                spk2utt.write(f"{spk}\t{new_utt_s}\n")
+                spk_ids.append(spk)
 
     with open(input_folder + "/spk2gender", 'r') as f, \
         open(output_folder + "/spk2gender", 'w') as spk2gender:
