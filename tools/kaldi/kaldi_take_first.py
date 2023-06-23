@@ -16,14 +16,11 @@ def create_cut(input_folder, output_folder, n_first):
 
     os.makedirs(output_folder, exist_ok=True)
 
-    with open(input_folder + "/text", 'r') as f:
-        new_text = []
-        cut = [next(f) for _ in range(n_first)]
-        for line in cut:
+    with open(input_folder + "/text", 'r') as f, \
+        open(output_folder + "/text", 'w') as text_file:
+        for i, line in zip(range(n_first), f):
             utt_ids.append(line.split(" ")[0])
-            new_text.append(line)
-        with open(output_folder + "/text", 'w') as text_file:
-            text_file.writelines(new_text)
+            text_file.write(line)
 
     parsed_wav = parse_kaldi_wavscp(input_folder + "/" + "wav.scp")
 
