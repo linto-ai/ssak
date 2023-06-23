@@ -1,6 +1,7 @@
 
 import os
 from linastt.utils.kaldi import parse_kaldi_wavscp
+from linastt.utils.kaldi import check_kaldi_dir
 
 
 def create_cut(input_folder, output_folder, n_first):
@@ -58,6 +59,8 @@ def create_cut(input_folder, output_folder, n_first):
                 for spk in spk_ids:
                     if spk in line.split(" "):
                         spk2gender.write(line)
+
+    return check_kaldi_dir(output_folder, language=None)
 
 
 if __name__ == '__main__':
