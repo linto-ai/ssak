@@ -22,29 +22,27 @@ def create_cut(input_folder, output_folder, n_first):
     with open(input_folder + "/text", 'r') as f, \
         open(output_folder + "/text", 'w') as text_file:
         for i, line in zip(range(n_first), f):
-            utt_ids.append(line.split(" ")[0])
+            utt_ids.append(_get_first_field(line))
             text_file.write(line)
 
     with open(input_folder + "/wav.scp", 'r') as f, \
         open(output_folder + "/wav.scp", 'w') as wavscp_file:
         for line in f:
-            id = line.split(" ")[0]
+            id = _get_first_field(line)
             if id in utt_ids:
                 wavscp_file.write(line)
 
     with open(input_folder + "/utt2dur", 'r') as f, \
         open(output_folder + "/utt2dur", 'w') as utt2dur:
-        lines = f.readlines()
-        for line in lines:
+        for line in f:
             for id in utt_ids:
                 if id in line.split(" "):
                     utt2dur.write(line)
 
     with open(input_folder + "/spk2utt", 'r') as f, \
         open(output_folder + "/spk2utt", 'w') as spk2utt:
-        lines = f.readlines()
-        for line in lines:
-            spk = line.split(" ")[0]
+        for line in f:
+            spk = _get_first_field(line)
             utt_s = line.split(" ")[1:]
             for id in utt_ids:
                 if id in utt_s:
@@ -53,8 +51,7 @@ def create_cut(input_folder, output_folder, n_first):
 
     with open(input_folder + "/spk2gender", 'r') as f, \
         open(output_folder + "/spk2gender", 'w') as spk2gender:
-        lines = f.readlines()
-        for line in lines:
+        for line in f:
             for spk in spk_ids:
                 if spk in line.split(" "):
                     spk2gender.write(line)
@@ -62,7 +59,7 @@ def create_cut(input_folder, output_folder, n_first):
     return check_kaldi_dir(output_folder, language=None)
 
 
-def _get_id(line):
+def _get_first_field(line):
     f = line.split(" ", 1)
     assert len(f), "Got an empty line"
     return f[0]
