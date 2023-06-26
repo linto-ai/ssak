@@ -73,9 +73,11 @@ def compute_wer(refs, preds,
     assert len(refs) == len(preds)
 
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar
+        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru
         if normalization == "ar":
             normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
+        elif normalization == "ru":
+            normalize_func = lambda x: format_text_ru(x)
         else:
             normalize_func = lambda x: format_text_latin(x, lang=normalization)
         refs = [normalize_func(ref) for ref in refs]
