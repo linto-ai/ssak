@@ -36,7 +36,7 @@ def format_text_ru(text,
     # latin text to russian text (use transliterate?)
     # symbols to words
 
-    print(f" ------ ACRONYMS ----- \n {find_acronyms(text)} \n")
+    # print(f" ------ ACRONYMS ----- \n {find_acronyms(text)} \n")
 
     # Reorder currencies (1,20€ -> 1 € 20)
     coma = ","
@@ -73,7 +73,7 @@ def format_text_ru(text,
     text = re.sub("''", "\"", text)
     text = re.sub("-+", "-", text)  # ---- -> -
 
-    normalized_text = text
+    normalized_text = collapse_whitespace(text)
 
 
     return normalized_text
