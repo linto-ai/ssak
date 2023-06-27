@@ -1,6 +1,5 @@
 import re
 import cyrtranslit
-from language import check_language
 
 from linastt.utils.text_utils import (
     remove_parenthesis,
