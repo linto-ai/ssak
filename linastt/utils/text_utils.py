@@ -353,7 +353,7 @@ def remove_special_characters(
 def regex_escape(text):
     return re.escape(text)
 
-_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛'
+_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
 _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 
 # Should we precompute?
@@ -542,7 +542,11 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             if is_date:
                 first = digitf[:i].lstrip("0")
                 use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
+                if lang == "ru":
+                    first = ru_date_to_gen(undigit(first, lang=lang))
+                    print(first)
+                else:
+                    first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
                 first = undigit(digitf[:i], lang=lang)
@@ -573,12 +577,16 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                             first, third = third, first
                             sfirst, sthird = sthird, sfirst
                 except ValueError:
-                    pass 
-            third = undigit(sthird, lang=lang)
+                    pass
+                third = undigit(sthird, lang=lang)
             if is_date:
                 first = sfirst.lstrip("0")
                 use_ordinal = (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
+                if lang == "ru":
+                    first = ru_date_to_gen(undigit(first, lang=lang))
+                    third = ru_date_to_gen(third)
+                else:
+                    first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
                 if is_islamic_date:
                     word = " ".join([third, second, first])
@@ -596,6 +604,42 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
         else:
             text = re.sub(str(digit), " "+word+" ", text)
     return text
+
+def ru_date_to_gen(d):
+
+    separate = d.split(" ")
+    last = separate.pop(-1)
+
+    alt_roots = {
+        'сто': 'сот',
+        'сот': 'сот',
+        'один': 'перв',
+        'два': 'втор',
+        'три': 'трет',
+        'четыре': 'четверт',
+        'пять': 'пят',
+        'шесть': 'шест',
+        'семь': 'седьм',
+        'восемь': 'восьм',
+        'девять': 'девят',
+        'десять': 'десят',
+        'дцать': 'дцат',
+        'сорок': 'сорок'
+    }
+
+    for num, alt_num in alt_roots.items():
+        if num in last:
+            if num == 'три':
+                last = re.sub(num, alt_num + 'ьего', last)
+                break
+            else:
+                last = re.sub(num, alt_num + 'ого', last)
+                break
+
+    separate.append(last)
+    gen = " ".join(d for d in separate)
+
+    return gen
 
 def undigit(s, lang, to="cardinal"):
     s = re.sub(" ", "", s)
@@ -718,19 +762,19 @@ _int_to_month = {
         11: "ذو القعدة",
         12: "ذو الحجة",
     },
-    "ru": {  # better take into account the case (nom: январь / gen: января)
-        1: "январь",
-        2: "февраль",
-        3: "март",
-        4: "апрель",
-        5: "май",
-        6: "июнь",
-        7: "июль",
-        8: "август",
-        9: "сентябрь",
-        10: "октябрь",
-        11: "ноябрь",
-        12: "декабрь",
+    "ru": { # all forms are genetive
+        1: "января",
+        2: "февраля",
+        3: "марта",
+        4: "апреля",
+        5: "мая",
+        6: "июня",
+        7: "июля",
+        8: "августа",
+        9: "сентября",
+        10: "октября",
+        11: "ноября",
+        12: "декабря",
     }
 
 }

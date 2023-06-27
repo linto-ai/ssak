@@ -23,5 +23,5 @@ def format_text(text, language, **kwargs):
     if language == "ar":
         return format_text_ar(text, **kwargs)
     if language == "ru":
-        return format_text_ru(text)
+        return format_text_ru(text, **kwargs)
     raise NotImplementedError(f"Language {language} not supported yet")
