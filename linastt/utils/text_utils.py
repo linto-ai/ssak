@@ -631,9 +631,11 @@ def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
                 return "tercio"
         elif lang == "ru":
             if s == "2":
-                return "половина"
+                return "вторых"
             if s == "3":
-                return "треть"
+                return "третьих"
+            if s == "4":
+                return "четверти"
         to = "ordinal"
     if lang == "ru" and to == "ordinal" and type=="masc_gen":
         return ru_card_to_ord_masc_gen(undigit(s, lang, to="cardinal", ignore_first_zeros=True))
