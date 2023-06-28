@@ -526,7 +526,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
 
     # Format some dates for Russian
     if lang=="ru":
-        text = find_date(text)
+        text = ru_convert_dates(text)
 
     for digit in digits:
         digitf = re.sub("/+", "/", digit)
@@ -547,11 +547,8 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
-                if lang == "ru":
-                    first = ru_date_to_gen(undigit(first, lang=lang))
-                else:
-                    first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
                 first = undigit(digitf[:i], lang=lang)
@@ -583,15 +580,12 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                             sfirst, sthird = sthird, sfirst
                 except ValueError:
                     pass
-                third = undigit(sthird, lang=lang)
+                use_ordinal = (lang == "ru")
+                third = undigit(sthird, lang=lang, to="ordinal" if use_ordinal else "cardinal")
             if is_date:
                 first = sfirst.lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
-                if lang == "ru":
-                    first = ru_date_to_gen(undigit(first, lang=lang))
-                    third = ru_date_to_gen(third)
-                else:
-                    first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
                 if is_islamic_date:
                     word = " ".join([third, second, first])
@@ -610,7 +604,76 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             text = re.sub(str(digit), " "+word+" ", text)
     return text
 
-def ru_date_to_gen(d):
+
+def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
+    s = re.sub(" ", "", s)
+    if "." in s:
+        n = float(s)
+    else:
+        n = int(s)
+    if to == "denominator":
+        if lang == "fr":
+            if s == "2":
+                return "demi"
+            if s == "3":
+                return "tiers"
+            if s == "4":
+                return "quart"
+        elif lang == "en":
+            if s == "2":
+                return "half"
+            if s == "4":
+                return "quarter"
+        elif lang == "es":
+            if s == "2":
+                return "mitad"
+            if s == "3":
+                return "tercio"
+        elif lang == "ru":
+            if s == "2":
+                return "половина"
+            if s == "3":
+                return "треть"
+        to = "ordinal"
+    if lang == "ru" and to == "ordinal" and type=="masc_gen":
+        return ru_card_to_ord_masc_gen(undigit(s, lang, to="cardinal", ignore_first_zeros=True))
+    if not ignore_first_zeros and s.startswith("0") and to == "cardinal":
+        numZeros = len(re.findall(r"0+", s)[0])
+        if numZeros < len(s):
+            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
+    return robust_num2words(n, lang=lang, to=to, orig=s)
+
+
+def robust_num2words(x, lang, to="cardinal", orig=""):
+    """
+    Bugfixes for num2words
+    - 20th in French was wrong
+    - comma in Arabic
+    - avoid overflow error on big numbers
+    """
+    if lang == "ar":
+        to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
+    try:
+        res = num2words(x, lang=lang, to=to)
+    except Exception as err:
+        # Here we should expect a OverflowError, but...
+        # * TypeError can occur: https://github.com/savoirfairelinux/num2words/issues/509
+        # * IndexError can occur: https://github.com/savoirfairelinux/num2words/issues/511
+        # * decimal.InvalidOperation can occur: https://github.com/savoirfairelinux/num2words/issues/511
+        # (who knows what else can occur...)
+        warnings.warn(f"Got error of type {type(err)} on {x}")
+        if x > 0:  # !
+            res = " ".join(robust_num2words(int(xi), lang=lang, to=to, orig=xi) for xi in orig)
+        else:
+            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
+    if lang == "fr" and to == "ordinal":
+        res = res.replace("vingtsième", "vingtième")
+    elif lang == "ar":
+        res = res.replace(",","فاصيله")
+    return res
+
+
+def ru_card_to_ord_masc_gen(d):
 
     separate = d.split(" ")
     last = separate.pop(-1)
@@ -646,80 +709,42 @@ def ru_date_to_gen(d):
 
     return gen
 
-def find_date(text):
+def ru_convert_dates(text):
     # finds simple dates like "26 november" and changes to genetive
 
-    simple_dates = re.findall(r"(\d{1,2})(?=\s*("+'|'.join(_int_to_month['ru'].values())+r")\,?)", text)
-    if simple_dates != []:
-        for tuple in simple_dates:
-            date = tuple[0]
-            text = re.sub(date, ru_date_to_gen(undigit(date, lang="ru")), text)
+    def convert_year(x):
+        return "года" if x == "г" else x
+
+    def convert_first_to_digit(x):
+        s = x.groups()
+        res = undigit(s[0], lang="ru", to="ordinal")+ " " + " ".join(map(convert_year, s[1:]))
+        return res
+    
+    def convert_last_to_digit(x):
+        s = x.groups()
+        res = " ".join(s[:-1]) + " " + undigit(s[-1], lang="ru", to="ordinal")
+        return res
+
+    # Convert day numbers
+    text = re.sub(
+        r"\b(\d{1,2})\s+("+'|'.join(_int_to_month['ru'].values())+r")\b",
+        convert_first_to_digit,
+        text
+    )
+
+    # Convert years number
+    text = re.sub(
+        r"\b("+'|'.join(_int_to_month['ru'].values())+r")\s(\d{4})\b",
+        convert_last_to_digit,
+        text
+    )
+    text = re.sub(
+        r"\b(\d{4})\s+(г)",
+        convert_first_to_digit,
+        text
+    )
 
     return text
-
-def undigit(s, lang, to="cardinal"):
-    s = re.sub(" ", "", s)
-    if "." in s:
-        n = float(s)
-    else:
-        n = int(s)
-    if to == "denominator":
-        if lang == "fr":
-            if s == "2":
-                return "demi"
-            if s == "3":
-                return "tiers"
-            if s == "4":
-                return "quart"
-        elif lang == "en":
-            if s == "2":
-                return "half"
-            if s == "4":
-                return "quarter"
-        elif lang == "es":
-            if s == "2":
-                return "mitad"
-            if s == "3":
-                return "tercio"
-        elif lang == "ru":
-            if s == "2":
-                return "половина"
-            if s == "3":
-                return "треть"
-        to = "ordinal"
-    if s.startswith("0") and to == "cardinal":
-        numZeros = len(re.findall(r"0+", s)[0])
-        if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
-    return robust_num2words(n, lang=lang, to=to, orig=s)
-
-def robust_num2words(x, lang, to="cardinal", orig=""):
-    """
-    Bugfixes for num2words
-    - 20th in French was wrong
-    - comma in Arabic
-    - avoid overflow error on big numbers
-    """
-    if lang == "ar":
-        to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
-    try:
-        res = num2words(x, lang=lang, to=to)
-    except Exception as err:
-        # Here we should expect a OverflowError, but...
-        # * TypeError can occur: https://github.com/savoirfairelinux/num2words/issues/509
-        # * IndexError can occur: https://github.com/savoirfairelinux/num2words/issues/511
-        # * decimal.InvalidOperation can occur: https://github.com/savoirfairelinux/num2words/issues/511
-        # (who knows what else can occur...)
-        warnings.warn(f"Got error of type {type(err)} on {x}")
-        if x > 0:  # !
-            res = " ".join(robust_num2words(int(xi), lang=lang, to=to, orig=xi) for xi in orig)
-        else:
-            res = _minus.get(lang, _minus["en"]) + " " + robust_num2words(-x, lang=lang, to=to, orig=orig.replace("-", ""))
-    if lang == "fr" and to == "ordinal":
-        res = res.replace("vingtsième", "vingtième")
-    elif lang == "ar":
-        res = res.replace(",","فاصيله")
-    return res
 
 _int_to_month = {
     "fr": {
