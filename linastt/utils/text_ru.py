@@ -9,8 +9,6 @@ from linastt.utils.text_utils import (
     remove_punctuations
 )
 
-from linastt.utils.text_latin import find_acronyms, roman_to_decimal
-
 _currencies = ["€", "$", "£", "¥", "₽"]
 
 
@@ -55,7 +53,7 @@ def format_text_ru(text,
                    lower_case=True,
                    keep_punc=False,
                    remove_optional_diacritics=True,
-                   force_translit=False):
+                   force_transliteration=False):
     """
 
     Args:
@@ -63,7 +61,7 @@ def format_text_ru(text,
         lower_case: switch to lower case
         keep_punc: keep punctuation or not
         remove_optional_diacritics: replaces all ё with е, does not change 'й'
-        force_translit: transliterates all non-cyrillic sentences to cyrillic
+        force_transliteration: transliterates all non-cyrillic sentences to cyrillic
 
     Returns:
         normalized text
@@ -81,7 +79,7 @@ def format_text_ru(text,
             text = re.sub("Ё", "Е", text)
             text = re.sub("ё", "е", text)
 
-    if force_translit:
+    if force_transliteration:
         if not re.match(r".*[А-я]", text):
             text = cyrtranslit.to_cyrillic(text, lang)
 

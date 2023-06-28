@@ -201,6 +201,7 @@ _symbol_to_word = {
     },
 
     "ru": {
+        "№": "номер",
         "%": "процентов",
         "٪": "процентов",
         "‰": "промилле",
@@ -522,6 +523,11 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     digits = digits + flatten([c.split() for c in digits if " " in c])
     digits = digits + flatten([c.split("/") for c in digits if "/" in c])
     digits = sorted(digits, reverse=True, key=lambda x: (len(x), x))
+
+    # Format some dates for Russian
+    if lang=="ru":
+        text = find_date(text)
+
     for digit in digits:
         digitf = re.sub("/+", "/", digit)
         if not digitf:
@@ -544,7 +550,6 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                 use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
                 if lang == "ru":
                     first = ru_date_to_gen(undigit(first, lang=lang))
-                    print(first)
                 else:
                     first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
@@ -613,6 +618,7 @@ def ru_date_to_gen(d):
     alt_roots = {
         'сто': 'сот',
         'сот': 'сот',
+        'дцать': 'дцат',
         'один': 'перв',
         'два': 'втор',
         'три': 'трет',
@@ -623,7 +629,6 @@ def ru_date_to_gen(d):
         'восемь': 'восьм',
         'девять': 'девят',
         'десять': 'десят',
-        'дцать': 'дцат',
         'сорок': 'сорок'
     }
 
@@ -640,6 +645,17 @@ def ru_date_to_gen(d):
     gen = " ".join(d for d in separate)
 
     return gen
+
+def find_date(text):
+    # finds simple dates like "26 november" and changes to genetive
+
+    simple_dates = re.findall(r"(\d{1,2})(?=\s*("+'|'.join(_int_to_month['ru'].values())+r")\,?)", text)
+    if simple_dates != []:
+        for tuple in simple_dates:
+            date = tuple[0]
+            text = re.sub(date, ru_date_to_gen(undigit(date, lang="ru")), text)
+
+    return text
 
 def undigit(s, lang, to="cardinal"):
     s = re.sub(" ", "", s)
