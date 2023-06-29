@@ -53,7 +53,7 @@ def format_text_ru(text,
                    lower_case=True,
                    keep_punc=False,
                    remove_optional_diacritics=True,
-                   force_transliteration=False):
+                   force_transliteration=True):
     """
 
     Args:
