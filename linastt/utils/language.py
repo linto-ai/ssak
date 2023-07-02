@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import langid
-
 CANDIDATE_LANGUAGES = None
 
 # List of language codes supported by langid
@@ -53,6 +51,7 @@ def check_language(
         }
     param max_gap: maximum gap between the (normalized) scores of the target language and the best predicted language, to accept the target language
     """
+    import langid
 
     # Restrict (or not the list of languages)
     global CANDIDATE_LANGUAGES
@@ -92,16 +91,35 @@ def check_language(
         return {"result": is_language, "best": best_language, "gap": gap}
     return is_language
 
+GOOGLE_TRANSLATOR = None
+
+def translate_language(text, dest, src=None):
+    if isinstance(text, str):
+        return translate_language([text], dest=dest, src=src)[0]
+    from googletrans import Translator
+    global GOOGLE_TRANSLATOR
+    if GOOGLE_TRANSLATOR is None:
+        GOOGLE_TRANSLATOR = Translator()
+    if src is None:
+        translations = GOOGLE_TRANSLATOR.translate(text, dest=dest)
+    else:
+        translations = GOOGLE_TRANSLATOR.translate(text, src=src, dest=dest)
+    return [tr.text for tr in translations]
+
+
 if __name__ == "__main__":
 
     import argparse
     import json
-    parser = argparse.ArgumentParser("Check if a text is in a given language", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser("Check if a text is in a given language, and translate it into another language", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('text', help= "The text to check", nargs="+")
-    parser.add_argument('--language', help= "The language code of the text ('fr', 'en', 'ar', etc.)", type=str, default="fr")
+    parser.add_argument('--language', help= "The language code of the input text ('fr', 'en', 'ar', etc.)", type=str, default="fr")
+    parser.add_argument('--target', help= "The language code in which to translate the text ('fr', 'en', 'ar', etc.). None means translate in the same language", type=str, default=None)
     args = parser.parse_args()
 
     text = " ".join(args.text)
     print(json.dumps(
         check_language(text, args.language, return_meta=True),
         indent=4))
+    
+    print(translate_language(text, args.target if args.target else args.language, src=args.language))

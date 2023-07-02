@@ -68,7 +68,7 @@ def check_kaldi_dir(dirname, language=None):
     p = subprocess.Popen([tool_dir + "/fix_data_dir.sh", dirname])
     p.communicate()
     if p.returncode != 0:
-        raise RuntimeError("ERROR when running fix_data_dir.sh")
+        raise RuntimeError(f"ERROR when running: {tool_dir}/fix_data_dir.sh {dirname}")
     
     if not os.path.isfile(os.path.join(dirname, "utt2dur")):
         p = subprocess.Popen([tool_dir + "/get_utt2dur.sh", dirname], stderr=subprocess.PIPE)

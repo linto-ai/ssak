@@ -543,7 +543,9 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description='Scrape a website.')
+    parser = argparse.ArgumentParser(description='Scrape a website.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument('output', type=str, default="data", help='Output folder', nargs="?")
     parser.add_argument("--browser", action="store_true", help="Open a web browser while scraping", default=False)
     parser.add_argument("--loop", action="store_true", help="Do loop infinity", default=False)
