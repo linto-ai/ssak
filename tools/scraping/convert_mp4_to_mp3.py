@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import subprocess
+from tqdm import tqdm
 
 def convert_video_to_audio(video_path, audio_path):
     subprocess.call(['ffmpeg', '-y', '-i', video_path, '-ar', '16000', '-ac','1', audio_path])
@@ -20,7 +23,7 @@ if __name__ == '__main__':
         convert_video_to_audio(args.input, args.output)
     else:
         assert os.path.isdir(args.input), f"Failed to find {args.input} (not a file nor folder)"
-        for filename in os.listdir(args.input):
+        for filename in tqdm(os.listdir(args.input)):
             if filename.endswith(".mp4"):
                 video = os.path.join(args.input, filename)
                 outputfilename = os.path.splitext(filename)[0] + ".mp3"

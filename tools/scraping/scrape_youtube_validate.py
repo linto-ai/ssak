@@ -124,7 +124,6 @@ if __name__ == '__main__':
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
     parser.add_argument('--model', help="An ASR to check that the audio content seems to be right",
         default=None,
-        # default="/home/jlouradour/projects/SpeechBrain/best_model_speechbrain",
     )
     parser.add_argument('--min_num_words', default=7, type = int, help= "Minimum number of words to be retained")
     parser.add_argument('--max_char', default=1000, type = int, help= "Maximum number of characters in a transcription to consider for language identification")
@@ -139,14 +138,25 @@ if __name__ == '__main__':
 
     csv_folder = os.path.join(path, lang)
     mp3_folder = os.path.join(path, "mp3")
-    assert os.path.exists(csv_folder), "Folder {} does not exist.".format(csv_folder)
+    for folder in [csv_folder, mp3_folder]:
+        assert os.path.exists(folder), "Folder {} does not exist.".format(folder)
 
-    csv_folder_ok = csv_folder + "_checked"
-    csv_folder_ok_rewritten = csv_folder + "_checked_formatted"
-    csv_folder_ko = csv_folder + "_discarded"
-    mp3_folder_ok = mp3_folder + "_checked"
+    mp3_folder_ok_lang = mp3_folder + "_checked_" + lang
+    mp3_folder_ok_stt = mp3_folder_ok_lang + "_stt"
 
-    for folder in [csv_folder_ok, csv_folder_ok_rewritten, csv_folder_ko, mp3_folder_ok]:
+    csv_folder_ok_lang = csv_folder + "_checked_" + lang
+    csv_folder_ok_stt = csv_folder_ok_lang + "_stt"
+    csv_folder_ko_lang = csv_folder + "_discarded_" + lang
+    csv_folder_ko_stt = csv_folder_ko_lang + "_stt"
+    csv_folder_ok_lang_rewritten = csv_folder_ok_lang + "_formatted"
+    csv_folder_ok_stt_rewritten = csv_folder_ok_stt + "_formatted"
+
+    for folder in [
+        mp3_folder_ok_lang, mp3_folder_ok_stt,
+        csv_folder_ok_lang, csv_folder_ok_stt,
+        csv_folder_ko_lang, csv_folder_ko_stt,
+        csv_folder_ok_lang_rewritten, csv_folder_ok_stt_rewritten, 
+        ]:
         os.makedirs(folder, exist_ok=True)
 
     min_num_char = float("inf")
@@ -159,16 +169,25 @@ if __name__ == '__main__':
         from linastt.infer.general import load_model
         model = load_model(args.model) # device?
 
+    do_stt = bool(model)
+
     for filename in tqdm(os.listdir(csv_folder)):
         csv_file = os.path.join(csv_folder, filename)
         mp3_file = os.path.join(mp3_folder, filename.replace(".csv", ".mp3"))
-        output_file_ok = os.path.join(csv_folder_ok, filename)
-        output_file_ok_rewritten = os.path.join(csv_folder_ok_rewritten, filename)
-        output_file_ko = os.path.join(csv_folder_ko, filename)
+        output_file_ok_lang = os.path.join(csv_folder_ok_lang, filename)
+        output_file_ok_stt = os.path.join(csv_folder_ok_stt, filename)
+        output_file_ok_lang_rewritten = os.path.join(csv_folder_ok_lang_rewritten, filename)
+        output_file_ok_stt_rewritten = os.path.join(csv_folder_ok_stt_rewritten, filename)
+        output_file_ko_lang = os.path.join(csv_folder_ko_lang, filename)
+        output_file_ko_stt = os.path.join(csv_folder_ko_stt, filename)
 
         # Skip if done
-        if os.path.exists(output_file_ok) or os.path.exists(output_file_ko):
-            continue
+        if do_stt:
+            if os.path.exists(output_file_ok_stt) or os.path.exists(output_file_ko_stt) or os.path.exists(output_file_ko_lang):
+                continue
+        else:
+            if os.path.exists(output_file_ok_lang) or os.path.exists(output_file_ko_lang):
+                continue
 
         # Skip if audio is missing (may arrive later...)
         if not os.path.exists(mp3_file):
@@ -182,7 +201,7 @@ if __name__ == '__main__':
         num_chars = len(text_one_line)
         num_words = len(text_one_line.split())
 
-        # Discard too short text
+        # Discard too short text    
         if args.min_num_words and num_words < args.min_num_words:
             discarded = f"Text too short: {text_one_line}"
 
@@ -216,19 +235,13 @@ if __name__ == '__main__':
             else:
                 discarded = f"Other language detected: {detected_language} -- ({text_one_line[:100]})"
         
-        if model and not discarded:
-            res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
-            if res:
-                discarded = f"Audio does not match transcription: {res}"
-
 
         if discarded:
             if args.verbose:
                 print(f">> {filename} -- {discarded}")
-            with open(output_file_ko, "w") as f:
+            with open(output_file_ko_lang, "w") as f:
                 f.write(f"{discarded}\n")
         else:
-
             # Only for reporting
             if num_chars < min_num_char:
                 min_num_char = num_chars
@@ -241,10 +254,35 @@ if __name__ == '__main__':
             if args.verbose and do_unupper_case:
                 print(f">> {filename} -- Upper text detected ({text_one_line[:100]})")
 
-            mp3_file_ok = os.path.join(mp3_folder_ok, os.path.basename(mp3_file))
-            os.symlink(os.path.relpath(mp3_file, mp3_folder_ok), mp3_file_ok)
-            rewrite_csv(csv_file, output_file_ok_rewritten, do_unupper_case=do_unupper_case)
-            shutil.copy2(csv_file, output_file_ok)
+            mp3_file_ok = os.path.join(mp3_folder_ok_lang, os.path.basename(mp3_file))
+            if not os.path.exists(mp3_file_ok):
+                os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_lang), mp3_file_ok)
+            rewrite_csv(csv_file, output_file_ok_lang_rewritten, do_unupper_case=do_unupper_case)
+            shutil.copy2(csv_file, output_file_ok_lang)
+
+
+        if do_stt and not discarded:
+
+            res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
+            if res:
+                discarded = f"Audio does not match transcription: {res}"
+
+
+            if discarded:
+                if args.verbose:
+                    print(f">> {filename} -- {discarded}")
+                with open(output_file_ko_stt, "w") as f:
+                    f.write(f"{discarded}\n")
+            else:
+                do_unupper_case = text_one_line.isupper()
+                if args.verbose and do_unupper_case:
+                    print(f">> {filename} -- Upper text detected ({text_one_line[:100]})")
+
+                mp3_file_ok = os.path.join(mp3_folder_ok_stt, os.path.basename(mp3_file))
+                if not os.path.exists(mp3_file_ok):
+                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_stt), mp3_file_ok)
+                rewrite_csv(csv_file, output_file_ok_stt_rewritten, do_unupper_case=do_unupper_case)
+                shutil.copy2(csv_file, output_file_ok_stt)
 
     print(f"Minimum number of characters: {min_num_char} ({argmin_num_char})")
     print(f"Minimum number of words: {min_num_words} ({argmin_num_words})")
