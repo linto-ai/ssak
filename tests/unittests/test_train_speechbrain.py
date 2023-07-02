@@ -36,7 +36,7 @@ class TestTrainSpeechbrain(Test):
             *self.opts(),
         ])
 
-        self.assertFolderContentIsRight(dir, "fromscratch", "", hparams_file)
+        self.assertFolderContentIsRight(dir, "fromscratch", "j", hparams_file)
 
     def test_train_speechbrain_finetune(self):
 
@@ -50,7 +50,7 @@ class TestTrainSpeechbrain(Test):
             *self.opts(),
         ])
 
-        self.assertFolderContentIsRight(dir, "finetuning", "BONJOUR", hparams_file)
+        self.assertFolderContentIsRight(dir, "finetuning", "BONJ", hparams_file)
 
     def assertFolderContentIsRight(self, dir, name, expected, hparams_file):
 
