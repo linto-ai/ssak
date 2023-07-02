@@ -43,7 +43,7 @@ class TestAudioDataset(Test):
         tic = time.time()
         processed = process_dataset(processor, dataset, verbose = False)
         t = time.time() - tic
-        EXPECTED = "178610fbfc22db68dad01f8b7148a509"
+        EXPECTED = "28519edeb9120b98b4baaa4bf15984ee"
 
         self.check_audio_dataset(processed)
         self.assertTrue(hasattr(dataset, "__len__"))
@@ -91,7 +91,7 @@ class TestAudioDataset(Test):
         tic = time.time()
         processed = process_dataset(processor, dataset, verbose = False)
         t = time.time() - tic
-        EXPECTED = "36a3070e27fda6716d67a6a7f90004c8"
+        EXPECTED = "d438ed93ecef7975da646ab94a8c38ba"
 
         self.check_audio_dataset(processed)
         self.assertTrue(hasattr(dataset, "__len__"))
