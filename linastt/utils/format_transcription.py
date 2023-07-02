@@ -4,6 +4,7 @@ import os
 import json
 import csv
 import numpy as np
+import re
 
 from linastt.utils.text_utils import _punctuation
 from linastt.utils.transcriber import read_transcriber
@@ -14,12 +15,23 @@ EXTENSIONS = [
     ".txt",
 ]
 
+_whisper_bad_patterns = r"(" + "|".join([
+    "sous-titres réalisés par",
+    "merci d'avoir regardé cette vidéo",
+    "voir une autre vidéo",
+]) + r")"
+
+def filter_out_segment_text_whisper_hallucinations(text):
+    text = re.sub("(^\[\*\] | \[\*\])", "", text) # remove [*]
+    text = text.strip().lower()
+    return re.match(_whisper_bad_patterns, text)
+
 def to_linstt_transcription(transcription,
     contract_words=True,
     include_punctuation_in_timestamp=False,
     remove_empty_words=True,
     recompute_text=True,
-    filter_out_segment_text_func=None,
+    filter_out_segment_text_func=None, # filter_out_segment_text_whisper_hallucinations,
     warn_if_missing_words=True,
     verbose=False,
     ):
@@ -152,7 +164,7 @@ def to_linstt_transcription(transcription,
 
                 seg[word_key] = new_words
                 if len(confidences) and "avg_logprob" not in seg:
-                    seg["avg_logprob"] = np.mean([np.log(c) for c in confidences])
+                    seg["avg_logprob"] = np.mean([np.log(max(c,0.001)) for c in confidences]) if len(confidences) else 0
 
             new_segments.append(seg)
 
@@ -173,7 +185,7 @@ def to_linstt_transcription(transcription,
         return {
             "transcription_result": text,
             "raw_transcription": text,
-            "confidence": round(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]), 3),
+            "confidence": round(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]) if len(transcription["segments"]) else 0, 3),
             "segments": [
                 {
                     "spk_id": seg.get("spk"),
