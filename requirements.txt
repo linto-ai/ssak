@@ -5,6 +5,7 @@ datasets
 datasets[audio]
 dtw-python
 envsubst
+googletrans==3.1.0a0
 huggingface_hub
 jiwer
 langid
@@ -13,10 +14,11 @@ Levenshtein
 librosa
 loralib
 matplotlib
-num2words
+# num2words>0.5.12
+git+https://github.com/linto-ai/num2words.git@0f233c5b4c950e2610ecb77a1e42eaeb4f6cb79d
 onnxruntime
 openai-whisper
-# peft
+# peft>0.3.0
 git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
 psutil
 py3nvml
@@ -29,10 +31,12 @@ python-magic
 python-slugify
 soxbindings
 tensorboard
+text2num
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
-# transformers
-git+https://github.com/huggingface/transformers.git@539e2281cd97c35ef4122757f26c88f44115fa94
+# transformers>=4.30.0
+# git+https://github.com/huggingface/transformers.git@539e2281cd97c35ef4122757f26c88f44115fa94
+transformers==4.30.2
 xmltodict
 vosk
