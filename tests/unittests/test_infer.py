@@ -171,7 +171,7 @@ class TestInferenceWhisper(Test):
             self.get_data_path("audio/bonjour.wav"),
             *opts,
         ])
-        self.assertEqual(stdout, " Bonjour!\n")
+        self.assertEqual(stdout, "Bonjour !\n")
 
         output_file = self.get_temp_path("output.txt")
         self.assertRun([
