@@ -47,7 +47,7 @@ def yt_to_dict(
         "miniplayer",
         "captions",
         "stream_monostate",
-        "watch_url",
+        "embed_url",
         "stream_monostate",
         "storyboards",
         "attestation",
@@ -127,7 +127,7 @@ def get_metadata(video_id, log_file=None):
         status = metadata["vid_info"]["playabilityStatus"].get("status")
         error = None
         if status in ["UNPLAYABLE"]:
-            url = metadata["embed_url"]
+            url = metadata["watch_url"]
             if metadata["_availability"] == "OK":
                 status = "OK"
             else:                
@@ -219,10 +219,12 @@ if __name__ == "__main__":
             "NCtzkaL2t_Y", # OK
             "kBF_NkwT768", # available but marked as not playable
             # Bad:
-            "32nkdvLq3oQ", # This video has been removed for violating YouTube's Terms of Service
+            "32nkdvLq3oQ", # "This video has been removed for violating YouTube's Terms of Service"
             "1UTk5IwG2vo", # reserved to member
             "jnaXuppkbpk", # private
-            "2w4fUaqJqzw", # removed
+            "JVzHx2w2IEI", # private
+            "FV06iXJj8q4", # removed "This video has been removed by the uploader"
+            "2w4fUaqJqzw", # removed (?)
             "aaaaaaaaaaa", # never existed
         ]
 
@@ -263,7 +265,7 @@ if __name__ == "__main__":
         total += 1
         if has_problems(metadata):
             problems += 1
-            print(f"WARNING problem {problems}/{total} ({problems*100/total:.0f}%):\n{metadata['embed_url']}\n({metadata['_status']}: {metadata['_error']})")
+            print(f"WARNING problem {problems}/{total} ({problems*100/total:.0f}%):\n{metadata['watch_url']}\n({metadata['_status']}: {metadata['_error']})")
 
         if args.output:
             with open(output_filename, "w") as f:
