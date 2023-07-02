@@ -292,3 +292,21 @@ class TestFormatTextArabic(Test):
             'سالب واحد اثنان ثلاثة أربعة خمسة ستة سبعة ثمانية تسعة واحد اثنان ثلاثة أربعة خمسة ستة سبعة ثمانية تسعة واحد اثنان ثمانية تسعة أربعة اثنان خمسة'
         )
 
+    # def test_digit_round_check(self):
+
+    #     from linastt.utils.language import translate_language
+    #     from text_to_num import alpha2digit
+
+    #     def _round(num, lang="fr"):
+    #         text_ar = format_text_ar(str(num))
+    #         text_fr = translate_language(text_ar, dest=lang, src="ar")
+    #         num_str = alpha2digit(text_fr, lang=lang)
+    #         return int(num_str)
+        
+    #     def _test_round(num, lang="fr"):
+    #         self.assertEqual(_round(num, lang=lang), num)
+        
+    #     _test_round(123)
+    #     _test_round(9128942)
+    #     _test_round(789128942)
+    #     _test_round(6789128942)
