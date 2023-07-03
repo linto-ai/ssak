@@ -7,54 +7,9 @@ from linastt.utils.text_utils import (
     cardinal_numbers_to_letters,
     convert_symbols_to_words,
     remove_punctuations,
-    format_special_characters
+    format_special_characters,
+    _currencies,
 )
-
-_currencies = ["€", "$", "£", "¥", "₽"]
-
-
-def fix_ordinals(text):
-    """
-    Fixes cases of form "10-го / 16-ая etc"
-    by putting the corresponding root into its non-nominative form
-    and appending the ending.
-
-    """
-    term = ['ый', "ой", "ий", "ый", "го", "ая", "ые", "ых"]
-
-    alt_roots = {
-        'один': 'перв',
-        'два': 'втор',
-        'три': 'трет',
-        'четыре': 'четверт',
-        'пять': 'пят',
-        'шесть': 'шест',
-        'семь': 'седьм',
-        'восемь': 'восьм',
-        'девять': 'девят',
-        'десять': 'десят',
-        'десят': 'десят',
-        'дцать': 'дцат',
-        'сорок': 'сорок',
-        'сто': 'сот',
-    }
-
-    for num, alt_num in alt_roots.items():
-        if num not in text:
-            continue
-        for t in term:
-            if t not in text:
-                continue
-            elif t == 'го':
-                if num == 'три':
-                    text = re.sub(rf'\b{num} {t}\b', f'{alt_num}ьего', text)
-                else:
-                    text = re.sub(rf'\b{num} {t}\b', f'{alt_num}ого', text)
-            else:
-                text = re.sub(rf'\b{num} {t}\b', f'{alt_num}{t}', text)
-
-    return text
-
 
 def format_text_ru(text,
                    lower_case=True,
@@ -108,7 +63,6 @@ def format_text_ru(text,
         text = remove_punctuations(text, strong=True)
 
     text = remove_parenthesis(text)
-    text = fix_ordinals(text)
 
     return text
 

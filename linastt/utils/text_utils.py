@@ -46,6 +46,8 @@ _special_characters_pattern = re.compile("["
                             u"\u3030"
                             "]+", flags=re.UNICODE)
 
+_currencies = ["€", "$", "£", "¥", "₽"]
+
 _symbol_to_word = {
     "fr": {
         "%": "pour cent",
@@ -606,6 +608,10 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             text = re.sub(r'\b'+str(digit)+r'\b', " "+word+" ", text)
         else:
             text = re.sub(str(digit), " "+word+" ", text)
+    
+    if lang == "ru":
+        text = ru_fix_ordinals(text)
+    
     return text
 
 
@@ -714,6 +720,50 @@ def ru_card_to_ord_masc_gen(d):
     gen = " ".join(d for d in separate)
 
     return gen
+
+def ru_fix_ordinals(text):
+    """
+    Fixes cases of form "10-го / 16-ая etc"
+    by putting the corresponding root into its non-nominative form
+    and appending the ending.
+
+    """
+    term = ['ый', "ой", "ий", "ый", "го", "ая", "ые", "ых"]
+
+    alt_roots = {
+        'один': 'перв',
+        'два': 'втор',
+        'три': 'трет',
+        'четыре': 'четверт',
+        'пять': 'пят',
+        'шесть': 'шест',
+        r'\bсемь': 'седьм',
+        'восемь': 'восьм',
+        'девять': 'девят',
+        'десять': 'десят',
+        'десят': 'десят',
+        'дцать': 'дцат',
+        'сорок': 'сорок',
+        'сто': 'сот',
+    }
+
+    sep = r'(\s+|\-)'
+
+    for num, alt_num in alt_roots.items():
+        if num not in text:
+            continue
+        for t in term:
+            if t not in text:
+                continue
+            if t == 'го':
+                if num == 'три':
+                    text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}ьего', text)
+                else:
+                    text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}ого', text)
+            else:
+                text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}{t}', text)
+
+    return text
 
 def ru_convert_dates(text):
 
