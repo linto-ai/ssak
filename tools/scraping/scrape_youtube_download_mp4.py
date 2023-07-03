@@ -58,8 +58,16 @@ if __name__ == "__main__":
 
     os.makedirs(output_mp4, exist_ok=True)
 
+    min_size = 0
+    max_size = 0
     for id_ in tqdm(os.listdir(input_txt)):
         id_ = os.path.splitext(id_)[0]
         output_file = f"{output_mp4}/{id_}.mp4"
         if not os.path.isfile(output_file):
             extract_mp4(id_, output_file)
+        size_file = os.stat(output_file).st_size / (1024 * 1024)
+        assert size_file > 0, f"File {output_file} has size {size_file} MB"
+        min_size = min(min_size, size_file)
+        max_size = max(max_size, size_file)
+
+    print(f"Minimum/Maximum size of extracted videos: {min_size:.2f} MB / {max_size:.2f} MB")
