@@ -6,14 +6,21 @@ from linastt.utils.text_utils import (
     regex_escape,
     cardinal_numbers_to_letters,
     convert_symbols_to_words,
-    remove_punctuations
+    remove_punctuations,
+    format_special_characters
 )
 
 _currencies = ["€", "$", "£", "¥", "₽"]
 
 
 def fix_ordinals(text):
-    term = ['ый', "ой", "ий", "ый", "го", "ая", "ья", "ые", "ых"]
+    """
+    Fixes cases of form "10-го / 16-ая etc"
+    by putting the corresponding root into its non-nominative form
+    and appending the ending.
+
+    """
+    term = ['ый', "ой", "ий", "ый", "го", "ая", "ые", "ых"]
 
     alt_roots = {
         'один': 'перв',
@@ -22,7 +29,7 @@ def fix_ordinals(text):
         'четыре': 'четверт',
         'пять': 'пят',
         'шесть': 'шест',
-        ' семь': ' седьм',
+        'семь': 'седьм',
         'восемь': 'восьм',
         'девять': 'девят',
         'десять': 'десят',
@@ -40,11 +47,11 @@ def fix_ordinals(text):
                 continue
             elif t == 'го':
                 if num == 'три':
-                    text = re.sub(f'{num} {t}', f'{alt_num}ьего', text)
+                    text = re.sub(rf'\b{num} {t}\b', f'{alt_num}ьего', text)
                 else:
-                    text = re.sub(f'{num} {t}', f'{alt_num}ого', text)
+                    text = re.sub(rf'\b{num} {t}\b', f'{alt_num}ого', text)
             else:
-                text = re.sub(f'{num} {t}', f'{alt_num}{t}', text)
+                text = re.sub(rf'\b{num} {t}\b', f'{alt_num}{t}', text)
 
     return text
 
@@ -80,7 +87,7 @@ def format_text_ru(text,
             text = re.sub("ё", "е", text)
 
     if force_transliteration:
-        if not re.match(r".*[А-я]", text):
+        if not re.match(r".*[ЁёА-я]", text):
             text = cyrtranslit.to_cyrillic(text, lang)
 
     # Reorder currencies (1,20€ -> 1 € 20)
@@ -95,9 +102,7 @@ def format_text_ru(text,
 
     text = convert_symbols_to_words(text=text, lang=lang, lower_case=lower_case)
 
-    text = re.sub("``", "\"", text)
-    text = re.sub("''", "\"", text)
-    text = re.sub("-+", "-", text)  # ---- -> -
+    text = format_special_characters(text)
 
     if not keep_punc:
         text = remove_punctuations(text, strong=True)
