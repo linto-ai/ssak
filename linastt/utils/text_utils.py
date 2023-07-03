@@ -584,13 +584,13 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                             sfirst, sthird = sthird, sfirst
                 except ValueError:
                     pass
-                use_ordinal = (lang == "ru")
-                third = undigit(sthird, lang=lang, to="ordinal" if use_ordinal else "cardinal")
             if is_date:
                 first = sfirst.lstrip("0")
                 use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
+                use_ordinal = (lang == "ru")
+                third = undigit(sthird, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 if is_islamic_date:
                     word = " ".join([third, second, first])
                 else:
