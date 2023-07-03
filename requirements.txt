@@ -15,7 +15,7 @@ librosa
 loralib
 matplotlib
 # num2words>0.5.12
-git+https://github.com/linto-ai/num2words.git@0f233c5b4c950e2610ecb77a1e42eaeb4f6cb79d
+git+https://github.com/linto-ai/num2words.git@872510dd8bfea767916067f60856fc9c360059fe
 onnxruntime
 openai-whisper
 # peft>0.3.0
