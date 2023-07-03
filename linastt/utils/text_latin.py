@@ -11,6 +11,7 @@ from linastt.utils.text_utils import (
     undigit,
     cardinal_numbers_to_letters,
     convert_symbols_to_words,
+    _currencies
 )
 
 def _rm_key(d, key):
@@ -321,11 +322,6 @@ def roman_to_decimal(str):
             res = res + s1
             i = i + 1
     return res
-
-
-
-_currencies = ["€", "$", "£", "¥"]
-
 
 #sorted(list(set([item for sublist in [w.split() for w in [num2words(i, lang='fr') for i in list(range(17)) + [i*10 for i in range(1,11)] + [1000**i for i in range(1,202)]]] for item in sublist])),key = len)
 _all_nums = [

@@ -1,6 +1,6 @@
 import os
 
-from linastt.utils.text import format_text_latin, format_text_ar
+from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru
 
 from .utils import Test
 
@@ -309,3 +309,65 @@ class TestFormatTextArabic(Test):
     #     _test_round(9128942)
     #     _test_round(789128942)
     #     _test_round(6789128942)
+
+class TestFormatTextRu(Test):
+
+    def test_format_digits(self):
+        self.assertEqual(
+            format_text_ru("2 января и 02 января и 02 января 2001 и 2001 г"),
+            "второго января и второго января и второго января две тысячи первого и две тысячи первого года"
+        )
+        self.assertEqual(
+            format_text_ru("Тест №1, Пушкин родился 26 мая (6 июня) 1799 г. в Москве, в Немецкой слободе."),
+            "тест номер один пушкин родился двадцать шестого мая шестого июня одна тысяча семьсот девяносто девятого года в москве в немецкой слободе"
+        )
+        self.assertEqual(
+            format_text_ru("29 августа, 11 сентября, 26 мая, 1 апреля, 2 января, 31 декабря"),
+            "двадцать девятого августа одиннадцатого сентября двадцать шестого мая первого апреля второго января тридцать первого декабря"
+        )
+        self.assertEqual(
+            format_text_ru("в четверг 4-го числа в 4 часа регулировщик регулировал в Лигурии, но 36%  и 6,5 кг лавировали"),
+            "в четверг четвертого числа в четыре часа регулировщик регулировал в лигурии но тридцать шесть процентов и шесть запятая пять килограмм лавировали"
+        )
+        self.assertEqual(
+            format_text_ru("Бутербрд: 1 хлеб, --------------- 40 яблок, 21мл соуса, 8,5 помидоров, 37г соли"),
+            "бутербрд один хлеб сорок яблок двадцать один миллилитр соуса восемь запятая пять помидоров тридцать семь г соли"
+        )
+        self.assertEqual(
+            format_text_ru("2378600, 78900532, 67588849214"),
+            "два миллиона триста семьдесят восемь тысяч шестьсот семьдесят восемь миллионов девятьсот тысяч пятьсот тридцать два шестьдесят семь миллиардов пятьсот восемьдесят восемь миллионов восемьсот сорок девять тысяч двести четырнадцать"
+        )
+
+    def test_options(self):
+
+        sentence = "Я помню чудное мгновенье, передо мной явилась ты. Ёжики и ёлки. This is a latin text to test."
+
+        self.assertEqual(
+            format_text_ru(sentence, keep_punc=True, lower_case=False, force_transliteration=False, remove_optional_diacritics=False),
+            "Я помню чудное мгновенье, передо мной явилась ты. Ёжики и ёлки. This is a latin text to test."
+        )
+        self.assertEqual(
+            format_text_ru(sentence, keep_punc=False, lower_case=True, force_transliteration=True, remove_optional_diacritics=True),
+            "я помню чудное мгновенье передо мной явилась ты ежики и елки this is a latin text to test"
+        )
+
+        sentence = "Now close your eyes, there goes the transliteration"
+
+        self.assertEqual(
+            format_text_ru(sentence, keep_punc=False, lower_case=True, force_transliteration=True, remove_optional_diacritics=True),
+            "нов клосе ёур еес зере гоес зе транслитератион"
+        )
+
+    def test_symbols(self):
+        self.assertEqual(
+            format_text_ru("10 * 2 = 20. 20% от 500€ = 100€"),
+            "десять умножить на два равно двадцать двадцать процентов от пятьсот евро равно сто евро"
+        )
+        self.assertEqual(
+            format_text_ru("svetlana21@mail.ru"),
+            "светлана двадцать один собака маилру"
+        )
+        self.assertEqual(
+            format_text_ru("M&Ms. 21 м³. 451°F"),
+            "m энд ms двадцать один метр в кубе четыреста пятьдесят один градус по фаренгейту"
+        )

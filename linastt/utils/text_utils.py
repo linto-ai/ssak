@@ -46,6 +46,8 @@ _special_characters_pattern = re.compile("["
                             u"\u3030"
                             "]+", flags=re.UNICODE)
 
+_currencies = ["€", "$", "£", "¥", "₽"]
+
 _symbol_to_word = {
     "fr": {
         "%": "pour cent",
@@ -199,6 +201,54 @@ _symbol_to_word = {
         "C$":"دولار كندي",
 
     },
+
+    "ru": {
+        "№": "номер",
+        "%": "процентов",
+        "٪": "процентов",
+        "=": "равно",
+        "‰": "промилле",
+        "~": "примерно",  # can I put several translations?
+        "÷": "разделить на",
+        "*": "умножить на",
+        "×": "умножить на",
+        "±": "плюс минус",
+        "+": "плюс",
+        "⁺": "плюс",
+        "⁻": "минус",
+        "&": "энд",
+        "@": "собака",
+        "кг": "килограмм",
+        # "г": "грамм",
+        "мм²": "квадратный миллиметр",
+        "мл": "миллилитр",
+        "мм³": "миллиметр в кубе",
+        "см²": "квадратный сантиметр",
+        "см³": "сантиметр в кубе",
+        "м²": "квадратный метр",
+        "м³": "метр в кубе",
+        "²": "в квадрате",
+        "³": "в кубе",
+        "⁵": "в пятой степени",
+        "⁷": "в седьмой степени",
+        "½": "одна вторая",
+        "⅓": "одна треть",
+        "⅔": "две трети",
+        "¼": "одна четверть",
+        "¾": "три четверти",
+        "§": "параграф",
+        "°C": "градус цельсия",
+        "°F": "градус по фаренгейту",
+        "°K": "градус кельвина",
+        "°": "градус",
+        "€": "евро",
+        "¢": "цент",
+        "$": "доллар",
+        "£": "фунт",
+        "¥": "йен",
+        "₹": "рупий",
+        "₽": "рубль"
+    }
 }
 
 _ar_currencies = {
@@ -309,7 +359,7 @@ def remove_special_characters(
 def regex_escape(text):
     return re.escape(text)
 
-_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛'
+_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
 _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 
 # Should we precompute?
@@ -340,6 +390,7 @@ def format_special_characters(text):
         ('…','...'),
         (r"[«“][^\S\r\n]*", '"'),
         (r"[^\S\r\n]*[»”″„]", '"'),
+        (r"(``|'')", '"'),
         (r"[’‘‛ʿ]", "'"),
         ("‚", ","),
         (r"–", "-"),
@@ -478,6 +529,11 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     digits = digits + flatten([c.split() for c in digits if " " in c])
     digits = digits + flatten([c.split("/") for c in digits if "/" in c])
     digits = sorted(digits, reverse=True, key=lambda x: (len(x), x))
+
+    # Format some dates for Russian
+    if lang=="ru":
+        text = ru_convert_dates(text)
+
     for digit in digits:
         digitf = re.sub("/+", "/", digit)
         if not digitf:
@@ -497,8 +553,8 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (lang != "fr" and first[-1] in ["1", "2", "3"])
-                first = undigit(first, lang=lang,to="ordinal" if use_ordinal else "cardinal")
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
                 first = undigit(digitf[:i], lang=lang)
@@ -529,13 +585,14 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                             first, third = third, first
                             sfirst, sthird = sthird, sfirst
                 except ValueError:
-                    pass 
-            third = undigit(sthird, lang=lang)
+                    pass
             if is_date:
                 first = sfirst.lstrip("0")
-                use_ordinal = (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
+                use_ordinal = (lang == "ru")
+                third = undigit(sthird, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 if is_islamic_date:
                     word = " ".join([third, second, first])
                 else:
@@ -551,9 +608,14 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
             text = re.sub(r'\b'+str(digit)+r'\b', " "+word+" ", text)
         else:
             text = re.sub(str(digit), " "+word+" ", text)
+    
+    if lang == "ru":
+        text = ru_fix_ordinals(text)
+    
     return text
 
-def undigit(s, lang, to="cardinal"):
+
+def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
     s = re.sub(" ", "", s)
     if "." in s:
         n = float(s)
@@ -577,12 +639,22 @@ def undigit(s, lang, to="cardinal"):
                 return "mitad"
             if s == "3":
                 return "tercio"
+        elif lang == "ru":
+            if s == "2":
+                return "вторых"
+            if s == "3":
+                return "третьих"
+            if s == "4":
+                return "четверти"
         to = "ordinal"
-    if s.startswith("0") and to == "cardinal":
+    if lang == "ru" and to == "ordinal" and type=="masc_gen":
+        return ru_card_to_ord_masc_gen(undigit(s, lang, to="cardinal", ignore_first_zeros=True))
+    if not ignore_first_zeros and s.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", s)[0])
         if numZeros < len(s):
             return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
     return robust_num2words(n, lang=lang, to=to, orig=s)
+
 
 def robust_num2words(x, lang, to="cardinal", orig=""):
     """
@@ -611,6 +683,123 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     elif lang == "ar":
         res = res.replace(",","فاصيله")
     return res
+
+
+def ru_card_to_ord_masc_gen(d):
+
+    separate = d.split(" ")
+    last = separate.pop(-1)
+
+    alt_roots = {
+        'сто': 'сот',
+        'сот': 'сот',
+        'дцать': 'дцат',
+        'один': 'перв',
+        'два': 'втор',
+        'три': 'трет',
+        'четыре': 'четверт',
+        'пять': 'пят',
+        'шесть': 'шест',
+        'семь': 'седьм',
+        'восемь': 'восьм',
+        'девять': 'девят',
+        'десять': 'десят',
+        'сорок': 'сорок'
+    }
+
+    for num, alt_num in alt_roots.items():
+        if num in last:
+            if num == 'три':
+                last = re.sub(num, alt_num + 'ьего', last)
+                break
+            else:
+                last = re.sub(num, alt_num + 'ого', last)
+                break
+
+    separate.append(last)
+    gen = " ".join(d for d in separate)
+
+    return gen
+
+def ru_fix_ordinals(text):
+    """
+    Fixes cases of form "10-го / 16-ая etc"
+    by putting the corresponding root into its non-nominative form
+    and appending the ending.
+
+    """
+    term = ['ый', "ой", "ий", "ый", "го", "ая", "ые", "ых"]
+
+    alt_roots = {
+        'один': 'перв',
+        'два': 'втор',
+        'три': 'трет',
+        'четыре': 'четверт',
+        'пять': 'пят',
+        'шесть': 'шест',
+        r'\bсемь': 'седьм',
+        'восемь': 'восьм',
+        'девять': 'девят',
+        'десять': 'десят',
+        'десят': 'десят',
+        'дцать': 'дцат',
+        'сорок': 'сорок',
+        'сто': 'сот',
+    }
+
+    sep = r'(\s+|\-)'
+
+    for num, alt_num in alt_roots.items():
+        if num not in text:
+            continue
+        for t in term:
+            if t not in text:
+                continue
+            if t == 'го':
+                if num == 'три':
+                    text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}ьего', text)
+                else:
+                    text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}ого', text)
+            else:
+                text = re.sub(rf'{num}{sep}{t}\b', f'{alt_num}{t}', text)
+
+    return text
+
+def ru_convert_dates(text):
+
+    def convert_year(x):
+        return "года" if x == "г" else x
+
+    def convert_first_to_digit(x):
+        s = x.groups()
+        res = undigit(s[0], lang="ru", to="ordinal")+ " " + " ".join(map(convert_year, s[1:]))
+        return res
+    
+    def convert_last_to_digit(x):
+        s = x.groups()
+        res = " ".join(s[:-1]) + " " + undigit(s[-1], lang="ru", to="ordinal")
+        return res
+
+    # Convert day numbers
+    text = re.sub(
+        r"\b(\d{1,2})\s+("+'|'.join(_int_to_month['ru'].values())+r")\b",
+        convert_first_to_digit,
+        text
+    )
+
+    # Convert years number
+    text = re.sub(
+        r"\b("+'|'.join(_int_to_month['ru'].values())+r")\s(\d{4})\b",
+        convert_last_to_digit,
+        text
+    )
+    text = re.sub(
+        r"\b(\d{4})\s+(г)",
+        convert_first_to_digit,
+        text
+    )
+
+    return text
 
 _int_to_month = {
     "fr": {
@@ -668,8 +857,22 @@ _int_to_month = {
         10: "شوال",
         11: "ذو القعدة",
         12: "ذو الحجة",
+    },
+    "ru": { # all forms are genetive
+        1: "января",
+        2: "февраля",
+        3: "марта",
+        4: "апреля",
+        5: "мая",
+        6: "июня",
+        7: "июля",
+        8: "августа",
+        9: "сентября",
+        10: "октября",
+        11: "ноября",
+        12: "декабря",
     }
-    
+
 }
 _punct_to_word = {
     "fr": {
@@ -696,6 +899,14 @@ _punct_to_word = {
         "?": "علامه الاستفهام",
         "!": "علامه التعجب",
     },
+    "ru": {
+        ",": "запятая",
+        ".": "точка",
+        ";": "точка с запятой",
+        ":": "двоеточие",
+        "?": "вопросительный знак",
+        "!": "восклицательный знак",
+    }
 }
 
 _minus = {
