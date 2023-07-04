@@ -82,10 +82,10 @@ if __name__ == "__main__":
     if save_plot:
 
         plotdata = df
-        plotdata.plot(kind="bar", colormap='PuOr', stacked=True)
+        plotdata.plot(kind="bar", colormap='PuOr', stacked=False)
         plt.title("VOSK models comparison")
         plt.xlabel("Corpus")
-        plt.ylabel("WER")
+        plt.ylabel("WER %")
 
         plt.tight_layout()
 

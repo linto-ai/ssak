@@ -57,6 +57,8 @@ def format_text_ru(text,
 
     text = convert_symbols_to_words(text=text, lang=lang, lower_case=lower_case)
 
+    text = re.sub('-', ' ', text)
+
     text = format_special_characters(text)
 
     if not keep_punc:
