@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import shutil
 
 import subprocess
 import torchaudio
@@ -26,8 +27,8 @@ def linstt_transcribe(
         return_raw=True,
         wordsub={},
         verbose=False,
-        timeout = 3600,
-        timeout_progress0 = 3600, # For transcription that is never starting (seems to be a bug currently)
+        timeout = 3600 * 24,
+        timeout_first = 3600,
         ping_interval = 1,
         delete_temp_files = True,
         transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
@@ -41,14 +42,16 @@ def linstt_transcribe(
         convert_numbers (bool): Convert numbers to words.
         punctuation (bool): Add punctuation to the transcription.
         diarization (bool or int): Enable diarization. If int, set the number of speakers.
-        return_raw (bool): Return the raw response from the linstt service.
+        return_raw (bool): Return the raw response from linstt service.
         wordsub (dict): Dictionary of words to substitute.
-        verbose (bool): Print curl command.
-        timeout (int): Timeout in seconds.
-        timeout_progress0 (int): Timeout in seconds if the transcription is not starting.
-        ping_interval (int): Interval in seconds between two pings to the linstt service.
+        verbose (bool): Print curl command, and progress while waiting for job to finish.
+        timeout (float|int|None): Timeout in seconds for the full transcription.
+        timeout_first (float|int|None): Timeout in seconds for the transcription of the first audio segment.
+        ping_interval (float|int): Interval in seconds between two pings to the http server.
     """
     assert os.path.isfile(audio_file), f"File {audio_file} does not exist."
+    if not timeout:
+        timeout = float("inf")
     assert timeout > 0, f"Timeout must be > 0, got {timeout}"
 
     token = None # cm_get_token("https://convos.linto.ai/cm-api", email, password, verbose=verbose)
@@ -162,10 +165,13 @@ def linstt_transcribe(
         slept = 0
         slept_minus_preproc = 0
         result_id = None
+        start_time = time.time()
         while slept < timeout:
             result_id = curl_get(transcription_server + f"/job/{jobid}",
                 verbose=verbose and (slept==0)
             )
+            if verbose:
+                print_progress(result_id, slept)
             assert "state" in result_id, f"'state' not found in response: {result_id}"
             if result_id["state"] == "done":
                 break
@@ -173,13 +179,13 @@ def linstt_transcribe(
                 raise RuntimeError(f"Job failed for reason:\n{result_id['reason']}")
                 break
             time.sleep(ping_interval)
-            slept += ping_interval
+            slept = time.time() - start_time
             if "steps" in result_id and "transcription" in result_id["steps"]:
                 progress = result_id["steps"].get("preprocessing", {"progress": 1.0})["progress"] 
                 if progress >= 1.0:
                     progress = result_id["steps"]["transcription"]["progress"]
-                    if progress == 0.0 and timeout_progress0 and (slept - slept_minus_preproc) > timeout_progress0:
-                        raise RuntimeError(f"Timeout of {timeout_progress0} seconds reached.")
+                    if progress == 0.0 and timeout_first and (slept - slept_minus_preproc) > timeout_first:
+                        raise RuntimeError(f"Timeout of {timeout_first} seconds reached.")
                 else:
                     slept_minus_preproc = slept
         if result_id["state"] != "done":
@@ -201,6 +207,37 @@ def linstt_transcribe(
         os.remove(fn)
 
     return output
+
+def print_progress(result, seconds, keys= ["progress", "status", "state"]):
+    hours, remainder = divmod(round(seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    string_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    string_progress = str(select_keys(result, keys))
+    string = f"{string_time} {string_progress}"
+    terminal_size = shutil.get_terminal_size()
+    width = terminal_size.columns
+    if len(string) > width:
+        if len(keys) > 1:
+            return print_progress(result, seconds, keys[:-1])
+        string = string[:width]
+    print(string + " " * (width - len(string)), end="\r")
+
+
+def select_keys(d, keys, ignore_keys = ["preprocessing", "postprocessing"]):
+    if isinstance(d, dict):
+        result = {}
+        for k, v in d.items():
+            if k in ignore_keys:
+                continue
+            if k in keys:
+                result[k] = v
+            elif isinstance(v, dict):
+                result[k] = select_keys(v, keys)
+                if not result[k]:
+                    del result[k]
+        return result
+    return d
+
 
 def check_wav_16khz_mono(wavfile):
     """
