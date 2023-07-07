@@ -42,6 +42,8 @@ def get_duration(utt2dur_file):
     }
 
 def second2time(val):
+    if val == float("inf"):
+        return "_"
     # Convert seconds to time
     hours = int(val // 3600)
     minutes = int((val % 3600) // 60)
