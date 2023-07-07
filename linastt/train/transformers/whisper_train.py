@@ -342,11 +342,9 @@ if __name__ == "__main__":
             from linastt.utils.text_utils import remove_punctuations
             def text_augmenter(text):
                 input_tokens_before = tokenizer_func(text)
+                
                 assert len(input_tokens_before) <= MAX_TEXT_LENGTH, "Input text length exceeds MAX_TEXT_LENGTH."
-                if len(input_tokens_before) > MAX_TEXT_LENGTH:
-                    print("Warning: Input text length exceeds MAX_TEXT_LENGTH. Performing text augmentation.")
-                    return text_augmenter(text)
-
+    
                 text = remove_arabic_diacritics(text)
                 if random.random() < 0.5:
                     text = convert_symbols_to_words(text, language, lower_case=False)
