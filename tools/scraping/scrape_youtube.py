@@ -81,6 +81,8 @@ def get_transcripts_if(vid, if_lang="fr", all_auto=False, verbose=True):
     discarded = not has_language
     if not all_auto:
         discarded = discarded or (not has_auto and not only_has_language)
+    if not if_lang:
+        discarded = False
     if discarded:
         msg = f"Video {vid} discarded. Languages: {', '.join(t.language for t in transcripts)}"
         if verbose:
