@@ -2,7 +2,7 @@
 shopt -s expand_aliases
 source ~/.bashrc
 
-# bboi_get /data-storage/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/YouTubeFr --exclude mp4 /media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/
+# bboi_get /data-storage/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/YouTubeFr --exclude discarded --exclude mp4 /media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/
 
 while [ 1 -gt 0 ];do
     

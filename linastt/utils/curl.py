@@ -95,7 +95,7 @@ def _curl_do(action, url, options, headers=[], post_as_fields=False, default=Non
 '{url}' \\\n\t\
 -H 'accept: application/json' \\\n\t\
 {headers_str}\
-{options_str}"
+{options_str}".rstrip("\\\n\t ")
         # Do not print passwords
         cmd_str = re.sub(r"(-F 'password=b')([^']*)(')", r"\1XXX\3", cmd_str)
         print(cmd_str)

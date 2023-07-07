@@ -6,6 +6,7 @@ import argparse
 import warnings
 
 from linastt.utils.kaldi import check_kaldi_dir
+from linastt.utils.text_utils import format_special_characters
 
 
 def generate_kaldi_data(audio_folder, transcription_folder, output_folder, extension='mp3'):
@@ -36,7 +37,7 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                 warnings.warn(f"Ignoring {audio_file} because it is not in the expected format (no extension .{extension}).", UserWarning)
                 continue
 
-            audio_name = "youtube_" + os.path.splitext(audio_file)[0]
+            audio_name = os.path.splitext(audio_file)[0]
             # Remove the extension
             audio_path = os.path.join(audio_folder, audio_file)
 
@@ -47,22 +48,31 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                 warnings.warn(f"Missing transcription file: {transcription_path}\nSkipping this iteration.", UserWarning)
                 continue
       
-            with open(transcription_path, "r") as f:  
-                reader = csv.reader(f, delimiter=";")
-                next(reader)  # skip the first row (headers)
-                wav_scp.write(f"{audio_name} sox {audio_path} -t wav -r 16000  -b 16 -c 1 - |\n")
-                for _id, row in enumerate(reader):
-                    utt_id = f"{audio_name}-seg_{_id:04d}"
-                    text, start, duration = row
-                    start = float(start)
-                    duration = float(duration)
-                    end = start + duration
-                    segments.write(f"{utt_id} {audio_name} {start:.2f} {end:.2f}\n")
-                    txt.write(f"{utt_id} {text}\n")
-                    utt2dur.write(f"{utt_id} {duration}\n")
-                    utt2spk.write(f"{utt_id} {utt_id}\n")
-                    spk2utt.write(f"{utt_id} {utt_id}\n")
-                    spk2gender.write(f"{utt_id} m\n")
+            try:
+                with open(transcription_path, "r") as f:  
+                    reader = csv.reader(f, delimiter=";")
+                    next(reader)  # skip the first row (headers)
+                    wav_scp.write(f"{audio_name} sox {audio_path} -t wav -r 16000  -b 16 -c 1 - |\n")
+                    for _id, row in enumerate(reader):
+                        if len(row) == 0:
+                            continue
+                        utt_id = f"youtube_{audio_name}-seg_{_id:04d}"
+                        try:
+                            text, start, duration = row
+                        except ValueError as err:
+                            raise RuntimeError(f"Error on line {_id}: {row}") from err
+                        text = format_special_characters(text)
+                        start = float(start)
+                        duration = float(duration)
+                        end = start + duration
+                        segments.write(f"{utt_id} {audio_name} {start:.2f} {end:.2f}\n")
+                        txt.write(f"{utt_id} {text}\n")
+                        utt2dur.write(f"{utt_id} {duration}\n")
+                        utt2spk.write(f"{utt_id} {utt_id}\n")
+                        spk2utt.write(f"{utt_id} {utt_id}\n")
+                        spk2gender.write(f"{utt_id} m\n")
+            except Exception as e:
+                raise RuntimeError(f"Error while reading {transcription_path}") from e
 
     check_kaldi_dir(output_folder)
 

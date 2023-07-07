@@ -1,5 +1,6 @@
 from .text_latin import format_text_latin
 from .text_ar import format_text_ar
+from .text_ru import format_text_ru
 from .text_utils import (
     collapse_whitespace,
     remove_punctuations,
@@ -21,4 +22,6 @@ def format_text(text, language, **kwargs):
         return format_text_latin(text, lang=language, **kwargs)
     if language == "ar":
         return format_text_ar(text, **kwargs)
+    if language == "ru":
+        return format_text_ru(text, **kwargs)
     raise NotImplementedError(f"Language {language} not supported yet")
