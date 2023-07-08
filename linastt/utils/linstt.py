@@ -210,8 +210,8 @@ def linstt_transcribe(
 
 def print_progress(result, seconds, keys= ["progress", "status", "state"]):
     hours, remainder = divmod(round(seconds), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    string_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    minutes, sec = divmod(remainder, 60)
+    string_time = f"{hours:02d}:{minutes:02d}:{sec:02d}"
     string_progress = str(select_keys(result, keys))
     string = f"{string_time} {string_progress}"
     terminal_size = shutil.get_terminal_size()
