@@ -341,6 +341,10 @@ if __name__ == "__main__":
                 get_arabic_only
             from linastt.utils.text_utils import remove_punctuations
             def text_augmenter(text):
+                input_tokens_before = tokenizer_func(text)
+                
+                assert len(input_tokens_before) <= MAX_TEXT_LENGTH, "Input text length exceeds MAX_TEXT_LENGTH."
+    
                 text = remove_arabic_diacritics(text)
                 if random.random() < 0.5:
                     text = convert_symbols_to_words(text, language, lower_case=False)
@@ -354,6 +358,12 @@ if __name__ == "__main__":
                     text = normalize_punct(text)
                     if text[-1] not in ',-:!;.؛؟،?_':
                         text += "."
+
+                output_tokens = tokenizer_func(text)
+                if len(output_tokens) > MAX_TEXT_LENGTH:
+                    print("Warning: Output text length exceeds MAX_TEXT_LENGTH. Performing text augmentation.")
+                    return text_augmenter(text)
+
                 return text
         else:
             raise NotImplementedError(f"Text augmentation is not implemented for language {language}")
