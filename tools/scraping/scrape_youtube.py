@@ -46,7 +46,13 @@ def register_discarded_id(video_id, path, reason = ''):
         os.makedirs(path)
     with open(f'{path}/{video_id}.txt','w') as f:
         f.write(str(reason)+'\n')
-        
+
+def unregister_discarded_id(video_id, path):
+    path = f'{path}/discarded'
+    if os.path.isfile(f'{path}/{video_id}.txt'):
+        print(f"Video {video_id} now accepted :)")
+        os.remove(f'{path}/{video_id}.txt')
+
 def is_automatic(language):
     # Check if the language string contains the word "auto" or the Arabic word "تلقائيًا"
     if "auto" in language.lower() or "تلقائيًا" in language:
@@ -244,7 +250,8 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
    
     # save a videos_ids in a file
     n = len(video_ids)
-    video_ids = get_new_ids(video_ids, path, "mp4" if extract_audio else if_lang)
+    if skip_if_exists:
+        video_ids = get_new_ids(video_ids, path, "mp4" if extract_audio else if_lang)
     print(f"Got {len(video_ids)} new video ids / {n}")
     
     for vid in video_ids:
@@ -253,6 +260,8 @@ def scrape_transcriptions(video_ids, path, if_lang, extract_audio=False, all_aut
         if not isinstance(transcripts, dict) or not transcripts:
             register_discarded_id(vid, path, reason = transcripts)
             continue
+        if not skip_if_exists:
+            unregister_discarded_id(vid, path)
 
         if verbose:
             print(f"Video {vid} accepted. Languages: {', '.join(transcripts.keys())}")
@@ -388,12 +397,12 @@ if __name__ == '__main__':
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
     parser.add_argument('--extract_audio', default=False, action="store_true", help= "If set, the audio will be downloaded (in mp4 format) and saved on the fly.")
     parser.add_argument('--all_auto', help= "Extract Youtube content as soon as there is the language in the target language", action="store_true", default=False)
+    parser.add_argument('--video_ids', help= "An explicit list of video ids.", type=str, default = None)
     parser.add_argument('--search_query', help= "The search query that you want to use to search for YouTube videos. If neither --search_query nor --video_ids are specified, a series of queries will be generated automatically.", type=str)
+    parser.add_argument('--search_channels', default=False, action="store_true", help= "Whether to search for channels.")
     parser.add_argument('--ngram', default="3", type=str, help= "n-gram to generate queries (integer or list of integers separated by commas).")
-    parser.add_argument('--video_ids', help= "A list of video ids (can be specified without search_query)", type=str, default = None)
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
-    parser.add_argument('--search_channels', default=False, action="store_true", help= "Whether to search for channels.")
 
     args = parser.parse_args()
     should_extract_audio = args.extract_audio
@@ -407,6 +416,12 @@ if __name__ == '__main__':
         queries = parse_ngrams(args.search_query, ns=1 if args.search_channels else args.ngram)
     else:
         queries = [args.search_query] if args.search_query else [None]
+
+    skip_if_exists = True
+    if args.video_ids:
+        assert queries == [None], "Cannot provide both a search query and a list of video ids"
+        skip_if_exists = False
+    
     path = args.path
     if not path:
         # YouTubeEn, YouTubeFr, etc.
@@ -433,7 +448,13 @@ if __name__ == '__main__':
 
             if args.video_ids:
                 assert query is None, "--search_query should not be specified when --video_ids is specified"
-                video_ids = args.video_ids.split(",")
+                if os.path.isfile(args.video_ids):
+                    with open(args.video_ids, 'r') as f:
+                        video_ids = [os.path.splitext(os.path.basename(line.strip()))[0] for line in f]
+                elif os.path.isdir(args.video_ids):
+                    video_ids = [os.path.splitext(f)[0] for f in os.listdir(args.video_ids)]
+                else:
+                    video_ids = args.video_ids.split(",")
                 print(f'========== get subtitles for videos in {lang} =========')
             elif args.search_channels:
                 assert query is not None
@@ -445,7 +466,7 @@ if __name__ == '__main__':
                 video_ids = search_videos_ids(query, open_browser=args.open_browser)
 
             print(f'========== get subtitles for videos in {lang} =========')
-            scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, all_auto=args.all_auto)
+            scrape_transcriptions(video_ids, path, lang, extract_audio=should_extract_audio, skip_if_exists=skip_if_exists, all_auto=args.all_auto)
 
             isok = True
         
