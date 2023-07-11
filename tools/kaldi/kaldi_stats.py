@@ -5,8 +5,10 @@ import sys
 import os
 
 from linastt.utils.misc import commonprefix
+from linastt.utils.kaldi import parse_kaldi_wavscp
+from linastt.utils.audio import get_audio_duration
 
-def get_duration(utt2dur_file):
+def get_utt2dur_duration(utt2dur_file):
 
     if os.path.isdir(utt2dur_file):
         utt2dur_file += "/utt2dur"
@@ -33,9 +35,32 @@ def get_duration(utt2dur_file):
     except Exception as e:
         raise RuntimeError(f"Error while reading {utt2dur_file} (line: {line})") from e
 
+
+    UNK = "_"
+    number_wav = UNK
+    duration_wav = UNK
+    wavscp = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "wav.scp")
+    segments = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "segments")
+    if os.path.isfile(wavscp):
+        with open(wavscp, 'r') as f:
+            number_wav = len([l for l in f.readlines() if l.strip()])
+        wav = parse_kaldi_wavscp(wavscp)
+        if not os.path.isfile(segments):
+            duration_wav = total_duration
+        else:
+            duration_wav = 0
+            for _, path in wav.items():
+                if os.path.isfile(path):
+                    duration_wav += get_audio_duration(path)
+                else:
+                    duration_wav = UNK
+                    break
+
     return {
         "name": os.path.dirname(utt2dur_file),
-        "number": number,
+        "# wav": number_wav,
+        "wav duration": duration_wav,
+        "# segments": number,
         "total duration": total_duration,
         "min duration": min_duration,
         "max duration": max_duration,
@@ -104,6 +129,6 @@ if __name__ == "__main__":
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
-            all_stats.append(get_duration(filename))
+            all_stats.append(get_utt2dur_duration(filename))
 
     print_stats(all_stats)

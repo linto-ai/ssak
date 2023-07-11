@@ -1,9 +1,8 @@
-from linastt.utils.linstt import linstt_streaming
-if __name__ == "__main__":
+#!/usr/bin/env python3
 
-    import sys
-    import os
-    import json
+from linastt.utils.linstt import linstt_streaming
+
+if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser(description='Transcribe audio file with LinSTT',

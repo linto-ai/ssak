@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from linastt.utils.linstt import linstt_transcribe
 
 if __name__ == "__main__":
