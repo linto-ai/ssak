@@ -3,8 +3,10 @@
 import subprocess
 import os
 import shutil
+from tqdm import tqdm
 
-def extract_mp4(vid, foldername):
+def extract_mp4(vid, output_file):
+    vid = os.path.basename(os.path.splitext(vid)[0])
     CMD = [
         "youtube-dl",
         "--extract-audio",
@@ -23,24 +25,49 @@ def extract_mp4(vid, foldername):
         ")
     output = f"{vid}.mp4"
     if not os.path.isfile(output):
+        print(f"WARNING: Failed to extract {vid} using {' '.join(CMD)}")
         return
     assert os.path.isfile(output), f"Failed to extract {vid} using {' '.join(CMD)}"
-    shutil.move(output, f"{foldername}/{output}")
+    shutil.move(output, output_file)
+    assert os.path.isfile(output_file), f"Failed to extract {vid} to {output_file}"
 
 if __name__ == "__main__":
 
     import sys
 
-    input_folder = os.path.realpath("YouTubeFr") if len(sys.argv) == 1 else sys.argv[1]
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Download mp4 video of a folder extracted with scrape_youtube.py.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('path', help= "Output folder path where audio and annotations will be saved (default: YouTubeFr, or YouTubeLang for another language than French).", type=str, nargs='?', default=None)
+    parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
+    # parser.add_argument('-v', '--verbose', help= "Print more information", action='store_true')
+    args = parser.parse_args()
 
-    input_txt = f"{input_folder}/fr"
-    output_mp4 = f"{input_folder}/mp4"
+    path = os.path.realpath("YouTubeFr") if len(sys.argv) == 1 else sys.argv[1]
 
-    for id_ in os.listdir(input_txt):
+    lang = args.language
+    path = args.path
+    if not path:
+        # YouTubeEn, YouTubeFr, etc.
+        path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
+
+    input_txt = f"{path}/{lang}"
+    output_mp4 = f"{path}/mp4"
+
+    os.makedirs(output_mp4, exist_ok=True)
+
+    min_size = 0
+    max_size = 0
+    for id_ in tqdm(os.listdir(input_txt)):
         id_ = os.path.splitext(id_)[0]
         output_file = f"{output_mp4}/{id_}.mp4"
         if not os.path.isfile(output_file):
-            extract_mp4(id_, output_mp4)
-        if not os.path.isfile(output_file):
-            continue
-        assert os.path.isfile(output_file), f"Failed to extract {id_} to {output_file}"
+            extract_mp4(id_, output_file)
+        size_file = os.stat(output_file).st_size / (1024 * 1024)
+        assert size_file > 0, f"File {output_file} has size {size_file} MB"
+        min_size = min(min_size, size_file)
+        max_size = max(max_size, size_file)
+
+    print(f"Minimum/Maximum size of extracted videos: {min_size:.2f} MB / {max_size:.2f} MB")

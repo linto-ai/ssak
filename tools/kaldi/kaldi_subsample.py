@@ -3,6 +3,7 @@
 
 import os
 import random
+import regex as re
 
 
 from linastt.utils.kaldi import check_kaldi_dir
@@ -12,6 +13,7 @@ def create_cut(
     input_folder,
     output_folder,
     maximum,
+    regex=None,
     random_seed=None,
     throw_if_output_exists=True,
     ):
@@ -31,13 +33,30 @@ def create_cut(
             random.seed(random_seed)
             lines = f.readlines()
             random.shuffle(lines)
-            for i, line in zip(range(maximum), lines):
-                utt_ids.append(_get_first_field(line))
+            num_dones = 0
+            for i, line in enumerate(lines):
+                if maximum and num_dones == maximum:
+                    break
+                id = _get_first_field(line)
+                if regex and not re.search(regex + r"$", id):
+                    continue
+                utt_ids.append(id)
                 text_file.write(line)
+                num_dones += 1
         else:
-            for i, line in zip(range(maximum), f):
-                utt_ids.append(_get_first_field(line))
+            num_dones = 0
+            for i, line in enumerate(f):
+                if maximum and num_dones == maximum:
+                    break
+                id = _get_first_field(line)
+                if regex and not re.search(regex + r"$", id):
+                    continue
+                utt_ids.append(id)
                 text_file.write(line)
+                num_dones += 1
+
+    if len(utt_ids) == 0:
+        raise RuntimeError("No utterances found")
 
     if os.path.isfile(input_folder + "/segments"):
         wav_ids = []
@@ -113,8 +132,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Create a kaldi folder with only a subset of utterances from a kaldi folder")
     parser.add_argument("input_folder", type=str, help="Input folder with kaldi files")
     parser.add_argument("output_folder", type=str, help="Output folder")
-    parser.add_argument("maximum", type=int, help="Number of lines to keep (maximum)")
+    parser.add_argument("--maximum", type=int, help="Number of lines to keep (maximum)", default=None)
+    parser.add_argument("--regex", default=None, type=str, help="A regular expression to select an id")
     parser.add_argument("--random_seed", default=None, type=int, help="Random seed to choose randomly the utterances (if not specified, the first utterances will be taken)")
     args = parser.parse_args()
 
-    create_cut(args.input_folder, args.output_folder, args.maximum, args.random_seed)
+    create_cut(
+        args.input_folder, args.output_folder,
+        maximum=args.maximum,
+        random_seed=args.random_seed,
+        regex=args.regex,
+    )

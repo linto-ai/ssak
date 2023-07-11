@@ -1,5 +1,4 @@
 import re
-import cyrtranslit
 
 from linastt.utils.text_utils import (
     remove_parenthesis,
@@ -29,6 +28,8 @@ def format_text_ru(text,
         normalized text
 
     """
+    import cyrtranslit
+
     lang = "ru"
     text_orig = text
 

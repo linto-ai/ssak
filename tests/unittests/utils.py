@@ -91,14 +91,14 @@ class Test(unittest.TestCase):
         self.assertEqual(p.returncode, 0, msg = stderr.decode("utf-8"))
         return stdout.decode("utf-8")
 
-    def assertNonRegression(self, content, reference, process = None, process_reference_lines = None):
+    def assertNonRegression(self, content, reference_name, process = None, process_reference_lines = None):
         """
         Check that a file/folder is the same as a reference file/folder.
         """
         self.assertTrue(os.path.exists(content))
-        is_file = os.path.isfile(reference) if os.path.exists(reference) else os.path.isfile(content)
 
-        reference = self._get_path("tests/expected", reference, check = False)
+        reference = self._get_path("tests/expected", reference_name, check = False)
+        is_file = os.path.isfile(reference) if os.path.exists(reference) else os.path.isfile(content)
         if not os.path.exists(reference):
             self.assertTrue(not process_reference_lines)
             dirname = os.path.dirname(reference)
@@ -118,12 +118,12 @@ class Test(unittest.TestCase):
             for root, dirs, files in os.walk(content):
                 for f in files:
                     f_ref = os.path.join(reference, f)
-                    self.assertTrue(os.path.isfile(f_ref), f"Additional file: {f}")
+                    self.assertTrue(os.path.isfile(f_ref), f"Additional file: {f} in {reference_name}")
                     self._check_file_non_regression(os.path.join(root, f), f_ref, process = process, process_reference_lines = process_reference_lines)
             for root, dirs, files in os.walk(reference):
                 for f in files:
                     f = os.path.join(content, f)
-                    self.assertTrue(os.path.isfile(f), f"Missing file: {f}")
+                    self.assertTrue(os.path.isfile(f), f"Missing file: {f} in {reference_name}")
 
     def _check_file_non_regression(self, file, reference, process, process_reference_lines):
         # TODO: handle numeric difference (by correctly loading json files...)

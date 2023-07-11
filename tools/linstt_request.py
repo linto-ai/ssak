@@ -37,21 +37,17 @@ if __name__ == "__main__":
 
         for audio_file in args.audio_file:
             print("Processing", audio_file)
-            try:
-                result = linstt_transcribe(
-                    audio_file,
-                    transcription_server=args.transcription_server,
-                    diarization_server=args.diarization_server,
-                    diarization=args.num_speakers,
-                    convert_numbers=args.convert_numbers,
-                    punctuation=not args.disable_punctuation,
-                    min_vad_duration=args.min_vad_duration,
-                    diarization_service_name=args.diarization_service_name,
-                    verbose=args.verbose,
-                )
-            except Exception as e:
-                print(e)
-                continue
+            result = linstt_transcribe(
+                audio_file,
+                transcription_server=args.transcription_server,
+                diarization_server=args.diarization_server,
+                diarization=args.num_speakers,
+                convert_numbers=args.convert_numbers,
+                punctuation=not args.disable_punctuation,
+                min_vad_duration=args.min_vad_duration,
+                diarization_service_name=args.diarization_service_name,
+                verbose=args.verbose,
+            )
             json.dump(result, f, indent=2, ensure_ascii=False)
             f.flush()
             if args.output_dir:

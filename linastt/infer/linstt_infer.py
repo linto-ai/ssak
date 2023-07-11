@@ -57,14 +57,17 @@ def linstt_infer(
             save_audio(tmp_file, audio, sample_rate = sample_rate)
 
             tic()
-            result = linstt_transcribe(
-                tmp_file,
-                transcription_server=transcription_server,
-                convert_numbers=convert_numbers,
-                punctuation=punctuation,
-                # min_vad_duration=min_vad_duration,
-                verbose=verbose,
-            )
+            try:
+                result = linstt_transcribe(
+                    tmp_file,
+                    transcription_server=transcription_server,
+                    convert_numbers=convert_numbers,
+                    punctuation=punctuation,
+                    # min_vad_duration=min_vad_duration,
+                    verbose=verbose,
+                )
+            except Exception as err:
+                raise RuntimeError(f"Error while transcribing {audio_id}") from err
             if log_memtime: toc()
 
             p = result["transcription_result"]
