@@ -9,6 +9,7 @@ import json
 import asyncio
 
 from linastt.utils.curl import curl_post, curl_get
+from linastt.utils.text_utils import collapse_whitespace
 
 DIARIZATION_SERVICES = {
     "pybk": "stt-diarization-pybk",
@@ -83,6 +84,7 @@ def linstt_transcribe(
             ws_api = transcription_server_complete,
             verbose = verbose
         )
+        text = collapse_whitespace(text)
         return {
             "transcription_result": text,
             "raw_transcription": text,
@@ -242,7 +244,7 @@ async def _linstt_streaming(
         # Init pyaudio
         audio = pyaudio.PyAudio()
         stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=2048)
-        if verbose:
+        if verbose > 1:
             print("Start recording")
     else:
         stream = open(audio_file, "rb")
@@ -257,31 +259,31 @@ async def _linstt_streaming(
             try:
                 data = stream.read(2048)
                 if audio_file and not data:
-                    if verbose:
+                    if verbose > 1:
                         print("\nAudio file finished")
                     alive = False
                 await websocket.send(data)
                 res = await websocket.recv()
                 message = json.loads(res)
                 if message is None:
-                    if verbose:
+                    if verbose > 1:
                         print("\n Received None")
                     continue
                 if "partial" in message.keys():
                     partial = message["partial"]
                     if verbose:
-                        print("partial", partial, end="\r")
+                        print(partial, end="\r")
                 elif "text" in message.keys():
                     partial = message["text"]
                     if verbose:
-                        print("text", partial, end="\t\t\n")
+                        print(partial, end="\t\t\n")
                     if text:
                         text += " "
                     text += partial
                 elif verbose:
                     print(message)
             except KeyboardInterrupt:
-                if verbose:
+                if verbose > 1:
                     print("\nKeyboard interrupt")
                 alive = False
         await websocket.send(json.dumps({"eof" : 1}))
@@ -297,7 +299,7 @@ async def _linstt_streaming(
         try:
             res = await websocket.recv()
         except websockets.ConnectionClosedOK:
-            if verbose and not audio_file:
+            if verbose > 1:
                 print("Websocket Closed")
     return text
 
