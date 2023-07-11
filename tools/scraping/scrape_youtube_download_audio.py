@@ -5,7 +5,10 @@ import os
 import shutil
 from tqdm import tqdm
 
-def extract_mp4(vid, output_file):
+def convert_video_to_audio(file_mp4, file_mp3):
+    subprocess.call(['ffmpeg', '-y', '-i', file_mp4, '-ar', '16000', '-ac','1', file_mp3])
+
+def extract_mp4(vid, file_mp4):
     vid = os.path.basename(os.path.splitext(vid)[0])
     CMD = [
         "youtube-dl",
@@ -28,8 +31,8 @@ def extract_mp4(vid, output_file):
         print(f"WARNING: Failed to extract {vid} using {' '.join(CMD)}")
         return
     assert os.path.isfile(output), f"Failed to extract {vid} using {' '.join(CMD)}"
-    shutil.move(output, output_file)
-    assert os.path.isfile(output_file), f"Failed to extract {vid} to {output_file}"
+    shutil.move(output, file_mp4)
+    assert os.path.isfile(file_mp4), f"Failed to extract {vid} to {file_mp4}"
 
 if __name__ == "__main__":
 
@@ -55,19 +58,23 @@ if __name__ == "__main__":
 
     input_txt = f"{path}/{lang}"
     output_mp4 = f"{path}/mp4"
+    output_mp3 = f"{path}/mp3"
 
     os.makedirs(output_mp4, exist_ok=True)
 
-    min_size = 0
-    max_size = 0
+    # min_size = 0
+    # max_size = 0
     for id_ in tqdm(os.listdir(input_txt)):
         id_ = os.path.splitext(id_)[0]
-        output_file = f"{output_mp4}/{id_}.mp4"
-        if not os.path.isfile(output_file):
-            extract_mp4(id_, output_file)
-        size_file = os.stat(output_file).st_size / (1024 * 1024)
-        assert size_file > 0, f"File {output_file} has size {size_file} MB"
-        min_size = min(min_size, size_file)
-        max_size = max(max_size, size_file)
+        file_mp4 = f"{output_mp4}/{id_}.mp4"
+        file_mp3 = f"{output_mp4}/{id_}.mp3"
+        if not os.path.isfile(file_mp4) and not os.path.isfile(file_mp3):
+            extract_mp4(id_, file_mp4)
+        if not os.path.isfile(file_mp3):
+            convert_video_to_audio(file_mp4, file_mp3)
+        # size_file = os.stat(file_mp4).st_size / (1024 * 1024)
+        # assert size_file > 0, f"File {file_mp4} has size {size_file} MB"
+        # min_size = min(min_size, size_file)
+        # max_size = max(max_size, size_file)
 
-    print(f"Minimum/Maximum size of extracted videos: {min_size:.2f} MB / {max_size:.2f} MB")
+    # print(f"Minimum/Maximum size of extracted videos: {min_size:.2f} MB / {max_size:.2f} MB")
