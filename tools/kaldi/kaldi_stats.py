@@ -8,7 +8,7 @@ from linastt.utils.misc import commonprefix
 from linastt.utils.kaldi import parse_kaldi_wavscp
 from linastt.utils.audio import get_audio_duration
 
-def get_utt2dur_duration(utt2dur_file):
+def get_utt2dur_duration(utt2dur_file, check_wav_duration=False):
 
     if os.path.isdir(utt2dur_file):
         utt2dur_file += "/utt2dur"
@@ -44,27 +44,34 @@ def get_utt2dur_duration(utt2dur_file):
     if os.path.isfile(wavscp):
         with open(wavscp, 'r') as f:
             number_wav = len([l for l in f.readlines() if l.strip()])
-        wav = parse_kaldi_wavscp(wavscp)
-        if not os.path.isfile(segments):
-            duration_wav = total_duration
-        else:
-            duration_wav = 0
-            for _, path in wav.items():
-                if os.path.isfile(path):
-                    duration_wav += get_audio_duration(path)
-                else:
-                    duration_wav = UNK
-                    break
+        if check_wav_duration:
+            wav = parse_kaldi_wavscp(wavscp)
+            if not os.path.isfile(segments):
+                duration_wav = total_duration
+            else:
+                duration_wav = 0
+                for _, path in wav.items():
+                    if os.path.isfile(path):
+                        duration_wav += get_audio_duration(path)
+                    else:
+                        duration_wav = UNK
+                        break
 
-    return {
+    res = {
         "name": os.path.dirname(utt2dur_file),
-        "# wav": number_wav,
-        "wav duration": duration_wav,
+        "# wav": number_wav
+    }
+    if check_wav_duration:
+        res.update({
+            "wav duration": duration_wav,
+        })
+    res.update({
         "# segments": number,
         "total duration": total_duration,
         "min duration": min_duration,
         "max duration": max_duration,
-    }
+    })
+    return res
 
 def second2time(val):
     if val == float("inf"):
@@ -86,16 +93,20 @@ def print_stats(stats):
 
     commonroot = commonprefix([s["name"] for s in stats], end="/")
 
-    def to_string(val):
+    def to_string(val, use_common_root=True):
         if isinstance(val, float):
             return second2time(val)
         if isinstance(val, int):
             return str(val)
-        return str(val)[len(commonroot):]
+        if use_common_root:
+            return str(val)[len(commonroot):]
+        return str(val)
+    
+    total_stats = accu_stats(stats)
 
     keys = stats[0].keys()
     max_len = dict(
-        (k, max([len(to_string(d[k])) for d in stats] + [len(k)])) for k in keys
+        (k, max([len(to_string(d[k])) for d in stats + [total_stats]] + [len(k)])) for k in keys
     )
 
     def align(k):
@@ -111,12 +122,36 @@ def print_stats(stats):
             print(fstring.format(**dict((k, "-"*max_len[k]) for k in keys)))
         print(fstring.format(**s))
 
+    if len(stats) > 1:
+        print(fstring.format(**dict((k, "-"*max_len[k]) for k in keys)))
+        s = {k: to_string(v, use_common_root=False) for k, v in total_stats.items()}
+        print(fstring.format(**s))
+
+def accu_stats(stats, default="TOTAL"):
+    assert len(stats) > 0, "No stats to print."
+    res = {}
+    for s in stats:
+        for k, v in s.items():
+            if k not in res:
+                res[k] = v
+            elif isinstance(v, (float,int)):
+                if "min" in k:
+                    res[k] = min(res[k], v)
+                elif "max" in k:
+                    res[k] = max(res[k], v)
+                else:
+                    res[k] += v
+            else:
+                if res[k] != v:
+                    res[k] = default
+    return res
 
 if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser(description='Get duration of a dataset in kaldi format.')
     parser.add_argument('input', type=str, help='Path to utt2dur file or folder containing it.', nargs='+')
+    parser.add_argument('--check-wav-duration', action='store_true', help='Check total duration of wav files as well (might be long to compute).')
     args = parser.parse_args()
 
     all_stats = []
@@ -129,6 +164,6 @@ if __name__ == "__main__":
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
-            all_stats.append(get_utt2dur_duration(filename))
+            all_stats.append(get_utt2dur_duration(filename, check_wav_duration=args.check_wav_duration))
 
     print_stats(all_stats)
