@@ -22,6 +22,7 @@ openai-whisper
 # peft>0.3.0
 git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
 psutil
+pyaudio
 py3nvml
 pyannote.audio
 pyannote.pipeline
@@ -41,3 +42,4 @@ torchvision
 transformers==4.30.2
 xmltodict
 vosk
+websockets

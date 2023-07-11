@@ -5,6 +5,8 @@ import shutil
 
 import subprocess
 import torchaudio
+import json
+import asyncio
 
 from linastt.utils.curl import curl_post, curl_get
 
@@ -28,7 +30,7 @@ def linstt_transcribe(
         wordsub={},
         verbose=False,
         timeout = 3600 * 24,
-        timeout_first = 3600,
+        timeout_first = 3600 * 24,
         ping_interval = 1,
         delete_temp_files = True,
         transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
@@ -69,14 +71,30 @@ def linstt_transcribe(
     performDiarization = isinstance(diarization, int) and diarization > 1
     numberOfSpeaker = diarization if performDiarization else None
     maxNumberOfSpeaker = 50 if not performDiarization else None
-        
+
+
+    transcription_server_complete = transcription_server
+    if not transcription_server_complete.endswith("/streaming") and not transcription_server_complete.endswith("/transcribe"):
+        transcription_server_complete += "/transcribe"
+
+    if transcription_server_complete.endswith("/streaming"):
+        text = linstt_streaming(
+            audio_file,
+            ws_api = transcription_server_complete,
+            verbose = verbose
+        )
+        return {
+            "transcription_result": text,
+            "raw_transcription": text,
+        }
+
     result = curl_post(
-        transcription_server + "/transcribe",
+        transcription_server_complete,
         {
             "file": audio_file,
             "type": "audio/x-wav",
             # "file": "@"+audio_file+";type=audio/x-wav",
-            "timestamps": "",
+            "timestamps": "", # TODO: this is not the way to pass timestamps
             "transcriptionConfig": {
                 "vadConfig": {
                     "enableVad": True,
@@ -207,6 +225,81 @@ def linstt_transcribe(
         os.remove(fn)
 
     return output
+
+def linstt_streaming(*kargs, **kwargs):
+    text = asyncio.run(_linstt_streaming(*kargs, **kwargs))
+    return text
+
+async def _linstt_streaming(
+    audio_file,
+    ws_api = "wss://api.linto.ai/stt-vivatech-streaming/streaming",
+    verbose = False,
+):
+    import websockets
+
+    if audio_file is None:
+        import pyaudio
+        # Init pyaudio
+        audio = pyaudio.PyAudio()
+        stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=2048)
+        if verbose:
+            print("Start recording")
+    else:
+        stream = open(audio_file, "rb")
+
+    alive = True
+    text = ""
+    partial = None
+    
+    async with websockets.connect(ws_api) as websocket:
+        await websocket.send(json.dumps({"config" : {"sample_rate": 16000 }}))
+        while alive:
+            try:
+                data = stream.read(2048)
+                if audio_file and not data:
+                    if verbose:
+                        print("\nAudio file finished")
+                    alive = False
+                await websocket.send(data)
+                res = await websocket.recv()
+                message = json.loads(res)
+                if message is None:
+                    if verbose:
+                        print("\n Received None")
+                    continue
+                if "partial" in message.keys():
+                    partial = message["partial"]
+                    if verbose:
+                        print("partial", partial, end="\r")
+                elif "text" in message.keys():
+                    partial = message["text"]
+                    if verbose:
+                        print("text", partial, end="\t\t\n")
+                    if text:
+                        text += " "
+                    text += partial
+                elif verbose:
+                    print(message)
+            except KeyboardInterrupt:
+                if verbose:
+                    print("\nKeyboard interrupt")
+                alive = False
+        await websocket.send(json.dumps({"eof" : 1}))
+        res = await websocket.recv()
+        message = json.loads(res)
+        if isinstance(message, str):
+            message = json.loads(message)
+        if text:
+            text += " "
+        text += message["text"]
+        if verbose:
+            print(text)
+        try:
+            res = await websocket.recv()
+        except websockets.ConnectionClosedOK:
+            if verbose and not audio_file:
+                print("Websocket Closed")
+    return text
 
 def print_progress(result, seconds, keys= ["progress", "status", "state"]):
     hours, remainder = divmod(round(seconds), 3600)
