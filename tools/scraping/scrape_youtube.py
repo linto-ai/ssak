@@ -13,24 +13,24 @@ import re
 import csv
 # from webdriver_manager.firefox import GeckoDriverManager
 from pytube.exceptions import AgeRestrictedError
-from tqdm import tqdm
 
 from google_ngram_downloader import readline_google_store
 # import langid
 
-def check_proxies(proxies):
-    working_proxies = []
-    
-    for proxy in tqdm(proxies, desc="Checking proxies"):
+def check_proxy(proxy):
+    if proxy:
+        proxies = {
+            'http': proxy,
+            'https': proxy
+        }
         try:
-            response = requests.get('https://www.youtube.com/', proxies={'http': proxy, 'https': proxy}, timeout=5)
-            
+            response = requests.get('https://www.youtube.com', proxies=proxies)
             if response.status_code == 200:
-                working_proxies.append(proxy)
-        except:
+                return True
+        except requests.exceptions.RequestException:
             pass
-    
-    return working_proxies
+
+    return False
 
 ALL_IDS = {}
 
@@ -83,13 +83,20 @@ def get_transcripts_if(vid, if_lang="fr",proxy = None, all_auto=False, verbose=T
         if proxy:
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid, proxies={'http': proxy, 'https': proxy}))
         else:
-            print("Trying without proxy")
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
+    except TranscriptsDisabled:
+        msg = f"Subtitles disabled for video {vid}"
+        if verbose:
+            print(msg)
+        return msg
     except Exception as e: # (requests.exceptions.HTTPError) as e:
+        # The most common error here is "Too many requests" (because the YouTube API is rate-limited)
+        # We don't catch a specific exception because scraping script should seldom fail
+        # This could cause an infinite loop if the error always occurs, but then it should print a message every 2 minutes
         print("WARNING: Error", str(e))
         print("Waiting 120 seconds...")
         time.sleep(120)
-        return get_transcripts_if(vid, if_lang=if_lang,proxy=proxy, all_auto=all_auto, verbose=verbose)
+        return get_transcripts_if(vid, if_lang=if_lang, all_auto=all_auto, verbose=verbose)
     
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and (all_auto or not is_automatic(t.language)) for t in transcripts])
@@ -251,24 +258,69 @@ def extract_audio_yt(vid, output_audio_dir, skip_if_exists=True, verbose=True):
     except AgeRestrictedError:
         print(f"WARNING: Video {vid} is age-restricted and cannot be accessed without logging in.")
                           
+
+
 def scrape_transcriptions(video_ids, path, if_lang, proxies=None, extract_audio=False, all_auto=False, skip_if_exists=True, verbose=True):
     output_audio_dir = f"{path}/mp4"
     if not os.path.isdir(output_audio_dir):
         os.makedirs(output_audio_dir)
-
+   
+    # Save videos_ids in a file
     n = len(video_ids)
     if skip_if_exists:
         video_ids = get_new_ids(video_ids, path, "mp4" if extract_audio else if_lang)
     print(f"Got {len(video_ids)} new video ids / {n}")
-
+    
     proxy_message = "Using proxy" if proxies else "Not using proxy"
+    proxy_error = False  # Flag to indicate if there was a proxy error
 
     for proxy in proxies or ['']:
         print(f"{proxy_message} {proxy}")
+
+        if check_proxy(proxy):
+            proxy_error = False  # Reset proxy error flag
+            for vid in video_ids:
+                # Get transcription
+                transcripts = get_transcripts_if(vid, if_lang=if_lang,proxy=proxy, all_auto=all_auto, verbose=verbose)
+                if not isinstance(transcripts, dict) or not transcripts:
+                    register_discarded_id(vid, path, reason = transcripts)
+                    continue
+                if not skip_if_exists:
+                    unregister_discarded_id(vid, path)
+
+                if verbose:
+                    print(f"Video {vid} accepted. Languages: {', '.join(transcripts.keys())}")
+
+                for lan, transcript in transcripts.items():
+                    output_dir = f"{path}/{lan}"
+                    if not os.path.isdir(output_dir):
+                        os.makedirs(output_dir)
+                    output_file = f"{output_dir}/{vid}.csv"             
+                    with open(output_file, 'w') as csvfile:
+                        csvwriter = csv.writer(csvfile, delimiter=';')
+                        # Add header
+                        csvwriter.writerow(['text', 'start', 'duration'])
+                        # Write content
+                        for line in transcript:
+                            csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
+                if extract_audio:
+                    extract_audio_yt(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)  
+                    continue
+        else:
+            proxy_error = True
+            print(f"Proxy {proxy} is not working. Moving to the next proxy.")
+
+        if not proxy_error:
+            break  # Continue with the process if the proxy is working
+    
+    if proxy_error:
+        print("All proxies failed. Trying without proxy.")
+        
+        # Continue the process without using a proxy
         for vid in video_ids:
-            transcripts = get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose)
+            transcripts = get_transcripts_if(vid, if_lang=if_lang, proxy=None, all_auto=all_auto, verbose=verbose)
             if not isinstance(transcripts, dict) or not transcripts:
-                register_discarded_id(vid, path, reason=transcripts)
+                register_discarded_id(vid, path, reason = transcripts)
                 continue
             if not skip_if_exists:
                 unregister_discarded_id(vid, path)
@@ -278,19 +330,18 @@ def scrape_transcriptions(video_ids, path, if_lang, proxies=None, extract_audio=
 
             for lan, transcript in transcripts.items():
                 output_dir = f"{path}/{lan}"
-                os.makedirs(output_dir, exist_ok=True)
-                output_file = f"{output_dir}/{vid}.csv"
+                if not os.path.isdir(output_dir):
+                    os.makedirs(output_dir)
+                output_file = f"{output_dir}/{vid}.csv"             
                 with open(output_file, 'w') as csvfile:
                     csvwriter = csv.writer(csvfile, delimiter=';')
+                    # Add header
                     csvwriter.writerow(['text', 'start', 'duration'])
-                    csvwriter.writerows([
-                        [line['text'].replace("\n", " "), line['start'], line['duration']]
-                        for line in transcript
-                    ])
-
+                    # Write content
+                    for line in transcript:
+                        csvwriter.writerow([line['text'].replace("\n", " "), line['start'], line['duration']])
             if extract_audio:
-                extract_audio_yt(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)
-
+                extract_audio_yt(vid, path, skip_if_exists=skip_if_exists, verbose=verbose)  
                         
 
 def generate_ngram(n, lan, min_match_count=10000, index_start=None):
@@ -414,7 +465,6 @@ if __name__ == '__main__':
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
     parser.add_argument('--proxies', default = None, help="Specify a file contain a list of proxies or a server to use (e.g., 52.234.17.87:80).")
-
     args = parser.parse_args()
     should_extract_audio = args.extract_audio
 
@@ -439,6 +489,7 @@ if __name__ == '__main__':
         path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
 
     os.makedirs(f'{path}/queries', exist_ok=True)
+    
     proxies_list = []
     # proxy setup
     proxies = args.proxies
@@ -451,53 +502,51 @@ if __name__ == '__main__':
         else:
             proxies_list = proxies.split(",")
             
-    if not check_proxies(proxies_list):
-        print('No working proxies found. Exiting...')
-        proxies_list = None
-         
+    # Set up the API client
     for query in queries:
-            if query:
-                # Log to avoid doing twice the same query
-                query = query.strip()
-                lockfile = f"{path}/queries/{hashmd5(query)}"
+        if query:
+            # Log to avoid doing twice the same query
+            query = query.strip()
+            lockfile = f"{path}/queries/{hashmd5(query)}"
 
-                if os.path.isfile(lockfile):
-                    print(f"Skipping (already done) query \"{query}\"")
-                    continue
+            if os.path.isfile(lockfile):
+                print(f"Skipping (already done) query \"{query}\"")
+                continue
 
-                with open(lockfile, 'w', encoding="utf8") as f:
-                    f.write(query + "\n")
-                    
-            try:
-                isok = False
-                if args.video_ids:
-                    assert query is None, "--search_query should not be specified when --video_ids is specified"
-                    if os.path.isfile(args.video_ids):
-                        with open(args.video_ids, 'r') as f:
-                            video_ids = [os.path.splitext(os.path.basename(line.strip()))[0] for line in f]
-                    elif os.path.isdir(args.video_ids):
-                        video_ids = [os.path.splitext(f)[0] for f in os.listdir(args.video_ids)]
-                    else:
-                        video_ids = args.video_ids.split(",")
-                elif args.search_channels:
-                    assert query is not None
-                    print(f'========== get videos id from channels for query: \"{query}\" =========')
-                    video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
+            with open(lockfile, 'w', encoding="utf8") as f:
+                f.write(query + "\n")
+                
+        try:
+            isok = False
+
+            if args.video_ids:
+                assert query is None, "--search_query should not be specified when --video_ids is specified"
+                if os.path.isfile(args.video_ids):
+                    with open(args.video_ids, 'r') as f:
+                        video_ids = [os.path.splitext(os.path.basename(line.strip()))[0] for line in f]
+                elif os.path.isdir(args.video_ids):
+                    video_ids = [os.path.splitext(f)[0] for f in os.listdir(args.video_ids)]
                 else:
-                    assert query is not None
-                    print(f'========== get videos id for query: \"{query}\" =========')
-                    video_ids = search_videos_ids(query, open_browser=args.open_browser)
+                    video_ids = args.video_ids.split(",")
+            elif args.search_channels:
+                assert query is not None
+                print(f'========== get videos id from channels for query: \"{query}\" =========')
+                video_ids = search_videos_ids_from_channels(query, open_browser=args.open_browser)
+            else:
+                assert query is not None
+                print(f'========== get videos id for query: \"{query}\" =========')
+                video_ids = search_videos_ids(query, open_browser=args.open_browser)
 
-                print(f'========== get subtitles for videos in {lang} =========')
-                scrape_transcriptions(video_ids, path, lang,proxies=proxies_list, extract_audio=should_extract_audio, skip_if_exists=skip_if_exists, all_auto=args.all_auto)
+            print(f'========== get subtitles for videos in {lang} =========')
+            scrape_transcriptions(video_ids, path, lang, proxies=proxies_list, extract_audio=should_extract_audio, skip_if_exists=skip_if_exists, all_auto=args.all_auto)
 
-                isok = True
-            
-            finally:
-                if query:
-                    if isok:
-                        with open(f"{path}/queries/all.txt", 'a') as f:
-                            f.write(query+"\n")
-                    else:
-                        os.remove(lockfile)
-            
+            isok = True
+        
+        finally:
+            if query:
+                if isok:
+                    with open(f"{path}/queries/all.txt", 'a') as f:
+                        f.write(query+"\n")
+                else:
+                    os.remove(lockfile)
+               
