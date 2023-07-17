@@ -496,7 +496,7 @@ if __name__ == '__main__':
     if proxies: 
         if os.path.isfile(proxies):
             with open(proxies, 'r') as f:
-                proxies_list = [os.path.splitext(os.path.basename(line.strip()))[0] for line in f]
+                proxies_list = [line.strip() for line in f]
         elif os.path.isdir(proxies):
             proxies_list = [os.path.splitext(f)[0] for f in os.listdir(proxies)]
         else:
