@@ -81,7 +81,6 @@ def norm_language_code(language_code):
 def get_transcripts_if(vid, if_lang="fr",proxy = None, all_auto=False, verbose=True):
     try:
         if proxy:
-            print(f"Trying proxy {proxy}")
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid, proxies={'http': proxy, 'https': proxy}))
         else:
             print("Trying without proxy")
@@ -480,7 +479,6 @@ if __name__ == '__main__':
                         video_ids = [os.path.splitext(f)[0] for f in os.listdir(args.video_ids)]
                     else:
                         video_ids = args.video_ids.split(",")
-                    print(f'========== get subtitles for videos in {lang} =========')
                 elif args.search_channels:
                     assert query is not None
                     print(f'========== get videos id from channels for query: \"{query}\" =========')
