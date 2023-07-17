@@ -62,7 +62,8 @@ class TestFormatTextLatin(Test):
 
         self.assertEqual(
             format_text_latin("Jeu 1 : 160/65-315  155/70-12 155/70-15"),
-            "jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
+            #"jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
+            "jeu un cent soixante soixante-cinq millions trois cent quinze mille cent cinquante-cinquièmes soixante-dix douze mille cent cinquante-cinq soixante-dix quinze"
         )
 
         self.assertEqual(

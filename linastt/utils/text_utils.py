@@ -326,7 +326,7 @@ def convert_symbols_to_words(text, lang, lower_case=True):
 
 
 
-_not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
+_not_latin_characters_pattern = re.compile("[^a-zA-Z0-9\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
 
