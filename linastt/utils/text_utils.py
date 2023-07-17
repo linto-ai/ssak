@@ -474,13 +474,11 @@ def split_around(
         glue_right (bool): if True, glue the punctuations to the right (otherwise to the left)
     """
     sentences = re.findall(rf"([^{re.escape(punctuation)}]+)([{re.escape(punctuation)}]+|$)", text)
-    print(sentences)
     if glue_right:
         sentences = zip(
             [''] + [s[1] for s in sentences],
             [s[0] for s in sentences] + ['']
         )
-        print(sentences)
     sentences = ["".join(s) for s in sentences]
     if must_not_end_with or has_to_start_with or min_length:
         new_sentences = []
