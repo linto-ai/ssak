@@ -463,12 +463,21 @@ def check_proxy(proxy, timeout=3, verbose=True):
     return res
 
 
+
+
 PROXY_REGISTERED_PROVIDERS = None
+USE_FREE_PROXY = True
 def auto_proxy():
     global CHECKED_PROXIES, PROXY_REGISTERED_PROVIDERS
 
-    from proxy_randomizer import RegisteredProviders
-
+    if USE_FREE_PROXY:
+        from fp.fp import FreeProxy
+    else:
+        from proxy_randomizer import RegisteredProviders
+        if PROXY_REGISTERED_PROVIDERS is None:
+                PROXY_REGISTERED_PROVIDERS = RegisteredProviders()
+                PROXY_REGISTERED_PROVIDERS.parse_providers()
+        
     # First try without proxy
     yield None
 
@@ -478,11 +487,11 @@ def auto_proxy():
             yield proxy
 
     # Try new ones
-    if PROXY_REGISTERED_PROVIDERS is None:
-        PROXY_REGISTERED_PROVIDERS = RegisteredProviders()
-        PROXY_REGISTERED_PROVIDERS.parse_providers()
     while True:
-        yield str(PROXY_REGISTERED_PROVIDERS.get_random_proxy())
+        if USE_FREE_PROXY:
+            yield str(FreeProxy().get()).split("http://")[-1]
+        else:
+            yield str(PROXY_REGISTERED_PROVIDERS.get_random_proxy())
 
 def get_proxies_generator(proxies):
     if proxies == "auto":
