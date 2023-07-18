@@ -292,7 +292,7 @@ def scrape_transcriptions(
                 if proxy:
                     num_proxies_tried += 1
                     if verbose:
-                        print(f"Using proxy {proxy}")
+                        print(f"Using proxy {proxy} ({num_proxies_tried}/{max_proxies})")
 
                 # Get transcription
                 transcripts = get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose)
