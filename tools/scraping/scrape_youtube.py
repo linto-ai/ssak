@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, YouTubeRequestFailed
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, YouTubeRequestFailed, VideoUnavailable
 from pytube import YouTube
 import os
 import urllib.parse
@@ -84,7 +84,7 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
             print(msg)
         return msg    
     # except Exception as e: # (requests.exceptions.HTTPError) as e:
-    except (YouTubeRequestFailed, requests.exceptions.HTTPError) as e:
+    except (YouTubeRequestFailed, VideoUnavailable, requests.exceptions.HTTPError, requests.exceptions.ChunkedEncodingError) as err:
         # The most common error here is "Too many requests" (because the YouTube API is rate-limited)
         # We don't catch a specific exception because scraping script should seldom fail
         # This could cause an infinite loop if the error always occurs, but then it should print a message every 2 minutes
@@ -97,7 +97,12 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
             print("WARNING: Error", type(e), str(e))
             print("Waiting 120 seconds...")
             time.sleep(120)
-            return get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose, max_trial=max_trial-1)
+            return get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose, max_retrial=max_retrial-1)
+    except Exception as err:
+        msg = f"{ERROR_PROXY}: {err}"
+        if verbose:
+            print(msg)
+        return msg
     
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and (all_auto or not is_automatic(t.language)) for t in transcripts])
@@ -276,14 +281,13 @@ def scrape_transcriptions(
         video_ids = get_new_ids(video_ids, path, if_lang)
     print(f"Got {len(video_ids)} new video ids / {n}")
 
-    proxy_generator = get_proxies_generator(proxies)
 
     for vid in video_ids:
 
         has_been_register_as_failed = False
         num_proxies_tried = 0
 
-        for proxy in proxy_generator:
+        for proxy in get_proxies_generator(proxies):
 
             if proxy and max_proxies and num_proxies_tried >= max_proxies:
                 break 
@@ -296,12 +300,15 @@ def scrape_transcriptions(
 
                 # Get transcription
                 transcripts = get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose)
+
+                # If no transcription is available
                 if not isinstance(transcripts, dict) or not transcripts:
                     if not has_been_register_as_failed:
                         register_discarded_id(vid, path, reason = transcripts)
                         has_been_register_as_failed = True
                     if isinstance(transcripts, str) and not transcripts.startswith(ERROR_WHEN_NOT_AVAILABLE) and not transcripts.startswith(ERROR_PROXY):
                         break
+                    # Continue trying with other proxies (?) if not a transcription
                     continue
 
                 if not skip_if_exists or has_been_register_as_failed:
