@@ -6,7 +6,9 @@ import shutil
 from tqdm import tqdm
 
 def convert_video_to_audio(file_mp4, file_mp3):
+    os.makedirs(os.path.dirname(file_mp3), exist_ok=True)
     subprocess.call(['ffmpeg', '-y', '-i', file_mp4, '-ar', '16000', '-ac','1', file_mp3])
+    assert os.path.isfile(file_mp3)
 
 def extract_mp4(vid, file_mp4):
     vid = os.path.basename(os.path.splitext(vid)[0])
@@ -45,6 +47,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('path', help= "Output folder path where audio and annotations will be saved (default: YouTubeFr, or YouTubeLang for another language than French).", type=str, nargs='?', default=None)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
+    parser.add_argument('--video_ids', help= "An explicit list of video ids.", type=str, default = None)
     # parser.add_argument('-v', '--verbose', help= "Print more information", action='store_true')
     args = parser.parse_args()
 
@@ -62,19 +65,22 @@ if __name__ == "__main__":
 
     os.makedirs(output_mp4, exist_ok=True)
 
-    # min_size = 0
-    # max_size = 0
-    for id_ in tqdm(os.listdir(input_txt)):
+    if args.video_ids:
+        if os.path.isfile(args.video_ids):
+            with open(args.video_ids, 'r') as f:
+                video_ids = [os.path.splitext(os.path.basename(line.strip()))[0] for line in f]
+        elif os.path.isdir(args.video_ids):
+            video_ids = [os.path.splitext(f)[0] for f in os.listdir(args.video_ids)]
+        else:
+            video_ids = args.video_ids.split(",")
+    else:
+        video_ids = os.listdir(input_txt)
+
+    for id_ in tqdm(video_ids):
         id_ = os.path.splitext(id_)[0]
         file_mp4 = f"{output_mp4}/{id_}.mp4"
-        file_mp3 = f"{output_mp4}/{id_}.mp3"
+        file_mp3 = f"{output_mp3}/{id_}.mp3"
         if not os.path.isfile(file_mp4) and not os.path.isfile(file_mp3):
             extract_mp4(id_, file_mp4)
         if not os.path.isfile(file_mp3):
             convert_video_to_audio(file_mp4, file_mp3)
-        # size_file = os.stat(file_mp4).st_size / (1024 * 1024)
-        # assert size_file > 0, f"File {file_mp4} has size {size_file} MB"
-        # min_size = min(min_size, size_file)
-        # max_size = max(max_size, size_file)
-
-    # print(f"Minimum/Maximum size of extracted videos: {min_size:.2f} MB / {max_size:.2f} MB")
