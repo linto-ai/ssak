@@ -167,7 +167,7 @@ class TestFormatTextLatin(Test):
         )
         self.assertEqual(
             format_text_latin("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
-            "c' est la date est au format aaaa millimètres dd ça mesure trois millimètres" # Not the best...
+            "c' est la date est au format aaaa-millimètres-dd ça mesure trois millimètres" # Not the best...
         )
 
     def test_spelling(self):
@@ -182,6 +182,15 @@ class TestFormatTextLatin(Test):
             "chef-d' oeuvre et voilà quoi"
         )
 
+    def test_disable_some(self):
+        self.assertEqual(
+            format_text_latin("Œuf 6Go 6ème 2,6.", convert_numbers=False, lower_case=False, keep_punc=True),
+            "Oeuf 6 Go 6ème 2,6."
+        )
+        self.assertEqual(
+            format_text_latin("Œuf 6Go 6ème 2,6.", convert_numbers=False, lower_case=False, keep_punc=False),
+            "Oeuf 6 Go 6ème 2 6"
+        )
 
     def test_non_regression_fr(self):
         

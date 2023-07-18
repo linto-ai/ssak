@@ -318,10 +318,10 @@ def normalize_arabic_currencies(text, lang="ar"):
 def convert_symbols_to_words(text, lang, lower_case=True):
     symbol_table = _symbol_to_word.get(lang, {})
     for k, v in symbol_table.items():
-         if lower_case:
-             k = k.lower()
-             v = v.lower()
-         text = replace_keeping_word_boundaries(k, v, text)
+        if lower_case:
+            k = k.lower()
+            v = v.lower()
+        text = replace_keeping_word_boundaries(k, v, text)
     return text
 
 

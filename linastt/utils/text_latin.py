@@ -11,7 +11,8 @@ from linastt.utils.text_utils import (
     undigit,
     cardinal_numbers_to_letters,
     convert_symbols_to_words,
-    _currencies
+    _currencies,
+    _punctuation,
 )
 
 def _rm_key(d, key):
@@ -128,22 +129,10 @@ def format_text_latin(text,
                     fid_acronyms.flush()
                     _ALL_ACRONYMS.append(acronym)
 
-        if lower_case:
-            text = text.lower()
-            if remove_ligatures:
-                text = re.sub(r"œ", "oe", text)
-                text = re.sub(r"æ", "ae", text)
-                text = re.sub(r"ﬁ", "fi", text)
-                text = re.sub(r"ﬂ", "fl", text)
-                text = re.sub("ĳ", "ij", text)
-        elif remove_ligatures:
-            text = re.sub(r"œ", "oe", text)
-            text = re.sub(r"æ", "ae", text)
-            text = re.sub(r"ﬁ", "fi", text)
-            text = re.sub(r"ﬂ", "fl", text)
-            text = re.sub("ĳ", "ij", text)
-            text = re.sub(r"Œ", "OE", text)
-            text = re.sub(r"Æ", "AE", text)
+        if lang == "fr":
+
+            for reg, replacement in _multi_spelling_words_fr:
+                text = re.sub(reg, replacement, text)
 
         text = re.sub("``", "\"", text)
         text = re.sub("''", "\"", text)
@@ -154,36 +143,23 @@ def format_text_latin(text,
 
         text = ' '+text+' '
 
-        if convert_numbers:
+        numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
+        for n in numbers:
+            text = re.sub(n,re.sub(r"[,.]","",n), text)
 
-            numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
-            for n in numbers:
-                text = re.sub(n,re.sub(r"[,.]","",n), text)
-
-            # Replace "." by "point" and "/" by "slash" in internet websites
-            # Find all the websites in the text
-            if lang == "fr":
-                websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
-                websites = sorted(set(websites), key = len, reverse = True)
-                for w in websites:
-                    w2 = w
-                    w2 = re.sub("\.", " point ", w2)
-                    w2 = re.sub(":", " deux points ", w2)
-                    w2 = re.sub("/", " slash ", w2)
-                    w2 = re.sub("-", " tiret ", w2)
-                    #text = re.sub(w, w2, text)
-                    text = text.replace(w, w2)
-
-        # Abbréviations
+        # Replace "." by "point" and "/" by "slash" in internet websites
+        # Find all the websites in the text
         if lang == "fr":
-            text = re.sub(r"\bm\.?\b","monsieur",text)
-            text = re.sub(r"\bmme\.?\b", "madame",text)
-            text = re.sub(r"\bmlle\.?\b", "mademoiselle",text)
-            if not lower_case:
-                text = re.sub(r"\bM\.?\b","Monsieur",text)
-                text = re.sub(r"\bMme\.?\b", "Madame",text)
-                text = re.sub(r"\bMlle\.?\b", "Mademoiselle",text)
-                
+            websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
+            websites = sorted(set(websites), key = len, reverse = True)
+            for w in websites:
+                w2 = w
+                w2 = re.sub("\.", " point ", w2)
+                w2 = re.sub(":", " deux points ", w2)
+                w2 = re.sub("/", " slash ", w2)
+                w2 = re.sub("-", " tiret ", w2)
+                #text = re.sub(w, w2, text)
+                text = text.replace(w, w2)                
 
         # Special Symbols
         text = format_special_characters(text)
@@ -230,11 +206,6 @@ def format_text_latin(text,
                 #text_rep=split_h[0]+' heures '+split_h[1]
                 text=text.replace(h, text_rep)
 
-            # if lang == "fr":
-            #     text = re.sub("(\d+)''",r"\1 secondes ",text)
-            #     text = re.sub("(\d+)'",r"\1 minutes ",text)
-            #     text = re.sub("(\d+)°",r"\1 degrés ",text)
-
         if convert_numbers:
             
             # Ordinal digits
@@ -260,11 +231,32 @@ def format_text_latin(text,
             text = cardinal_numbers_to_letters(text, lang=lang)
 
             # Symbols (currencies, percent...)
-            text = convert_symbols_to_words(text, lang, lower_case=lower_case)
+            text = convert_symbols_to_words(text, lang, lower_case=False)
+            if lang == "fr":
+                for reg, replacement in _corrections_abbreviations_fr:
+                    text = re.sub(reg, replacement, text)
+                # text = re.sub("(\d+)''",r"\1 secondes ",text)
+                # text = re.sub("(\d+)'",r"\1 minutes ",text)
+                # text = re.sub("(\d+)°",r"\1 degrés ",text)
 
             if safety_checks:
                 if re.findall(r"\d", text):
                     raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
+        
+        else:
+
+            # Unglue digits
+            text = re.sub(r"([0-9])([^0-9"+re.escape(_punctuation)+"])", r"\1 \2", text)
+
+            # Glue ordinals
+            if lang == "en":
+                text = re.sub(r"([0-9])\s+(st|nd|rd|º|th)\b", r"\1\2", text)
+            elif lang == "fr":
+                text = re.sub(r"([0-9])\s+(ère|ere|er|re|r|nd|nde|º|ème|eme|e)\b", r"\1\2", text)
+            else:
+                warnings.warn(
+                    f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
+            
 
         # Dashes
         text = re.sub(r"((?:^)|(?:\W))[-_]",r"\1, ", text) # " j'ai dit -à ma ``belle-mère''-casse-toi" -> " j'ai dit , à ma ``belle-mère'', casse-toi"
@@ -277,17 +269,24 @@ def format_text_latin(text,
                         # Replace all dashes by spaces
                         text = re.sub(r"\b"+word+r"\b", re.sub("-", " ", word), text)
 
-        if lang == "fr":
-            for reg, replacement in _corrections_abbreviations_fr:
-                text = re.sub(reg, replacement, text)
-
-            for reg, replacement in _multi_spelling_words_fr:
-                text = re.sub(reg, replacement, text)
-
         if not keep_punc:
             text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
 
+        if lower_case:
+            text = text.lower()
+
+        if remove_ligatures:
+            text = re.sub(r"œ", "oe", text)
+            text = re.sub(r"æ", "ae", text)
+            text = re.sub(r"ﬁ", "fi", text)
+            text = re.sub(r"ﬂ", "fl", text)
+            text = re.sub("ĳ", "ij", text)
+            if not lower_case:
+                text = re.sub(r"Œ", "Oe", text)
+                text = re.sub(r"Æ", "Ae", text)
+
         text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
+
 
         # # Non printable characters
         # if '\x81' in text:
@@ -574,6 +573,10 @@ _all_nums = [
 
 
 _corrections_abbreviations_fr = [(r'\b'+x[0]+r'\b', x[1]) for x in [
+    ("Mo", "mégas"),
+    ("Go", "gigas"),
+    ("MHz", "méga hertz"),
+    ("GHz", "giga hertz"),
     ("g", "grammes"),
     ("µg", "microgrammes"),
     ("μg", "microgrammes"),
@@ -582,8 +585,12 @@ _corrections_abbreviations_fr = [(r'\b'+x[0]+r'\b', x[1]) for x in [
     ("mm", "millimètres"),
     ("cm", "centimètres"),
     # ("l", "litres"), # Caution with "l'"
+    # ("L", "litres"), # Caution with "L'"
     ("ml", "millilitres"),
     ("cm2", "centimètres carrés"),
+    (r"[Mm]\.?", "monsieur"),
+    (r"[Mm]me\.?", "madame"),
+    (r"[Mm]lle\.?", "mademoiselle"),
 ]] + [
     ("@", " arobase "),
 ]
