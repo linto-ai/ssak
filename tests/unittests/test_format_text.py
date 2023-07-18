@@ -340,15 +340,15 @@ class TestFormatTextRu(Test):
 
     def test_options(self):
 
-        sentence = "Я помню чудное мгновенье, передо мной явилась ты. Ёжики и ёлки. This is a latin text to test."
+        sentence = "Я помню чудное мгновенье, передо мной явилась ты. Когда-нибудь Ёжики и ёлки. This is a latin text to test. А это — определение"
 
         self.assertEqual(
             format_text_ru(sentence, keep_punc=True, lower_case=False, force_transliteration=False, remove_optional_diacritics=False),
-            "Я помню чудное мгновенье, передо мной явилась ты. Ёжики и ёлки. This is a latin text to test."
+            "Я помню чудное мгновенье, передо мной явилась ты. Когда-нибудь Ёжики и ёлки. This is a latin text to test. А это — определение"
         )
         self.assertEqual(
             format_text_ru(sentence, keep_punc=False, lower_case=True, force_transliteration=True, remove_optional_diacritics=True),
-            "я помню чудное мгновенье передо мной явилась ты ежики и елки this is a latin text to test"
+            "я помню чудное мгновенье передо мной явилась ты когда нибудь ежики и елки this is a latin text to test а это определение"
         )
 
         sentence = "Now close your eyes, there goes the transliteration"

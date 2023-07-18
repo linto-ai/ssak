@@ -58,13 +58,11 @@ def format_text_ru(text,
 
     text = convert_symbols_to_words(text=text, lang=lang, lower_case=lower_case)
 
-    text = re.sub('—', ' ', text)
-    text = re.sub('-', ' ', text)
+    if not keep_punc:
+        text = re.sub('—|-', ' ', text)
+        text = remove_punctuations(text, strong=True)
 
     text = format_special_characters(text)
-
-    if not keep_punc:
-        text = remove_punctuations(text, strong=True)
 
     text = remove_parenthesis(text)
 
