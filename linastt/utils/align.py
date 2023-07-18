@@ -10,8 +10,6 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
-from linastt.utils.text_utils import remove_punctuations
-
 def find_best_position_dtw(sequence1, sequence2,
     finetune_start_end=False,
     pad=False,
