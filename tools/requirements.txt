@@ -3,6 +3,7 @@ certifi
 docx
 google-ngram-downloader
 openpyxl
+proxy_randomizer
 pycurl
 pymupdf
 python-slugify
@@ -10,4 +11,3 @@ pytube
 moviepy
 selenium
 youtube_transcript_api
-langid
