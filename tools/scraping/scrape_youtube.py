@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, YouTubeRequestFailed, VideoUnavailable
 from pytube import YouTube
 import os
 import urllib.parse
@@ -11,34 +11,10 @@ from selenium import webdriver
 import time
 import re
 import csv
-# from webdriver_manager.firefox import GeckoDriverManager
 from pytube.exceptions import AgeRestrictedError
 
 from google_ngram_downloader import readline_google_store
-# import langid
 
-CHECKED_PROXIES = {}
-
-def check_proxy(proxy):
-    global CHECKED_PROXIES
-    if not proxy:
-        return True
-    proxies = {
-        'http': proxy,
-        'https': proxy
-    }
-    if proxy in CHECKED_PROXIES:
-        return CHECKED_PROXIES[proxy]
-    res = False
-    try:
-        print("Checking proxy", proxy)
-        response = requests.get('https://www.youtube.com', proxies=proxies, timeout=1)
-        if response.status_code == 200:
-            res = True
-    except requests.exceptions.RequestException:
-        print(f"Rejecting {proxy}")
-    CHECKED_PROXIES[proxy] = res
-    return res
 
 ALL_IDS = {}
 
@@ -87,11 +63,14 @@ def norm_language_code(language_code):
     return language_code
 
 ERROR_WHEN_NOT_AVAILABLE="Subtitles disabled for video"
+ERROR_PROXY="Proxy error"
 
-def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=True):
+
+def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=True, max_retrial=float("inf")):
     try:
         if proxy:
-            transcripts = list(YouTubeTranscriptApi.list_transcripts(vid, proxies={'http': proxy, 'https': proxy}))
+            max_retrial = min(max_retrial, 0)
+            transcripts = list(YouTubeTranscriptApi.list_transcripts(vid, proxies=http_proxies(proxy)))
         else:
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
     except TranscriptsDisabled:
@@ -99,14 +78,31 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
         if verbose:
             print(msg)
         return msg
-    except Exception as e: # (requests.exceptions.HTTPError) as e:
+    except requests.exceptions.ProxyError as err:
+        msg = f"{ERROR_PROXY}: {err}"
+        if verbose:
+            print(msg)
+        return msg    
+    # except Exception as e: # (requests.exceptions.HTTPError) as e:
+    except (YouTubeRequestFailed, VideoUnavailable, requests.exceptions.HTTPError, requests.exceptions.ChunkedEncodingError) as err:
         # The most common error here is "Too many requests" (because the YouTube API is rate-limited)
         # We don't catch a specific exception because scraping script should seldom fail
         # This could cause an infinite loop if the error always occurs, but then it should print a message every 2 minutes
-        print("WARNING: Error", type(e), str(e))
-        print("Waiting 120 seconds...")
-        time.sleep(120)
-        return get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose)
+        if max_retrial <= 0:
+            msg = f"{ERROR_PROXY}: {err}"
+            if verbose:
+                print(msg)
+            return msg
+        else:
+            print("WARNING: Error", type(e), str(e))
+            print("Waiting 120 seconds...")
+            time.sleep(120)
+            return get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose, max_retrial=max_retrial-1)
+    except Exception as err:
+        msg = f"{ERROR_PROXY}: {err}"
+        if verbose:
+            print(msg)
+        return msg
     
     has_auto = max([norm_language_code(t.language_code) == if_lang and is_automatic(t.language) for t in transcripts])
     has_language = max([norm_language_code(t.language_code) == if_lang and (all_auto or not is_automatic(t.language)) for t in transcripts])
@@ -270,7 +266,14 @@ def extract_audio_yt(vid, output_audio_dir, skip_if_exists=True, verbose=True):
                           
 
 
-def scrape_transcriptions(video_ids, path, if_lang, proxies=None, extract_audio=False, all_auto=False, skip_if_exists=True, verbose=True):
+def scrape_transcriptions(
+    video_ids, path, if_lang,
+    all_auto=False, 
+    skip_if_exists=True,
+    proxies=None, max_proxies=None,
+    extract_audio=False,
+    verbose=True,
+    ):
    
     # Save videos_ids in a file
     n = len(video_ids)
@@ -278,25 +281,37 @@ def scrape_transcriptions(video_ids, path, if_lang, proxies=None, extract_audio=
         video_ids = get_new_ids(video_ids, path, if_lang)
     print(f"Got {len(video_ids)} new video ids / {n}")
 
-    noproxy_and_proxies = [None] + proxies if proxies else [None]
 
     for vid in video_ids:
 
-        for proxy in noproxy_and_proxies:
+        has_been_register_as_failed = False
+        num_proxies_tried = 0
+
+        for proxy in get_proxies_generator(proxies):
+
+            if proxy and max_proxies and num_proxies_tried >= max_proxies:
+                break 
 
             if check_proxy(proxy):
                 if proxy:
-                    print(f"Using proxy {proxy}")
+                    num_proxies_tried += 1
+                    if verbose:
+                        print(f"Using proxy {proxy} ({num_proxies_tried}/{max_proxies})")
 
                 # Get transcription
-                transcripts = get_transcripts_if(vid, if_lang=if_lang,proxy=proxy, all_auto=all_auto, verbose=verbose)
+                transcripts = get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose)
+
+                # If no transcription is available
                 if not isinstance(transcripts, dict) or not transcripts:
-                    register_discarded_id(vid, path, reason = transcripts)
-                    if isinstance(transcripts, str) and not transcripts.startswith(ERROR_WHEN_NOT_AVAILABLE):
+                    if not has_been_register_as_failed:
+                        register_discarded_id(vid, path, reason = transcripts)
+                        has_been_register_as_failed = True
+                    if isinstance(transcripts, str) and not transcripts.startswith(ERROR_WHEN_NOT_AVAILABLE) and not transcripts.startswith(ERROR_PROXY):
                         break
+                    # Continue trying with other proxies (?) if not a transcription
                     continue
 
-                if not skip_if_exists or proxies:
+                if not skip_if_exists or has_been_register_as_failed:
                     unregister_discarded_id(vid, path)
 
                 if verbose:
@@ -422,6 +437,76 @@ def click_button(driver, *kargs, verbose = True, max_trial = 5, ignore_failure =
                     raise err
             time.sleep(0.5)
 
+CHECKED_PROXIES = {}
+
+def check_proxy(proxy, timeout=3, verbose=True):
+    global CHECKED_PROXIES
+    if not proxy:
+        return True
+    if proxy in CHECKED_PROXIES:
+        return CHECKED_PROXIES[proxy]
+    res = False
+    try:
+        if verbose:
+            print("Checking proxy", proxy)
+        response = requests.get('https://www.youtube.com', proxies=http_proxies(proxy), timeout=timeout)
+        if response.status_code == 200:
+            res = True
+        elif verbose>2:
+            print("Error type1:", response.status_code, response)
+    except requests.exceptions.RequestException as err:
+        if verbose>2:
+            print("Error type2:", type(err), str(err))
+        if verbose:
+            print(f"Rejecting {proxy}")
+    CHECKED_PROXIES[proxy] = res
+    return res
+
+
+
+
+PROXY_REGISTERED_PROVIDERS = None
+USE_FREE_PROXY = True
+def auto_proxy():
+    global CHECKED_PROXIES, PROXY_REGISTERED_PROVIDERS
+
+    if USE_FREE_PROXY:
+        from fp.fp import FreeProxy
+    else:
+        from proxy_randomizer import RegisteredProviders
+        if PROXY_REGISTERED_PROVIDERS is None:
+                PROXY_REGISTERED_PROVIDERS = RegisteredProviders()
+                PROXY_REGISTERED_PROVIDERS.parse_providers()
+        
+    # First try without proxy
+    yield None
+
+    # Test the list of successful proxies
+    for proxy in CHECKED_PROXIES:
+        if CHECKED_PROXIES[proxy]:
+            yield proxy
+
+    # Try new ones
+    while True:
+        if USE_FREE_PROXY:
+            yield str(FreeProxy().get()).split("http://")[-1]
+        else:
+            yield str(PROXY_REGISTERED_PROVIDERS.get_random_proxy())
+
+def get_proxies_generator(proxies):
+    if proxies == "auto":
+        return auto_proxy()
+    if not proxies:
+        return [None]
+    assert isinstance(proxies, list)
+    return [None] + proxies
+
+def http_proxies(proxy):
+    return {
+        'http': proxy.split()[0],
+        'https': proxy.split()[0]
+    }
+
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
     import os
@@ -440,7 +525,8 @@ if __name__ == '__main__':
     parser.add_argument('--ngram', default="3", type=str, help= "n-gram to generate queries (integer or list of integers separated by commas).")
     parser.add_argument('--query_index_start', help= "If neither --search_query nor --video_ids are specified this is the first letters for the generated queries", type=str)
     parser.add_argument('--open_browser', default=False, action="store_true", help= "Whether to open browser.")
-    parser.add_argument('--proxies', default = None, help="Specify a file contain a list of proxies or a server to use (e.g., 52.234.17.87:80).")
+    parser.add_argument('--proxies', default=None, help="Specify a file contain a list of proxies or a server to use (e.g., 52.234.17.87:80).")
+    parser.add_argument('--max_proxies', default=None, type=int, help="Maximum proxies per file")
     args = parser.parse_args()
     should_extract_audio = args.extract_audio
 
@@ -461,8 +547,11 @@ if __name__ == '__main__':
     
     path = args.path
     if not path:
-        # YouTubeEn, YouTubeFr, etc.
-        path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
+        if lang:
+            # YouTubeEn, YouTubeFr, etc.
+            path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
+        else:
+            path = "YouTube"
 
     os.makedirs(f'{path}/queries', exist_ok=True)
     
@@ -474,9 +563,10 @@ if __name__ == '__main__':
                 proxies = [line.strip() for line in f]
         elif os.path.isdir(proxies):
             proxies = [os.path.splitext(f)[0] for f in os.listdir(proxies)]
+        elif proxies.lower() == "auto":
+            proxies = "auto"
         else:
             proxies = proxies.split(",")
-        proxies = list(set(proxies))
             
     # Set up the API client
     for query in queries:
@@ -514,7 +604,13 @@ if __name__ == '__main__':
                 video_ids = search_videos_ids(query, open_browser=args.open_browser)
 
             print(f'========== get subtitles for videos in {lang} =========')
-            scrape_transcriptions(video_ids, path, lang, proxies=proxies, extract_audio=should_extract_audio, skip_if_exists=skip_if_exists, all_auto=args.all_auto)
+            scrape_transcriptions(video_ids, path, lang,
+                all_auto=args.all_auto,
+                skip_if_exists=skip_if_exists,
+                extract_audio=should_extract_audio,
+                proxies=proxies,
+                max_proxies=args.max_proxies,
+            )
 
             isok = True
         
