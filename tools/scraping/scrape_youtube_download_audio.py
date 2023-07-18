@@ -80,6 +80,8 @@ if __name__ == "__main__":
         id_ = os.path.splitext(id_)[0]
         file_mp4 = f"{output_mp4}/{id_}.mp4"
         file_mp3 = f"{output_mp3}/{id_}.mp3"
+        if os.path.isfile(file_mp3):
+            continue
         if not os.path.isfile(file_mp4) and not os.path.isfile(file_mp3):
             extract_mp4(id_, file_mp4)
         if not os.path.isfile(file_mp3):
