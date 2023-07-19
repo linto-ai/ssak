@@ -79,7 +79,7 @@ def backtrack(trellis, emission, tokens, blank_id=0):
             if j == 0:
                 break
     else:
-        raise ValueError("Failed to align")
+        raise RuntimeError("Failed to align (empty output?)")
     return path[::-1]
 
 
