@@ -8,9 +8,11 @@ from linastt.utils.format_transcription import to_linstt_transcription
 import tempfile
 import csv
 
-def check_results(audio_file, results, min_sec = 0, play_segment = False, play_silences = False):
+def play_segments(audio_file, results, min_sec = 0, wordlevel = False, play_silences = False):
 
-    additional_commands = {"q": "quit", "s": "skip segment", 20.05: "skip forward (or rewind) to 20.05 sec"}
+    name = "word" if wordlevel else "segment"
+
+    additional_commands = {"q": "quit", "s": f"skip {name}", 20.05: "skip forward (or rewind) to 20.05 sec"}
 
     previous_start = 0
 
@@ -18,7 +20,7 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False, play_s
         # print(f'{segment["text"]} : {segment["start"]}-{segment["end"]}')
         # play_audiofile(audio_file, segment["start"], segment["end"], ask_for_replay = True)
 
-        if play_segment:
+        if not wordlevel:
             segment["words"] = [segment]
 
         text_key = None
@@ -50,7 +52,7 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False, play_s
             previous_start = end
 
             if x not in ["q", "s"] and not isinstance(x, float|int):
-                print(f"Segment {i+1}/{len(results['segments'])}, word {iw+1}/{len(segment['words'])}")
+                print(f"Segment {i+1}/{len(results['segments'])}, {name} {iw+1}/{len(segment['words'])}")
                 print(f'{txt} : {start}-{end}')
                 
                 x = play_audiofile(audio_file, start, end, additional_commands = additional_commands)
@@ -63,7 +65,7 @@ def check_results(audio_file, results, min_sec = 0, play_segment = False, play_s
                 min_sec = x
                 if min_sec < start:
                     # Rewind
-                    return check_results(audio_file, results, min_sec=min_sec, play_segment=play_segment)
+                    return play_segments(audio_file, results, min_sec=min_sec, wordlevel=wordlevel)
 
 if __name__ == "__main__":
 
@@ -72,7 +74,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Play audio file using results from a segmentation into words / segments')
     parser.add_argument('audio_file', type=str, help='Audio file')
     parser.add_argument('results_file', type=str, help='Results file or Kaldi folder')
-    parser.add_argument('--segments', default=False, action='store_true', help='Play segments instead of words')
+    parser.add_argument('--words', default=False, action='store_true', help='Play words instead of segments')
     parser.add_argument('--min_sec', default=0, type=float, help='Minimum second to start playing from (default: 0)')
     parser.add_argument('--play_silences', default=False, action="store_true", help='Play silence between words')
     args = parser.parse_args()
@@ -80,11 +82,13 @@ if __name__ == "__main__":
     audio_file = args.audio_file
     results_file = args.results_file
 
-    assert os.path.isfile(audio_file), f"Cannot find audio file {audio_file}"
 
     if os.path.isdir(results_file):
-        # Kaldi folder:
-        # We will filter corresponding to this wav file
+        # Kaldi folder
+        # We will filter corresponding to the wav file (or not  )
+        # if audio_file in [results_file, "*"]:
+        #     audio_file = None
+        
         from linastt.utils.dataset import kaldi_folder_to_dataset
         _, tmp_file = kaldi_folder_to_dataset(results_file, return_format="csv")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=True) as tmp:
@@ -99,20 +103,21 @@ if __name__ == "__main__":
                         ipath = row.index("path")
                     else:
                         path = row[ipath]
-                        if os.path.basename(path) != os.path.basename(audio_file):
+                        if audio_file and os.path.basename(path) != os.path.basename(audio_file):
                             continue
                         wrote_something = True
                     csvwriter.writerow(row)
                 if not wrote_something:
                     raise ValueError(f"Cannot find occurrence of {audio_file} in {results_file}/wav.scp")
             os.remove(tmp_file)
-            results = to_linstt_transcription(tmp.name, warn_if_missing_words = not args.segments)
+            results = to_linstt_transcription(tmp.name, warn_if_missing_words = args.words)
     else:
+        assert os.path.isfile(audio_file), f"Cannot find audio file {audio_file}"
         assert os.path.isfile(results_file), f"Cannot find result file {results_file}"
-        results = to_linstt_transcription(results_file, warn_if_missing_words = not args.segments)
+        results = to_linstt_transcription(results_file, warn_if_missing_words = args.words)
 
-    check_results(audio_file, results,
-                  play_segment=args.segments,
+    play_segments(audio_file, results,
+                  wordlevel=args.words,
                   min_sec=args.min_sec,
                   play_silences=args.play_silences
                   )
