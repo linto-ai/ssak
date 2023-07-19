@@ -18,14 +18,14 @@ from google_ngram_downloader import readline_google_store
 
 ALL_IDS = {}
 
-def get_new_ids(video_ids, path, subpath):
+def get_new_ids(video_ids, path, subpath, ignore_discarded=False):
     if path in ALL_IDS:
         all_video_ids = ALL_IDS[path]
     else:
         all_video_ids = []
-        if os.path.isdir(f'{path}/{subpath}'):
+        if subpath and os.path.isdir(f'{path}/{subpath}'):
             all_video_ids += [os.path.splitext(f)[0] for f in os.listdir(f'{path}/{subpath}')]
-        if os.path.isdir(f'{path}/discarded'):
+        if not ignore_discarded and os.path.isdir(f'{path}/discarded'):
             all_video_ids += [os.path.splitext(f)[0] for f in os.listdir(f'{path}/discarded')]
         ALL_IDS[path] = all_video_ids
     res = [id for id in video_ids if id not in all_video_ids]
@@ -270,6 +270,7 @@ def scrape_transcriptions(
     video_ids, path, if_lang,
     all_auto=False, 
     skip_if_exists=True,
+    skip_if_discarded=True,
     proxies=None, max_proxies=None,
     extract_audio=False,
     verbose=True,
@@ -278,9 +279,8 @@ def scrape_transcriptions(
     # Save videos_ids in a file
     n = len(video_ids)
     if skip_if_exists:
-        video_ids = get_new_ids(video_ids, path, if_lang)
+        video_ids = get_new_ids(video_ids, path, if_lang, ignore_discarded=not skip_if_discarded)
     print(f"Got {len(video_ids)} new video ids / {n}")
-
 
     for vid in video_ids:
 
@@ -540,10 +540,10 @@ if __name__ == '__main__':
     else:
         queries = [args.search_query] if args.search_query else [None]
 
-    skip_if_exists = True
+    skip_if_discarded = True
     if args.video_ids:
         assert queries == [None], "Cannot provide both a search query and a list of video ids"
-        skip_if_exists = False
+        skip_if_discarded = False
     
     path = args.path
     if not path:
@@ -606,7 +606,7 @@ if __name__ == '__main__':
             print(f'========== get subtitles for videos in {lang} =========')
             scrape_transcriptions(video_ids, path, lang,
                 all_auto=args.all_auto,
-                skip_if_exists=skip_if_exists,
+                skip_if_discarded=skip_if_discarded,
                 extract_audio=should_extract_audio,
                 proxies=proxies,
                 max_proxies=args.max_proxies,

@@ -6,6 +6,7 @@ import shutil
 from tqdm import tqdm
 
 def convert_video_to_audio(file_mp4, file_mp3):
+    assert os.path.isfile(file_mp4)
     os.makedirs(os.path.dirname(file_mp3), exist_ok=True)
     subprocess.call(['ffmpeg', '-y', '-i', file_mp4, '-ar', '16000', '-ac','1', file_mp3])
     assert os.path.isfile(file_mp3)
@@ -21,7 +22,7 @@ def extract_mp4(vid, file_mp4):
         f"https://www.youtube.com/watch?v={vid}"
     ]
     try:
-        p = subprocess.Popen(CMD) # , stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = subprocess.Popen(CMD, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         stdout, stderr = p.communicate()
     except Exception as err:
         raise RuntimeError(f"Failed to extract video using {CMD}. You may need to (re)install youtube-dl using:\n\
@@ -30,7 +31,9 @@ def extract_mp4(vid, file_mp4):
         ")
     output = f"{vid}.mp4"
     if not os.path.isfile(output):
-        print(f"WARNING: Failed to extract {vid} using {' '.join(CMD)}")
+        print(stdout.decode())
+        print(stderr.decode())
+        print(f"WARNING: Failed to extract {vid} using: {' '.join(CMD)}")
         return
     assert os.path.isfile(output), f"Failed to extract {vid} using {' '.join(CMD)}"
     shutil.move(output, file_mp4)
@@ -84,5 +87,7 @@ if __name__ == "__main__":
             continue
         if not os.path.isfile(file_mp4) and not os.path.isfile(file_mp3):
             extract_mp4(id_, file_mp4)
+            if not os.path.isfile(file_mp4):
+                continue
         if not os.path.isfile(file_mp3):
             convert_video_to_audio(file_mp4, file_mp3)
