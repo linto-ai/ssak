@@ -73,8 +73,13 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid, proxies=http_proxies(proxy)))
         else:
             transcripts = list(YouTubeTranscriptApi.list_transcripts(vid))
-    except TranscriptsDisabled:
+    except (TranscriptsDisabled):
         msg = f"{ERROR_WHEN_NOT_AVAILABLE} {vid}"
+        if verbose:
+            print(msg)
+        return msg
+    except (VideoUnavailable) as err:
+        msg = str(err)
         if verbose:
             print(msg)
         return msg
@@ -84,7 +89,7 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
             print(msg)
         return msg    
     # except Exception as e: # (requests.exceptions.HTTPError) as e:
-    except (YouTubeRequestFailed, VideoUnavailable, requests.exceptions.HTTPError, requests.exceptions.ChunkedEncodingError) as err:
+    except (YouTubeRequestFailed, requests.exceptions.HTTPError, requests.exceptions.ChunkedEncodingError) as err:
         # The most common error here is "Too many requests" (because the YouTube API is rate-limited)
         # We don't catch a specific exception because scraping script should seldom fail
         # This could cause an infinite loop if the error always occurs, but then it should print a message every 2 minutes
@@ -94,7 +99,7 @@ def get_transcripts_if(vid, if_lang="fr", proxy=None, all_auto=False, verbose=Tr
                 print(msg)
             return msg
         else:
-            print("WARNING: Error", type(e), str(e))
+            print("WARNING: Error", type(err), str(err))
             print("Waiting 120 seconds...")
             time.sleep(120)
             return get_transcripts_if(vid, if_lang=if_lang, proxy=proxy, all_auto=all_auto, verbose=verbose, max_retrial=max_retrial-1)
@@ -346,9 +351,15 @@ def generate_ngram(n, lan, min_match_count=10000, index_start=None):
     lang = {
         "en": "eng",
         "fr": "fre",
+        "ru": "rus",
+        "ar": "ara",
     }.get(lan)
     if not lang:
-        raise ValueError(f"Unknown language {lan}")
+        try:
+            from iso639 import languages
+            lang = languages.get(part1=lan).part2b
+        except ImportError:
+            raise ValueError(f"Unknown language {lan}.\nCan be solved by running 'pip install iso-639'")
     current_word = None
 
     # Make all possible 2-grams of letters
