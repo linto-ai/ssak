@@ -14,4 +14,4 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     args = parser.parse_args()
 
-    linstt_streaming(None, args.server, verbose=2 if args.verbose else 1)
+    res = linstt_streaming(None, args.server, verbose=2 if args.verbose else 1)
