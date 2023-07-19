@@ -308,6 +308,13 @@ def scrape_transcriptions(
                         has_been_register_as_failed = True
                     if isinstance(transcripts, str) and not transcripts.startswith(ERROR_WHEN_NOT_AVAILABLE) and not transcripts.startswith(ERROR_PROXY):
                         break
+
+                    # if transcripts.startswith(ERROR_PROXY):
+                    #     # if proxies == "auto":
+                    #     #     CHECKED_PROXIES[proxy] = False
+                    #     # Recheck proxy status
+                    #     check_proxy(proxy, force=True)
+
                     # Continue trying with other proxies (?) if not a transcription
                     continue
 
@@ -439,11 +446,11 @@ def click_button(driver, *kargs, verbose = True, max_trial = 5, ignore_failure =
 
 CHECKED_PROXIES = {}
 
-def check_proxy(proxy, timeout=3, verbose=True):
+def check_proxy(proxy, timeout=3, verbose=True, force=False):
     global CHECKED_PROXIES
     if not proxy:
         return True
-    if proxy in CHECKED_PROXIES:
+    if proxy in CHECKED_PROXIES and not force:
         return CHECKED_PROXIES[proxy]
     res = False
     try:
