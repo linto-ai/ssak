@@ -53,6 +53,14 @@ def to_linstt_transcription(transcription,
         else:
             raise ValueError(f"Unknown input format: {os.path.splitext(transcription)[-1]}")
 
+    if isinstance(transcription, list):
+        # Studio export
+        assert len(transcription) == 0 or min([isinstance(t,dict) for t in transcription]), "Expect a dictionary or a list of dictionaries"
+        transcription = {
+            "segments": transcription
+        }
+
+
     assert isinstance(transcription, dict)
 
     # LinTO transcription service
@@ -90,13 +98,8 @@ def to_linstt_transcription(transcription,
                 if filter_out_segment_text_func(seg_text):
                     continue
 
-            for expected_keys in ["start", "end"]:
-                assert expected_keys in seg, f"Missing '{expected_keys}' in segment {i} (that has keys {list(seg.keys())})"
-
-            if remove_empty_words and format_timestamp(seg["end"]) <= format_timestamp(seg["start"]):
-                if verbose:
-                    print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
-                continue
+            start = None
+            end = None
 
             if word_key is None and max([k in seg for k in word_keys]):
                 for k in word_keys:
@@ -110,14 +113,16 @@ def to_linstt_transcription(transcription,
                 confidences = []
                 new_words = []
                 for j, word in enumerate(seg[word_key]):
-                    for expected_key, canbe_key in {"start": "begin", "end": "end", "text": "word"}.items():
-                        if expected_key not in word and canbe_key in word:
+                    for canbe_key, expected_key in {"begin": "start", "stime": "start", "etime": "end", "word": "text"}.items():
+                        if word.get(expected_key) is None and canbe_key in word:
                             word[expected_key] = word.pop(canbe_key)
-                        if expected_key not in word:
+                            if expected_key in ["start", "end"]:
+                                word[expected_key] = float(word[expected_key])
+                        if word.get(expected_key) is None:
                             if expected_key in ["start", "end"]:
                                 # WhisperX can ommit to specify this
                                 word[expected_key] = None
-                                if expected_key == "start":
+                                if expected_key == "end":
                                     print(f"WARNING: missing timestamp for word {j} of segment {i}")
                             else:
                                 assert expected_key in word, f"Missing '{expected_key}' in word {j} of segment {i} (that has keys {list(word.keys())})"
@@ -160,11 +165,39 @@ def to_linstt_transcription(transcription,
                     if "confidence" in word:
                         confidences.append(word["confidence"])
 
+                    if start is None:
+                        start = word["start"]
+                    end = word["end"]
+
                     new_words.append(word)
 
                 seg[word_key] = new_words
                 if len(confidences) and "avg_logprob" not in seg:
                     seg["avg_logprob"] = np.mean([np.log(max(c,0.001)) for c in confidences]) if len(confidences) else 0
+
+            if "start" not in seg:
+                assert start is not None
+                seg["start"] = start
+            elif start is not None:
+                if seg["start"] > start:
+                    print(f"WARNING: inconsistent segment start {seg['start']} > {start}")
+
+            if "end" not in seg:
+                assert start is not None
+                seg["end"] = end
+            elif end is not None:
+                if seg["end"] < end:
+                    print(f"WARNING: inconsistent segment end {seg['end']} < {end}")
+
+            if remove_empty_words and format_timestamp(seg["end"]) <= format_timestamp(seg["start"]):
+                if verbose:
+                    print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
+                continue
+
+            for k in "speaker_id",:
+                if k in seg:
+                    seg["spk"] = seg.pop(k)
+                    break
 
             new_segments.append(seg)
 
@@ -176,8 +209,9 @@ def to_linstt_transcription(transcription,
                     assert not seg["text"], f"Got segment with empty words but non-empty text: {seg}"
                     continue
                 new_text = " " + " ".join([word["text"] for word in seg[word_key]])
-                if verbose and new_text.strip() != seg["text"].strip():
-                    print(f"WARNING: recomputing text from words:\n<< {seg['text']}\n>> {new_text}")
+                if verbose and new_text.strip() != seg.get("text", "").strip():
+                    if seg.get("text") is not None:
+                        print(f"WARNING: recomputing text from words:\n<< {seg['text']}\n>> {new_text}")
                 seg["text"] = new_text.strip()
 
         text = transcription["text"] if ("text" in transcription and not recompute_text) else " ".join([seg["text"] for seg in transcription["segments"]])
