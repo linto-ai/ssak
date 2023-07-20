@@ -22,11 +22,13 @@ def create_cut(
         input_folders = [input_folders]
 
     has_segments = None
+    has_genders = None
 
     for input_folder in input_folders:
 
-        for file in ["text", "wav.scp", "utt2dur", "spk2utt", "utt2spk", "spk2gender"]:
+        for file in ["text", "wav.scp", "utt2dur", "spk2utt", "utt2spk"]:
             assert os.path.isfile(input_folder + "/" + file), f"Missing file: {input_folder}/{file}"
+
 
         if os.path.isfile(input_folder + "/segments"):
             _has_segments = True
@@ -37,6 +39,18 @@ def create_cut(
             has_segments = _has_segments
         else:
             assert has_segments == _has_segments, f"Some folders have segments files and not others: {input_folder}"
+
+
+        if os.path.isfile(input_folder + "/spk2gender"):
+            _has_genders = True
+        else:
+            _has_genders = False
+            print(f"WARNING: {input_folder} has no spk2gender file")
+        if has_genders is None:
+            has_genders = _has_genders
+        else:
+            assert has_genders == _has_genders, f"Some folders have spk2gender files and not others: {input_folder}"
+
 
         if throw_if_output_exists and os.path.isdir(output_folder):
             raise RuntimeError(f"Output folder already exists. Please remove it first if you want to regenerate it:\n#\trm -R {output_folder}")
@@ -49,13 +63,14 @@ def create_cut(
 
     if os.path.exists(output_folder + "/segments"):
         os.remove(output_folder + "/segments")
+    if os.path.exists(output_folder + "/spk2gender"):
+        os.remove(output_folder + "/spk2gender")
 
     with open(output_folder + "/text", 'w') as text_file, \
         open(output_folder + "/wav.scp", 'w') as wavscp_file, \
         open(output_folder + "/utt2dur", 'w') as utt2dur, \
         open(output_folder + "/utt2spk", 'w') as utt2spk, \
-        open(output_folder + "/spk2utt", 'w') as spk2utt, \
-        open(output_folder + "/spk2gender", 'w') as spk2gender:
+        open(output_folder + "/spk2utt", 'w') as spk2utt:
 
         for input_folder in input_folders:
 
@@ -137,11 +152,13 @@ def create_cut(
                         spk2utt.write(f"{spk}\t{new_utt_s}\n")
                         spk_ids.append(spk)
 
-            with open(input_folder + "/spk2gender", 'r') as f:
-                for line in f:
-                    spk = _get_first_field(line)
-                    if spk in spk_ids:
-                        spk2gender.write(line)
+            if os.path.isfile(input_folder + "/spk2gender"):
+                with open(input_folder + "/spk2gender", 'r') as f, \
+                    open(output_folder + "/spk2gender", 'w') as spk2gender:
+                    for line in f:
+                        spk = _get_first_field(line)
+                        if spk in spk_ids:
+                            spk2gender.write(line)
 
     return check_kaldi_dir(output_folder, language=None)
 
