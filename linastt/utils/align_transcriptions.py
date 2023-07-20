@@ -10,6 +10,7 @@ from linastt.infer.general import (
     get_model_vocab,
     get_model_sample_rate,
 )
+from linastt.utils.text_utils import _punctuation
 
 import matplotlib.pyplot as plt
 
@@ -271,6 +272,19 @@ def compute_alignment(audio, transcript, model, plot = False):
         transcript = decode_log_probas(model, emission)
         print("Transcript:", transcript)
 
+    if isinstance(transcript, str):
+        transcript_characters = transcript
+        transcript_words = None
+    else:
+        assert isinstance(transcript, list), f"Got unexpected transcript (of type {type(transcript)})"
+        for i, w in enumerate(transcript):
+            assert isinstance(w, str), f"Got unexpected type {type(w)} (not a string)"
+            # if w.strip() != w:
+            #     print(f"WARNING: Got a word starting or ending with a space: '{w}'")
+            #     transcript[i] = w.strip()
+        transcript_characters = " ".join(transcript)
+        transcript_words = transcript
+
     if plot > 1:
         plt.imshow(emission.T, **imshow_logit_opts)
         plt.colorbar()
@@ -283,7 +297,7 @@ def compute_alignment(audio, transcript, model, plot = False):
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    tokens = [loose_get_char_index(dictionary, c, blank_id) for c in transcript]
+    tokens = [loose_get_char_index(dictionary, c, blank_id) for c in transcript_characters]
     tokens = [i for i in tokens if i is not None]
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
@@ -300,16 +314,31 @@ def compute_alignment(audio, transcript, model, plot = False):
         plt.title("The path found by backtracking")
         plt.show()
 
-    segments = merge_repeats(transcript, path)
+    char_segments = merge_repeats(transcript_characters, path)
 
     if plot:
-        plot_trellis_with_segments(trellis, segments, transcript, path)
+        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
         plt.tight_layout()
         plt.show()
 
-    word_segments = merge_words(segments)
+    if transcript_words is None:
+        word_segments = merge_words(char_segments)
+    else:
+        word_segments = []
+        i1 = 0
+        for word in transcript_words:
+            i2 = i1 + len(word)
+            segs = char_segments[i1:i2]
+            word_check = "".join([seg.label for seg in segs])
+            assert word_check == word
+            segs2 = [s for s in segs if s.label not in " "+_punctuation]
+            if len(segs2)!=0:
+                segs = segs2
+            score = sum(seg.score * seg.length for seg in segs) / sum(seg.length for seg in segs)
+            word_segments.append(Segment(word, segs[0].start, segs[-1].end, score))
+            i1 = i2 + 1        
 
-    return labels, emission, trellis, segments, word_segments
+    return labels, emission, trellis, char_segments, word_segments
 
 def loose_get_char_index(dictionary, c, default):
         i = dictionary.get(c, None)

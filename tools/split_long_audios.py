@@ -2,7 +2,7 @@
 
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
-from linastt.utils.text_utils import remove_special_words, format_special_characters, collapse_whitespace, _punctuation
+from linastt.utils.text_utils import remove_punctuations, remove_special_words, format_special_characters, numbers_and_symbols_to_letters, collapse_whitespace, _punctuation
 from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
 from linastt.infer.general import load_model, get_model_sample_rate
 from linastt.utils.align_transcriptions import compute_alignment
@@ -23,12 +23,16 @@ def custom_text_normalization(transcript, regex_rm = None):
             transcript = re.sub(regex, "", transcript)
     else:
         transcript = remove_special_words(transcript)
-    transcript = format_special_characters(transcript)
-    transcript = collapse_whitespace(transcript)
-    return transcript
+    return collapse_whitespace(transcript)
 
-def additional_normalization(text):
-    return text.replace("ö", "o").replace("ü", "u").replace("ä", "a").replace("ß", "ss").replace("ñ","n").replace("á","a")
+def custom_word_normalization(word, lang):
+    word = format_special_characters(word, remove_ligatures=True)
+    word = numbers_and_symbols_to_letters(word, lang=lang)
+    word = word.replace("ö", "o").replace("ü", "u").replace("ä", "a").replace("ß", "ss").replace("ñ","n").replace("á","a")
+    word_ = remove_punctuations(word)
+    if len(word_):
+        word = word_
+    return collapse_whitespace(word)
 
 def split_long_audio_kaldifolder(
     dirin,
@@ -36,6 +40,7 @@ def split_long_audio_kaldifolder(
     model,
     max_duration = 30,
     refine_timestamps = None,
+    lang="fr",
     regex_rm_part = None,
     regex_rm_full = None,
     verbose = True,
@@ -126,8 +131,15 @@ def split_long_audio_kaldifolder(
                 f_segments.write(f"{id} {wav_} {start_} {end_}\n")
                 continue
             all_words = transcript.split()
+            all_words_no_isolated_punc = []
+            for w in all_words:
+                if len(all_words_no_isolated_punc) and re.sub(rf"[ {re.escape(_punctuation)}]", "", w) == "":
+                    all_words_no_isolated_punc[-1] += " " + w
+                else:
+                    all_words_no_isolated_punc.append(w)
+            all_words = all_words_no_isolated_punc
             ###### special normalizations that preserve word segmentations (2/2)
-            transcript = additional_normalization(transcript)
+            transcript = [custom_word_normalization(w, lang=lang) for w in all_words]
             wavid, start, end = id2seg[id]
             delta_start = 0
             if refine_timestamps:
@@ -135,6 +147,8 @@ def split_long_audio_kaldifolder(
                 delta_start = new_start - start # negative
                 start = new_start
                 end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
+                transcript[0] = " "+transcript[0]
+                transcript[-1] = transcript[-1]+" "
             path = wav2path[wavid]
             audio = load_audio(path, start, end, sample_rate)
             if verbose:
@@ -238,6 +252,7 @@ if __name__ == "__main__":
                         # default = "speechbrain/asr-wav2vec2-commonvoice-fr",
                         default = "VOXPOPULI_ASR_BASE_10K_FR",
                         )
+    parser.add_argument('--language', default = "fr", help="Language (for text normalizations: numbers, symbols, ...)")
     parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 30, type = float)
     parser.add_argument('--refine_timestamps', help="A value (in seconds) to refine timestamps with", default = None, type = float)
     parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", default = None, type = str, nargs='+')
@@ -253,6 +268,7 @@ if __name__ == "__main__":
     assert not os.path.exists(dirout), "Output folder already exists. Please remove it first.\nrm -R {}".format(dirout)
     split_long_audio_kaldifolder(dirin, dirout,
         model = args.model,
+        lang = args.language,
         max_duration = args.max_duration,
         debug_folder = args.debug_folder,
         refine_timestamps = args.refine_timestamps,
