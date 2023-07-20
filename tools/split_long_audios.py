@@ -28,7 +28,7 @@ def custom_text_normalization(transcript, regex_rm = None):
 def custom_word_normalization(word, lang):
     word = format_special_characters(word, remove_ligatures=True)
     word = numbers_and_symbols_to_letters(word, lang=lang)
-    word = word.replace("ö", "o").replace("ü", "u").replace("ä", "a").replace("ß", "ss").replace("ñ","n").replace("á","a")
+    word = word.replace("ß", "ss") # Not taken into account by transliterate
     word_ = remove_punctuations(word)
     if len(word_):
         word = word_
@@ -194,10 +194,10 @@ def split_long_audio_kaldifolder(
                             os.makedirs(debug_folder)
                         new_transcript_ = new_transcript.replace(" ", "_").replace("'","").replace("/","-")
                         fname = f"{dbname}_{idx_processed:03}_{index:02}" + new_transcript_
-                        ratio = len(new_transcript_.encode("utf8"))/len(new_transcript)
+                        cratio = len(new_transcript_.encode("utf8"))/len(new_transcript)
                         #fname = f"{dbname}_{idx_processed:03}_{index:02}" + slugify(new_transcript)
-                        if len(fname) > (200/ratio)-4:
-                            fname = fname[:int(200/ratio)-4-23] + "..." + fname[-20:]  
+                        if len(fname) > (200/cratio)-4:
+                            fname = fname[:int(200/cratio)-4-23] + "..." + fname[-20:]  
                         sox.write(debug_folder+"/"+fname+".wav", load_audio(path, new_start, new_end, sample_rate), sample_rate)
                 last_start = last_end
                 last_end = last_start
@@ -241,6 +241,35 @@ def split_long_audio_kaldifolder(
 
 if __name__ == "__main__":
 
+    DEFAULT_ALIGN_MODELS_TORCH = {
+        "en": "WAV2VEC2_ASR_BASE_960H",
+        "fr": "VOXPOPULI_ASR_BASE_10K_FR",
+        "de": "VOXPOPULI_ASR_BASE_10K_DE",
+        "es": "VOXPOPULI_ASR_BASE_10K_ES",
+        "it": "VOXPOPULI_ASR_BASE_10K_IT",
+    }
+
+    DEFAULT_ALIGN_MODELS_HF = {
+        "ja": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
+        "zh": "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+        "nl": "jonatasgrosman/wav2vec2-large-xlsr-53-dutch",
+        "uk": "Yehor/wav2vec2-xls-r-300m-uk-with-small-lm",
+        "pt": "jonatasgrosman/wav2vec2-large-xlsr-53-portuguese",
+        "ar": "jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
+        "cs": "comodoro/wav2vec2-xls-r-300m-cs-250",
+        "ru": "jonatasgrosman/wav2vec2-large-xlsr-53-russian",
+        "pl": "jonatasgrosman/wav2vec2-large-xlsr-53-polish",
+        "hu": "jonatasgrosman/wav2vec2-large-xlsr-53-hungarian",
+        "fi": "jonatasgrosman/wav2vec2-large-xlsr-53-finnish",
+        "fa": "jonatasgrosman/wav2vec2-large-xlsr-53-persian",
+        "el": "jonatasgrosman/wav2vec2-large-xlsr-53-greek",
+        "tr": "mpoyraz/wav2vec2-xls-r-300m-cv7-turkish",
+        "da": "saattrupdan/wav2vec2-xls-r-300m-ftspeech",
+        "he": "imvladikon/wav2vec2-xls-r-300m-hebrew",
+        "vi": 'nguyenvulebinh/wav2vec2-base-vi',
+        "ko": "kresnik/wav2vec2-large-xlsr-korean",
+    }
+
     import argparse
 
     parser = argparse.ArgumentParser(description='Split long annotations into smaller ones',
@@ -248,11 +277,12 @@ if __name__ == "__main__":
     )
     parser.add_argument('dirin', help='Input folder', type=str)
     parser.add_argument('dirout', help='Output folder', type=str)
-    parser.add_argument('--model', help="Acoustic model", type=str,
-                        # default = "speechbrain/asr-wav2vec2-commonvoice-fr",
-                        default = "VOXPOPULI_ASR_BASE_10K_FR",
-                        )
     parser.add_argument('--language', default = "fr", help="Language (for text normalizations: numbers, symbols, ...)")
+    parser.add_argument('--model', help="Acoustic model to align", type=str,
+                        # default = "speechbrain/asr-wav2vec2-commonvoice-fr",
+                        # default = "VOXPOPULI_ASR_BASE_10K_FR",
+                        default = None,
+                        )
     parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 30, type = float)
     parser.add_argument('--refine_timestamps', help="A value (in seconds) to refine timestamps with", default = None, type = float)
     parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", default = None, type = str, nargs='+')
@@ -261,6 +291,11 @@ if __name__ == "__main__":
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
     args = parser.parse_args()
+
+    if args.model is None:
+        args.model = DEFAULT_ALIGN_MODELS_TORCH.get(args.language, DEFAULT_ALIGN_MODELS_HF.get(args.language, None))
+        if args.model is None:
+            raise ValueError(f"No default model defined for {args.language}. Please specify a model")
 
     dirin = args.dirin
     dirout = args.dirout
