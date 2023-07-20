@@ -18,8 +18,7 @@ import torch
 import transformers
 from dataclasses import dataclass
 
-imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25, aspect="auto")
-imshow_opts = imshow_logit_opts # dict(origin = "lower", vmin = -500, vmax = -300)
+imshow_opts = dict(origin = "lower", aspect="auto", vmax = 0) # vmin = -25,
 
 def get_trellis(emission, tokens, blank_id=0, use_max = False):
     num_frame = emission.size(0)
@@ -207,7 +206,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
         ax0 = axes[0]
         if labels is not None and len(labels) < emission.shape[-1]:
             emission = emission[:, :len(labels)]
-        ax0.imshow(emission.T, aspect="auto", **imshow_logit_opts)
+        ax0.imshow(emission.T, aspect="auto", **imshow_opts)
         #ax0.set_ylabel("Labels")
         #ax0.set_yticks([]) 
         if labels is not None:
@@ -286,7 +285,7 @@ def compute_alignment(audio, transcript, model, plot = False):
         transcript_words = transcript
 
     if plot > 1:
-        plt.imshow(emission.T, **imshow_logit_opts)
+        plt.imshow(emission.T, **imshow_opts)
         plt.colorbar()
         plt.title("Frame-wise class probability")
         plt.xlabel("Time")
@@ -294,10 +293,13 @@ def compute_alignment(audio, transcript, model, plot = False):
         plt.show()
 
     labels, blank_id = get_model_vocab(model)
+    space_id = blank_id
+    if " " in labels:
+        space_id = labels.index(" ")
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    tokens = [loose_get_char_index(dictionary, c, blank_id) for c in transcript_characters]
+    tokens = [loose_get_char_index(dictionary, c, space_id) for c in transcript_characters]
     tokens = [i for i in tokens if i is not None]
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
