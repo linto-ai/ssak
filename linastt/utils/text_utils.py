@@ -645,7 +645,7 @@ def ordinal_numbers_to_letters(text, lang):
     else:
         if not WARNING_NOTIMPLEMENTED_ORDINAL.get(lang):
             warnings.warn(
-                f"Normalization of ordinal numbers not supported for language '{lang}'")
+                f"WARNING: Normalization of ordinal numbers not supported for language '{lang}'")
             WARNING_NOTIMPLEMENTED_ORDINAL[lang]=True
         digits = []
 
