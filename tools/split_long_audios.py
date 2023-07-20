@@ -2,10 +2,10 @@
 
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
-from linastt.utils.text import remove_special_words
+from linastt.utils.text_utils import remove_special_words, format_special_characters, collapse_whitespace, _punctuation
 from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
 from linastt.infer.general import load_model, get_model_sample_rate
-from linastt.utils.inspect_reco import compute_alignment
+from linastt.utils.align_transcriptions import compute_alignment
 
 import os
 import shutil
@@ -15,9 +15,16 @@ import soxbindings as sox
 from slugify import slugify
 
 
-def custom_text_normalization(transcript):
-    transcript = remove_special_words(transcript)
-    transcript = re.sub(r" +", " ", transcript).strip()
+def custom_text_normalization(transcript, regex_rm = None):
+    if regex_rm:
+        if isinstance(regex_rm, str):
+            regex_rm = [regex_rm]
+        for regex in regex_rm:
+            transcript = re.sub(regex, "", transcript)
+    else:
+        transcript = remove_special_words(transcript)
+    transcript = format_special_characters(transcript)
+    transcript = collapse_whitespace(transcript)
     return transcript
 
 def additional_normalization(text):
@@ -27,10 +34,24 @@ def split_long_audio_kaldifolder(
     dirin,
     dirout,
     model,
-    max_duration = 15,
+    max_duration = 30,
+    refine_timestamps = None,
+    regex_rm_part = None,
+    regex_rm_full = None,
     verbose = True,
     debug_folder = None, # "check_audio/split",
+    plot = False,
     ):
+    """
+    Split long audio files into smaller ones.
+
+    Args:
+        dirin (str): Input folder (kaldi format)
+        dirout (str): Output folder (kaldi format)
+        model (str): Acoustic model, or path to the acoustic model
+        max_duration (float): Maximum duration of the output utterances (in seconds)
+        refine_timestamps (float): A value (in seconds) to refine start/end timestamps with
+    """
     MAX_LEN_PROCESSED = 0
     MAX_LEN_PROCESSED_ = 0
     assert dirout != dirin
@@ -87,22 +108,33 @@ def split_long_audio_kaldifolder(
         idx_processed = 0
         for id, dur in id2dur.items():
             if id not in id2text: continue # Removed because empty transcription
-            if id == "linagora_p2_beg--55:15_linstt_julie_spk-001_Section01_Topic-None_Turn-002_seg-0000012": continue # Crappy transcription
-            if dur <= max_duration:
-                text = custom_text_normalization(id2text[id])
-                f_text.write(f"{id} {text}\n")
+            ###### special normalizations (1/2)
+            transcript = custom_text_normalization(id2text[id], regex_rm = regex_rm_part)
+            if regex_rm_full:
+                for regex in regex_rm_full:
+                    if re.search(regex + r"$", transcript):
+                        print(f"WARNING: {id} removed because of regex {regex}")
+                        transcript = ""
+                        break
+            if not transcript:
+                continue
+            if dur <= max_duration and not refine_timestamps:
+                f_text.write(f"{id} {transcript}\n")
                 f_utt2spk.write(f"{id} {id2spk[id]}\n")
                 f_utt2dur.write(f"{id} {id2dur[id]}\n")
                 (wav_, start_, end_) = id2seg[id]
                 f_segments.write(f"{id} {wav_} {start_} {end_}\n")
                 continue
-            has_shorten = True
-            ###### special normalizations (1/2)
-            transcript = custom_text_normalization(id2text[id])
             all_words = transcript.split()
             ###### special normalizations that preserve word segmentations (2/2)
             transcript = additional_normalization(transcript)
             wavid, start, end = id2seg[id]
+            delta_start = 0
+            if refine_timestamps:
+                new_start = max(0, start - refine_timestamps)
+                delta_start = new_start - start # negative
+                start = new_start
+                end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
             path = wav2path[wavid]
             audio = load_audio(path, start, end, sample_rate)
             if verbose:
@@ -112,7 +144,15 @@ def split_long_audio_kaldifolder(
                 MAX_LEN_PROCESSED_ = max(MAX_LEN_PROCESSED_, audio.shape[0])
                 print(f"---------> {transcript}")
             tic = time.time()
-            labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = False)
+            labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = plot)
+            
+            # try:
+            # ...
+            # except RuntimeError as err:
+            #     print(f"WARNING: {id} failed to align with error: {err}")
+            #     continue
+
+            has_shorten = True
             ratio = len(audio) / (trellis.size(0) * sample_rate)
             print(f"Alignment done in {time.time()-tic:.2f}s")
             global index, last_start, last_end, new_transcript
@@ -154,6 +194,13 @@ def split_long_audio_kaldifolder(
             index = 1
             assert len(word_segments) == len(all_words), f"{[w.label for w in word_segments]}\n{all_words}\n{len(word_segments)} != {len(all_words)}"
             for i, (segment, word) in enumerate(zip(word_segments, all_words)):
+                if word.strip() in _punctuation:
+                    segment.end = segment.start
+                    if new_transcript == "":
+                        print("WARNING: removed a punctuation mark")
+                        continue
+                if refine_timestamps and i==0:
+                    last_start = segment.start * ratio
                 end = segment.end * ratio
                 if end - last_start > max_duration:
                     process()
@@ -187,10 +234,17 @@ if __name__ == "__main__":
     )
     parser.add_argument('dirin', help='Input folder', type=str)
     parser.add_argument('dirout', help='Output folder', type=str)
-    parser.add_argument('--model', help="Acoustic model", type=str, default = "speechbrain/asr-wav2vec2-commonvoice-fr")
-    parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 15, type = float)
+    parser.add_argument('--model', help="Acoustic model", type=str,
+                        # default = "speechbrain/asr-wav2vec2-commonvoice-fr",
+                        default = "VOXPOPULI_ASR_BASE_10K_FR",
+                        )
+    parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 30, type = float)
+    parser.add_argument('--refine_timestamps', help="A value (in seconds) to refine timestamps with", default = None, type = float)
+    parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", default = None, type = str, nargs='+')
+    parser.add_argument('--regex_rm_full', help="One or several regex to remove a full utterance.", default = None, type = str, nargs='+')
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
+    parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
     args = parser.parse_args()
 
     dirin = args.dirin
@@ -201,4 +255,8 @@ if __name__ == "__main__":
         model = args.model,
         max_duration = args.max_duration,
         debug_folder = args.debug_folder,
+        refine_timestamps = args.refine_timestamps,
+        regex_rm_part = args.regex_rm_part,
+        regex_rm_full = args.regex_rm_full,
+        plot = args.plot,
     )

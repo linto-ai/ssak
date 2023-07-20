@@ -2,7 +2,14 @@
 
 from linastt.utils.text import transliterate
 from linastt.utils.viewer import PlayWav
-from linastt.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
+from linastt.infer.general import (
+    load_model,
+    compute_logits,
+    compute_log_probas,
+    decode_log_probas,
+    get_model_vocab,
+    get_model_sample_rate,
+)
 
 import matplotlib.pyplot as plt
 
@@ -10,8 +17,8 @@ import torch
 import transformers
 from dataclasses import dataclass
 
-imshow_opts = dict(origin = "lower", vmin = -500, vmax = -300)
-imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25)
+imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25, aspect="auto")
+imshow_opts = imshow_logit_opts # dict(origin = "lower", vmin = -500, vmax = -300)
 
 def get_trellis(emission, tokens, blank_id=0, use_max = False):
     num_frame = emission.size(0)
@@ -264,7 +271,7 @@ def compute_alignment(audio, transcript, model, plot = False):
         transcript = decode_log_probas(model, emission)
         print("Transcript:", transcript)
 
-    if plot:
+    if plot > 1:
         plt.imshow(emission.T, **imshow_logit_opts)
         plt.colorbar()
         plt.title("Frame-wise class probability")
@@ -281,14 +288,14 @@ def compute_alignment(audio, transcript, model, plot = False):
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
 
-    if plot:
+    if plot > 1:
         plt.imshow(trellis[1:, 1:].T, **imshow_opts)
         plt.colorbar()
         plt.show()
 
     path = backtrack(trellis, emission, tokens, blank_id = blank_id)
     
-    if plot:
+    if plot > 1:
         plot_trellis_with_path(trellis, path)
         plt.title("The path found by backtracking")
         plt.show()
