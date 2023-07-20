@@ -9,8 +9,7 @@ from linastt.utils.text_utils import (
     regex_escape,
     transliterate,
     undigit,
-    cardinal_numbers_to_letters,
-    convert_symbols_to_words,
+    numbers_and_symbols_to_letters,
     _currencies,
     _punctuation,
 )
@@ -143,10 +142,6 @@ def format_text_latin(text,
 
         text = ' '+text+' '
 
-        numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
-        for n in numbers:
-            text = re.sub(n,re.sub(r"[,.]","",n), text)
-
         # Replace "." by "point" and "/" by "slash" in internet websites
         # Find all the websites in the text
         if lang == "fr":
@@ -162,7 +157,7 @@ def format_text_latin(text,
                 text = text.replace(w, w2)                
 
         # Special Symbols
-        text = format_special_characters(text)
+        text = format_special_characters(text, remove_ligatures=remove_ligatures)
 
         # text = re.sub('"',' " ', text)
         # text = re.sub("' '", "''", text)
@@ -207,31 +202,9 @@ def format_text_latin(text,
                 text=text.replace(h, text_rep)
 
         if convert_numbers:
+
+            text = numbers_and_symbols_to_letters(text, lang=lang)
             
-            # Ordinal digits
-            if lang == "en":
-                digits = re.findall(
-                    r"\b\d*1(?:st)|\d*2(?:nd)|\d*3(?:rd)|\d+(?:º|th)\b", text)
-            elif lang == "fr":
-                digits = re.findall(
-                    r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
-            else:
-                warnings.warn(
-                    f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
-                digits = []
-            if digits:
-                digits = sorted(list(set(digits)), reverse=True,
-                                key=lambda x: (len(x), x))
-                for digit in digits:
-                    word = undigit(re.findall(r"\d+", digit)
-                                [0], to="ordinal", lang=lang)
-                    text = re.sub(r'\b'+str(digit)+r'\b', word, text)
-
-            # Cardinal digits
-            text = cardinal_numbers_to_letters(text, lang=lang)
-
-            # Symbols (currencies, percent...)
-            text = convert_symbols_to_words(text, lang, lower_case=False)
             if lang == "fr":
                 for reg, replacement in _corrections_abbreviations_fr:
                     text = re.sub(reg, replacement, text)
@@ -275,16 +248,6 @@ def format_text_latin(text,
         if lower_case:
             text = text.lower()
 
-        if remove_ligatures:
-            text = re.sub(r"œ", "oe", text)
-            text = re.sub(r"æ", "ae", text)
-            text = re.sub(r"ﬁ", "fi", text)
-            text = re.sub(r"ﬂ", "fl", text)
-            text = re.sub("ĳ", "ij", text)
-            if not lower_case:
-                text = re.sub(r"Œ", "Oe", text)
-                text = re.sub(r"Æ", "Ae", text)
-
         text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
 
 
@@ -301,43 +264,6 @@ def format_text_latin(text,
         raise e
 
     return text
-
-def roman_to_decimal(str):
-    def value(r):
-        if (r == 'I'):
-            return 1
-        if (r == 'V'):
-            return 5
-        if (r == 'X'):
-            return 10
-        if (r == 'L'):
-            return 50
-        if (r == 'C'):
-            return 100
-        if (r == 'D'):
-            return 500
-        if (r == 'M'):
-            return 1000
-        return -1
-
-    res = 0
-    i = 0
-    while (i < len(str)):
-        s1 = value(str[i])
-        if (i + 1 < len(str)):
-            s2 = value(str[i + 1])
-            if (s1 >= s2):
-                # Value of current symbol is greater or equal to the next symbol
-                res = res + s1
-                i = i + 1
-            else:
-                # Value of current symbol is greater or equal to the next symbol
-                res = res + s2 - s1
-                i = i + 2
-        else:
-            res = res + s1
-            i = i + 1
-    return res
 
 #sorted(list(set([item for sublist in [w.split() for w in [num2words(i, lang='fr') for i in list(range(17)) + [i*10 for i in range(1,11)] + [1000**i for i in range(1,202)]]] for item in sublist])),key = len)
 _all_nums = [

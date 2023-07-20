@@ -11,8 +11,11 @@ from .text_utils import (
     regex_escape,
     transliterate,
     undigit,
+    numbers_and_symbols_to_letters,
+    ordinal_numbers_to_letters,
     cardinal_numbers_to_letters,
-    convert_symbols_to_words,    
+    roman_numbers_to_letters,
+    symbols_to_letters,
     split_around_space_and_apostrophe,
     split_around
 )

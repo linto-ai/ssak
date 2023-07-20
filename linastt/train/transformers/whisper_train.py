@@ -333,7 +333,7 @@ if __name__ == "__main__":
         if language == "ar":
             import random
             from linastt.utils.text_ar import \
-                convert_symbols_to_words, \
+                symbols_to_letters, \
                 normalize_arabic_currencies, \
                 digit2word, \
                 remove_arabic_diacritics, \
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     
                 text = remove_arabic_diacritics(text)
                 if random.random() < 0.5:
-                    text = convert_symbols_to_words(text, language, lower_case=False)
+                    text = symbols_to_letters(text, language, lower_case=False)
                     text = normalize_arabic_currencies(text)
                 if random.random() < 0.5:
                     text = digit2word(text)

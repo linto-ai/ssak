@@ -315,7 +315,7 @@ def normalize_arabic_currencies(text, lang="ar"):
          text = replace_keeping_word_boundaries(k, v, text)
     return text
 
-def convert_symbols_to_words(text, lang, lower_case=True):
+def symbols_to_letters(text, lang, lower_case=False):
     symbol_table = _symbol_to_word.get(lang, {})
     for k, v in symbol_table.items():
         if lower_case:
@@ -374,7 +374,7 @@ def remove_punctuations(text, strong = False):
 
 _non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
 
-def format_special_characters(text):
+def format_special_characters(text, remove_ligatures=False):
 
     for before, after in [
         ("â","â"),
@@ -404,6 +404,15 @@ def format_special_characters(text):
         (r"ᵉ","e"),
     ]:
         text = re.sub(before, after, text)
+
+    if remove_ligatures:
+        text = re.sub(r"œ", "oe", text)
+        text = re.sub(r"æ", "ae", text)
+        text = re.sub(r"ﬁ", "fi", text)
+        text = re.sub(r"ﬂ", "fl", text)
+        text = re.sub("ĳ", "ij", text)
+        text = re.sub(r"Œ", "Oe", text)
+        text = re.sub(r"Æ", "Ae", text)
 
     text = re.sub(' - | -$|^- ', ' ', text)
     # text = re.sub('--+',' ', text)
@@ -517,7 +526,6 @@ def split_around_space_and_apostrophe(text):
     words = [w for ws in words for w in ws]
     return words
 
-
 def cardinal_numbers_to_letters(text, lang, verbose=False):
     """
     Convert numbers to letters
@@ -623,6 +631,107 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     
     return text
 
+def ordinal_numbers_to_letters(text, lang):
+
+    if lang == "en":
+        digits = re.findall(
+            r"\b\d*1(?:st)|\d*2(?:nd)|\d*3(?:rd)|\d+(?:º|th)\b", text)
+    elif lang == "fr":
+        digits = re.findall(
+            r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
+    else:
+        warnings.warn(
+            f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
+        digits = []
+
+    if digits:
+        digits = sorted(list(set(digits)), reverse=True,
+                        key=lambda x: (len(x), x))
+        for digit in digits:
+            word = undigit(re.findall(r"\d+", digit)
+                        [0], to="ordinal", lang=lang)
+            text = re.sub(r'\b'+str(digit)+r'\b', word, text)
+
+    return text
+
+def roman_numbers_to_letters(text, lang):
+
+    # Roman digits
+    if re.search(r"[IVX]", text):
+        if lang == "en":
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|st|nd|rd|th)?\b", text)
+            digits = ["".join(d) for d in digits]
+        elif lang == "fr":
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|ème|eme|e|er|ère)?\b", text)
+            digits = ["".join(d) for d in digits]
+        else:
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})\b", text)
+            digits = ["".join(d) for d in digits]
+        if digits:
+            digits = sorted(list(set(digits)), reverse=True,
+                            key=lambda x: (len(x), x))
+            for s in digits:
+                filtered = re.sub("[a-zèº]", "", s)
+                ordinal = filtered != s
+                digit = roman_to_decimal(filtered)
+                v = undigit(str(digit), lang=lang,
+                            to="ordinal" if ordinal else "cardinal")
+                text = re.sub(r"\b" + s + r"\b", v, text)
+
+    return text
+
+def roman_to_decimal(str):
+    def value(r):
+        if (r == 'I'):
+            return 1
+        if (r == 'V'):
+            return 5
+        if (r == 'X'):
+            return 10
+        if (r == 'L'):
+            return 50
+        if (r == 'C'):
+            return 100
+        if (r == 'D'):
+            return 500
+        if (r == 'M'):
+            return 1000
+        return -1
+
+    res = 0
+    i = 0
+    while (i < len(str)):
+        s1 = value(str[i])
+        if (i + 1 < len(str)):
+            s2 = value(str[i + 1])
+            if (s1 >= s2):
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s1
+                i = i + 1
+            else:
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s2 - s1
+                i = i + 2
+        else:
+            res = res + s1
+            i = i + 1
+    return res
+
+def numbers_and_symbols_to_letters(text, lang, verbose=False):
+
+    numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
+    for n in numbers:
+        text = re.sub(n,re.sub(r"[,.]","",n), text)
+
+    text = roman_numbers_to_letters(text, lang=lang)
+    text = ordinal_numbers_to_letters(text, lang=lang)
+    text = cardinal_numbers_to_letters(text, lang=lang, verbose=verbose)
+    text = symbols_to_letters(text, lang, lower_case=False)
+
+    return text
 
 def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
     s = re.sub(" ", "", s)

@@ -4,7 +4,7 @@ from linastt.utils.text_utils import (
     remove_parenthesis,
     regex_escape,
     cardinal_numbers_to_letters,
-    convert_symbols_to_words,
+    symbols_to_letters,
     remove_punctuations,
     format_special_characters,
     _currencies,
@@ -56,7 +56,7 @@ def format_text_ru(text,
 
     text = cardinal_numbers_to_letters(text, lang="ru")
 
-    text = convert_symbols_to_words(text=text, lang=lang, lower_case=lower_case)
+    text = symbols_to_letters(text=text, lang=lang, lower_case=lower_case)
 
     text = format_special_characters(text)
 
