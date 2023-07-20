@@ -531,8 +531,8 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     Convert numbers to letters
     """
     # Floating point numbers
-    text = re.sub(r"\b(\d+)[,،](\d+)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
-    text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
+    text = re.sub(r"(\d)[,،](\d)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
+    text = re.sub(r"(\d)\.(\d)",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
     # wav2vec -> wav to vec
     text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text)
     # space after digits
@@ -631,7 +631,10 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     
     return text
 
+WARNING_NOTIMPLEMENTED_ORDINAL={}
+
 def ordinal_numbers_to_letters(text, lang):
+    global WARNING_NOTIMPLEMENTED_ORDINAL
 
     if lang == "en":
         digits = re.findall(
@@ -640,8 +643,10 @@ def ordinal_numbers_to_letters(text, lang):
         digits = re.findall(
             r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
     else:
-        warnings.warn(
-            f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
+        if not WARNING_NOTIMPLEMENTED_ORDINAL.get(lang):
+            warnings.warn(
+                f"Normalization of ordinal numbers not supported for language '{lang}'")
+            WARNING_NOTIMPLEMENTED_ORDINAL[lang]=True
         digits = []
 
     if digits:
@@ -722,9 +727,18 @@ def roman_to_decimal(str):
 
 def numbers_and_symbols_to_letters(text, lang, verbose=False):
 
-    numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
+    # "10 000"/"10,000"/"10.000" -> "10000"
+    numbers=re.findall(r"\b[1-9]\d{0,2}(?:[\.,]000)+\b",text)
     for n in numbers:
-        text = re.sub(n,re.sub(r"[,.]","",n), text)
+        text = re.sub(r"\b" + n + r"\b",re.sub(r"[,.]","",n), text)
+
+    # Reorder currencies (1,20€ -> 1 € 20)
+    coma = "," if lang in ["fr"] else "\."
+    for c in _currencies:
+        if c in text:
+            c = regex_escape(c)
+            text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
+                        c, r"\1 " + c + r" \2", text)
 
     text = roman_numbers_to_letters(text, lang=lang)
     text = ordinal_numbers_to_letters(text, lang=lang)
@@ -769,8 +783,12 @@ def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
         return ru_card_to_ord_masc_gen(undigit(s, lang, to="cardinal", ignore_first_zeros=True))
     if not ignore_first_zeros and s.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", s)[0])
+        zeros = numZeros * (robust_num2words(0, lang=lang, orig=s)+" ")
         if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
+            return zeros + robust_num2words(n, lang=lang, to=to, orig=s)
+        else:
+            assert float(s) == 0
+            return zeros.strip()
     return robust_num2words(n, lang=lang, to=to, orig=s)
 
 

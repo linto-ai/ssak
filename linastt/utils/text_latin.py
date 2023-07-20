@@ -85,41 +85,6 @@ def format_text_latin(text,
 
         global _ALL_ACRONYMS
 
-        if convert_numbers:
-            # Reorder currencies (1,20€ -> 1 € 20)
-            coma = "," if lang in ["fr"] else "\."
-            for c in _currencies:
-                if c in text:
-                    c = regex_escape(c)
-                    text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
-                                c, r"\1 " + c + r" \2", text)
-
-        if convert_numbers:
-            # Roman digits
-            if re.search(r"[IVX]", text):
-                if lang == "en":
-                    digits = re.findall(
-                        r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|st|nd|rd|th)?\b", text)
-                    digits = ["".join(d) for d in digits]
-                elif lang == "fr":
-                    digits = re.findall(
-                        r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|ème|eme|e|er|ère)?\b", text)
-                    digits = ["".join(d) for d in digits]
-                else:
-                    digits = re.findall(
-                        r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})\b", text)
-                    digits = ["".join(d) for d in digits]
-                if digits:
-                    digits = sorted(list(set(digits)), reverse=True,
-                                    key=lambda x: (len(x), x))
-                    for s in digits:
-                        filtered = re.sub("[a-zèº]", "", s)
-                        ordinal = filtered != s
-                        digit = roman_to_decimal(filtered)
-                        v = undigit(str(digit), lang=lang,
-                                    to="ordinal" if ordinal else "cardinal")
-                        text = re.sub(r"\b" + s + r"\b", v, text)
-        
         if fid_acronyms is not None:
             acronyms = find_acronyms(text)
             for acronym in acronyms:

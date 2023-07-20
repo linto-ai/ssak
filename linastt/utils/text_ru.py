@@ -2,12 +2,9 @@ import re
 
 from linastt.utils.text_utils import (
     remove_parenthesis,
-    regex_escape,
-    cardinal_numbers_to_letters,
-    symbols_to_letters,
+    numbers_and_symbols_to_letters,
     remove_punctuations,
     format_special_characters,
-    _currencies,
 )
 
 def format_text_ru(text,
@@ -31,34 +28,21 @@ def format_text_ru(text,
     import cyrtranslit
 
     lang = "ru"
-    text_orig = text
 
-    if lower_case:
-        text = text.lower()
-        if remove_optional_diacritics:
-            text = re.sub("ё", "е", text)
-    else:
-        if remove_optional_diacritics:
-            text = re.sub("Ё", "Е", text)
-            text = re.sub("ё", "е", text)
+    if remove_optional_diacritics:
+        text = re.sub("Ё", "Е", text)
+        text = re.sub("ё", "е", text)
 
     if force_transliteration:
         if not re.match(r".*[ЁёА-я]", text):
             text = cyrtranslit.to_cyrillic(text, lang)
 
-    # Reorder currencies (1,20€ -> 1 € 20)
-    coma = ","
-    for c in _currencies:
-        if c in text:
-            c = regex_escape(c)
-            text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
-                          c, r"\1 " + c + r" \2", text)
-
-    text = cardinal_numbers_to_letters(text, lang="ru")
-
-    text = symbols_to_letters(text=text, lang=lang, lower_case=lower_case)
+    text = numbers_and_symbols_to_letters(text, lang="ru")
 
     text = format_special_characters(text)
+
+    if lower_case:
+        text = text.lower()
 
     if not keep_punc:
         text = remove_punctuations(text, strong=True)
