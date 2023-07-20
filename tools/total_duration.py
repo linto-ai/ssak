@@ -51,7 +51,7 @@ def _sox_duration(files):
 def get_max_args():
     return int(run_command("getconf ARG_MAX"))
     
-def sox_duration(files, max_args=None):
+def sox_duration(files, max_args=1000):
     if max_args is None:
         max_args = get_max_args()
     assert max_args > 0

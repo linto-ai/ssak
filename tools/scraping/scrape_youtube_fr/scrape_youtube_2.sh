@@ -16,7 +16,7 @@ while [ 1 -gt 0 ];do
         -p yt_scrape_metadata.json || exit $?
 
     echo "Measure timing..."
-    soxi YouTubeFr/mp3/* | tail -n 2
+    python3 ../total_duration.py YouTubeFr/mp3
     sleep 3600
 
 done
