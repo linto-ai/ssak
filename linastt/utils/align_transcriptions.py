@@ -152,7 +152,7 @@ def plot_trellis_with_path(trellis, path):
     plt.imshow(trellis_with_path.T, **imshow_opts)
 
 
-def plot_trellis_with_segments(trellis, segments, transcript, path):
+def plot_trellis_with_segments(trellis, segments, transcript, path, plot_spaces=False):
     # To plot trellis with path, we take advantage of 'nan' value
     trellis_with_path = trellis.clone()
     for _, p in enumerate(path):
@@ -173,18 +173,21 @@ def plot_trellis_with_segments(trellis, segments, transcript, path):
     ax2.set_title("Label probability with and without repetition")
     xs, hs, ws = [], [], []
     for seg in segments:
-        xs.append((seg.end + seg.start) / 2 + 0.4)
+        if not plot_spaces and seg.label == " ":
+            continue
+        xs.append((seg.end + seg.start) / 2 - 0.5)
         hs.append(seg.score)
         ws.append(seg.end - seg.start)
-        ax2.annotate(seg.label, (seg.start + 0.8, -0.07), weight="bold")
+        ax2.annotate(seg.label, (seg.start, -0.07), weight="bold")
     ax2.bar(xs, hs, width=ws, color="gray", alpha=0.5, edgecolor="black")
 
     xs, hs = [], []
     for p in path:
         label = transcript[p.token_index]
-        if label != "|":
-            xs.append(p.time_index + 1)
-            hs.append(p.score)
+        if not plot_spaces and label == " ":
+            continue
+        xs.append(p.time_index)
+        hs.append(p.score)
 
     ax2.bar(xs, hs, width=0.5, alpha=0.5)
     ax2.axhline(0, color="black")
@@ -263,7 +266,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
 
 # Main function
 
-def compute_alignment(audio, transcript, model, plot = False):
+def compute_alignment(audio, transcript, model, plot=False, verbose=False):
 
     emission = compute_log_probas(model, audio)
 
@@ -318,27 +321,37 @@ def compute_alignment(audio, transcript, model, plot = False):
 
     char_segments = merge_repeats(transcript_characters, path)
 
-    if plot:
-        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
-        plt.tight_layout()
-        plt.show()
-
     if transcript_words is None:
         word_segments = merge_words(char_segments)
     else:
         word_segments = []
-        i1 = 0
+        i2 = -1
         for word in transcript_words:
+            i1 = i2 + 1
             i2 = i1 + len(word)
-            segs = char_segments[i1:i2]
-            word_check = "".join([seg.label for seg in segs])
+            segs1 = char_segments[i1:i2]
+            word_check = "".join([seg.label for seg in segs1])
             assert word_check == word
-            segs2 = [s for s in segs if s.label not in " "+_punctuation]
+            segs2 = [s for s in segs1 if s.label not in " "+_punctuation]
             if len(segs2)!=0:
                 segs = segs2
+            else:
+                segs = segs1
             score = sum(seg.score * seg.length for seg in segs) / sum(seg.length for seg in segs)
             word_segments.append(Segment(word, segs[0].start, segs[-1].end, score))
-            i1 = i2 + 1        
+            if verbose:
+                for s in segs1:
+                    if s == segs[0]:
+                        print(s.label, s.start, s.end, word, word_segments[-1].start, word_segments[-1].end)
+                    else:
+                        print(s.label, s.start, s.end)
+
+    if plot:
+        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
+        plt.axvline(word_segments[0].start - 0.5, color="black")
+        plt.axvline(word_segments[-1].end - 0.5, color="black")
+        plt.tight_layout()
+        plt.show()            
 
     return labels, emission, trellis, char_segments, word_segments
 

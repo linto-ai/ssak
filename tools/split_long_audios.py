@@ -206,13 +206,14 @@ def split_long_audio_kaldifolder(
             last_end = 0
             new_transcript = ""
             index = 1
+            def ignore_word(word):
+                return word.strip() in _punctuation
             assert len(word_segments) == len(all_words), f"{[w.label for w in word_segments]}\n{all_words}\n{len(word_segments)} != {len(all_words)}"
             for i, (segment, word) in enumerate(zip(word_segments, all_words)):
-                if word.strip() in _punctuation:
+                if ignore_word(word):
                     segment.end = segment.start
                     if new_transcript == "":
-                        print("WARNING: removed a punctuation mark")
-                        continue
+                        print("WARNING: removed a punctuation mark???")
                 if refine_timestamps and i==0:
                     last_start = segment.start * ratio
                 end = segment.end * ratio
