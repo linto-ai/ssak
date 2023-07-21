@@ -5,6 +5,7 @@ import hashlib
 import pickle
 import shutil
 import types
+import datetime
 
 def flatten(l):
     """
@@ -102,3 +103,61 @@ class suppress_stderr(object):
         os.dup2 ( self.old_stderr_fileno, self.old_stderr_fileno_undup )
         os.close ( self.old_stderr_fileno )
         self.errnull_file.close()
+
+def object_to_dict(
+    x, level=float("inf"),
+    simple_classes=[int, float, str, bool, type(None)],
+    additional_attr=None,
+    ignore_attr=[],
+    ignore_private=True,
+    ):
+    if max([isinstance(x, c) for c in simple_classes]):
+        return x
+    if isinstance(x, datetime.datetime):
+        return x.isoformat()
+    if isinstance(x, dict):
+        return dict((k, object_to_dict(v, level - 1)) for k, v in x.items()
+                    if k not in ignore_attr and (not k.startswith("_") or not ignore_private)
+                    and v != x and not callable(v)
+                    )
+    if isinstance(x, (list, tuple)):
+        return [object_to_dict(v, level - 1) for v in x]
+    level -= 1
+    if not hasattr(x, "__dict__"):
+        params = {}
+    elif level <= 0:
+        params = dict(
+            (k, v)
+            for k, v in x.__dict__.items()
+            if max([isinstance(v, c) for c in simple_classes])
+                and k not in ignore_attr and (not k.startswith("_") or not ignore_private)
+                and v != x and not callable(v)
+        )
+    else:
+        params = dict(
+            (k, object_to_dict(v, level - 1))
+            for k, v in x.__dict__.items()
+            if k not in ignore_attr and (not k.startswith("_") or not ignore_private)
+            and v != x and not callable(v)
+        )
+    if level > 0:
+        auto = False
+        if additional_attr is None:
+            additional_attr = [k for k in dir(x) if (not k.startswith("_") or not ignore_private)] 
+            auto = True
+        for attr in additional_attr:
+            if attr in dir(x):
+                try:
+                    params[attr] = object_to_dict(x.__getattribute__(attr), level - 1)
+                except Exception as err:
+                    continue
+                    print(err)
+                    params[attr] = err
+                if auto and callable(params[attr]):
+                    try:
+                        params[attr+'()'] = params[attr]()
+                    except:
+                        pass
+                    params.pop(attr)
+        # classname = str(type(x)).split("'")[1]
+    return params # | {"_class": classname}

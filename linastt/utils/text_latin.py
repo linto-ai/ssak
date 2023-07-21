@@ -9,9 +9,9 @@ from linastt.utils.text_utils import (
     regex_escape,
     transliterate,
     undigit,
-    cardinal_numbers_to_letters,
-    convert_symbols_to_words,
-    _currencies
+    numbers_and_symbols_to_letters,
+    _currencies,
+    _punctuation,
 )
 
 def _rm_key(d, key):
@@ -39,6 +39,7 @@ def format_text_latin(text,
     lower_case = True,
     keep_punc = False,
     remove_ligatures = True,
+    convert_numbers = True,
     extract_parenthesis = False,
     fid_acronyms = None,
     fid_special_chars = None,
@@ -84,39 +85,6 @@ def format_text_latin(text,
 
         global _ALL_ACRONYMS
 
-        # Reorder currencies (1,20€ -> 1 € 20)
-        coma = "," if lang in ["fr"] else "\."
-        for c in _currencies:
-            if c in text:
-                c = regex_escape(c)
-                text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
-                            c, r"\1 " + c + r" \2", text)
-
-        # Roman digits
-        if re.search(r"[IVX]", text):
-            if lang == "en":
-                digits = re.findall(
-                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|st|nd|rd|th)?\b", text)
-                digits = ["".join(d) for d in digits]
-            elif lang == "fr":
-                digits = re.findall(
-                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|ème|eme|e|er|ère)?\b", text)
-                digits = ["".join(d) for d in digits]
-            else:
-                digits = re.findall(
-                    r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})\b", text)
-                digits = ["".join(d) for d in digits]
-            if digits:
-                digits = sorted(list(set(digits)), reverse=True,
-                                key=lambda x: (len(x), x))
-                for s in digits:
-                    filtered = re.sub("[a-zèº]", "", s)
-                    ordinal = filtered != s
-                    digit = roman_to_decimal(filtered)
-                    v = undigit(str(digit), lang=lang,
-                                to="ordinal" if ordinal else "cardinal")
-                    text = re.sub(r"\b" + s + r"\b", v, text)
-        
         if fid_acronyms is not None:
             acronyms = find_acronyms(text)
             for acronym in acronyms:
@@ -125,22 +93,10 @@ def format_text_latin(text,
                     fid_acronyms.flush()
                     _ALL_ACRONYMS.append(acronym)
 
-        if lower_case:
-            text = text.lower()
-            if remove_ligatures:
-                text = re.sub(r"œ", "oe", text)
-                text = re.sub(r"æ", "ae", text)
-                text = re.sub(r"ﬁ", "fi", text)
-                text = re.sub(r"ﬂ", "fl", text)
-                text = re.sub("ĳ", "ij", text)
-        elif remove_ligatures:
-            text = re.sub(r"œ", "oe", text)
-            text = re.sub(r"æ", "ae", text)
-            text = re.sub(r"ﬁ", "fi", text)
-            text = re.sub(r"ﬂ", "fl", text)
-            text = re.sub("ĳ", "ij", text)
-            text = re.sub(r"Œ", "OE", text)
-            text = re.sub(r"Æ", "AE", text)
+        if lang == "fr":
+
+            for reg, replacement in _multi_spelling_words_fr:
+                text = re.sub(reg, replacement, text)
 
         text = re.sub("``", "\"", text)
         text = re.sub("''", "\"", text)
@@ -151,101 +107,94 @@ def format_text_latin(text,
 
         text = ' '+text+' '
 
-        numbers=re.findall(r"\d{1,3}(?:[\.,]000)+",text)
-        for n in numbers:
-            text = re.sub(n,re.sub(r"[,.]","",n), text)
-
         # Replace "." by "point" and "/" by "slash" in internet websites
         # Find all the websites in the text
-        websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
-        websites = sorted(set(websites), key = len, reverse = True)
-        for w in websites:
-            w2 = w
-            w2 = re.sub("\.", " point ", w2)
-            w2 = re.sub(":", " deux points ", w2)
-            w2 = re.sub("/", " slash ", w2)
-            w2 = re.sub("-", " tiret ", w2)
-            #text = re.sub(w, w2, text)
-            text = text.replace(w, w2)
+        if lang == "fr":
+            websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
+            websites = sorted(set(websites), key = len, reverse = True)
+            for w in websites:
+                w2 = w
+                w2 = re.sub("\.", " point ", w2)
+                w2 = re.sub(":", " deux points ", w2)
+                w2 = re.sub("/", " slash ", w2)
+                w2 = re.sub("-", " tiret ", w2)
+                #text = re.sub(w, w2, text)
+                text = text.replace(w, w2)                
 
-        # Abbréviations
-        text = re.sub(" m\. "," monsieur ",text)
-        text = re.sub(" mme\.? ", " madame ",text)
-        text = re.sub(" mlle\.? ", " mademoiselle ",text)
+        # Special Symbols
+        text = format_special_characters(text, remove_ligatures=remove_ligatures)
 
-        text = re.sub(r"[’‘]","'", text)
-        text = re.sub("'","' ", text)
-        text = re.sub('"',' " ', text)
-        text = re.sub("' '", "''", text)
-        text = re.sub(":", " : ", text)
-        text = re.sub(";", " ; ", text)
-        text = re.sub(',|¸',',', text)
-        text = re.sub(", ", " , ", text)
-        text = re.sub("\!", " ! ", text)
-        text = re.sub("\?", " ? ", text)
+        # text = re.sub('"',' " ', text)
+        # text = re.sub("' '", "''", text)
+        # text = re.sub(',|¸',',', text)
+        # text = re.sub(", ", " , ", text)
+        # text = re.sub("\!", " ! ", text)        
+        if lang == "fr":
+            text = re.sub("\?", " ? ", text)
+            text = re.sub(":", " : ", text)
+            text = re.sub(";", " ; ", text)
         #text = re.sub("^ *-+", "", text)
+        text = re.sub("'","' ", text)
         text = re.sub("\^+","", text)
         text = re.sub(" +(- +)+", " ", text)
         text = re.sub("- ", " ", text)
         #text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
         #text = re.sub(" -([a-zàâäçèéêëîïôùûü]+)", r"-\1", text)
-        text = re.sub("([,;:\!\?\.]) -([a-zàâäçèéêëîïôùûü]+)", r"\1 \2", text)
-        text = re.sub("([a-zàâäçèéêëîïôùûü]{3,})' ", r"\1 ", text)
-        text = re.sub("([a-zàâäçèéêëîïôùûü]{2,})' *[,;:\!\?\.]", r"\1 ", text)
-        text = re.sub('\.{2,}',' ', text)
-        text = re.sub('\. *$',' . ', text)
-        text = re.sub('(\d)\. ',r'\1 . ', text)
+        # text = re.sub("([,;:\!\?\.]) -([a-zàâäçèéêëîïôùûü]+)", r"\1 \2", text)
+        # text = re.sub("([a-zàâäçèéêëîïôùûü]{3,})' ", r"\1 ", text)
+        # text = re.sub("([a-zàâäçèéêëîïôùûü]{2,})' *[,;:\!\?\.]", r"\1 ", text)
+        # text = re.sub('\.{2,}',' ', text)
+        # text = re.sub('\. *$',' . ', text)
+        # text = re.sub('(\d)\. ',r'\1 . ', text)
 
-        text=re.sub('\{',' { ',text)
-        text=re.sub('\}',' } ',text)
-        text=re.sub('\(',' ( ',text)
-        text=re.sub('\)',' ) ',text)
-        text=re.sub('\[',' [ ',text)
-        text=re.sub('\]',' ] ',text)
-        text=re.sub(r"<([^<>]*)>",r"\1",text)
+        # text=re.sub('\{',' { ',text)
+        # text=re.sub('\}',' } ',text)
+        # text=re.sub('\(',' ( ',text)
+        # text=re.sub('\)',' ) ',text)
+        # text=re.sub('\[',' [ ',text)
+        # text=re.sub('\]',' ] ',text)
+        # text=re.sub(r"<([^<>]*)>",r"\1",text)
 
         for reg, replacement in _corrections_regex_fr:
             text = re.sub(reg, replacement, text)
 
-        heures=re.findall("\d+ *h *\d+",text)
-        for h in heures:
-            split_h=h.split('h')
-            text_rep=re.sub('^0+','',split_h[0])+' heures '+re.sub('^0+','',split_h[1])
-            #text_rep=split_h[0]+' heures '+split_h[1]
-            text=text.replace(h, text_rep)
+        if convert_numbers:
+            heures=re.findall("\d+ *h *\d+",text)
+            for h in heures:
+                split_h=h.split('h')
+                text_rep=re.sub('^0+','',split_h[0])+' heures '+re.sub('^0+','',split_h[1])
+                #text_rep=split_h[0]+' heures '+split_h[1]
+                text=text.replace(h, text_rep)
 
-        text = re.sub("(\d+)''",r"\1 secondes ",text)
-        text = re.sub("(\d+)'",r"\1 minutes ",text)
-        #text = re.sub("(\d+)°",r"\1 degrés ",text)
+        if convert_numbers:
 
-        # Ordinal digits
-        if lang == "en":
-            digits = re.findall(
-                r"\b\d*1(?:st)|\d*2(?:nd)|\d*3(?:rd)|\d+(?:º|th)\b", text)
-        elif lang == "fr":
-            digits = re.findall(
-                r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
+            text = numbers_and_symbols_to_letters(text, lang=lang)
+            
+            if lang == "fr":
+                for reg, replacement in _corrections_abbreviations_fr:
+                    text = re.sub(reg, replacement, text)
+                # text = re.sub("(\d+)''",r"\1 secondes ",text)
+                # text = re.sub("(\d+)'",r"\1 minutes ",text)
+                # text = re.sub("(\d+)°",r"\1 degrés ",text)
+
+            if safety_checks:
+                if re.findall(r"\d", text):
+                    raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
+        
         else:
-            warnings.warn(
-                f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
-            digits = []
-        if digits:
-            digits = sorted(list(set(digits)), reverse=True,
-                            key=lambda x: (len(x), x))
-            for digit in digits:
-                word = undigit(re.findall(r"\d+", digit)
-                            [0], to="ordinal", lang=lang)
-                text = re.sub(r'\b'+str(digit)+r'\b', word, text)
 
-        # Cardinal digits
-        text = cardinal_numbers_to_letters(text, lang=lang)
+            # Unglue digits
+            text = re.sub(r"([0-9])([^0-9"+re.escape(_punctuation)+"])", r"\1 \2", text)
 
-        # Symbols (currencies, percent...)
-        text = convert_symbols_to_words(text, lang, lower_case=lower_case)
-
-        if safety_checks:
-            if re.findall(r"\d", text):
-                raise ValueError(f"Failed to convert all digits to words\nInput: {text_orig}\nOutput: {text}")
+            # Glue ordinals
+            if lang == "en":
+                text = re.sub(r"([0-9])\s+(st|nd|rd|º|th)\b", r"\1\2", text)
+            elif lang == "fr":
+                text = re.sub(r"([0-9])\s+(ère|ere|er|re|r|nd|nde|º|ème|eme|e)\b", r"\1\2", text)
+            else:
+                warnings.warn(
+                    f"Language {lang} not supported for some normalization. Some words might be mis-localized.")
+            
 
         # Dashes
         text = re.sub(r"((?:^)|(?:\W))[-_]",r"\1, ", text) # " j'ai dit -à ma ``belle-mère''-casse-toi" -> " j'ai dit , à ma ``belle-mère'', casse-toi"
@@ -258,19 +207,14 @@ def format_text_latin(text,
                         # Replace all dashes by spaces
                         text = re.sub(r"\b"+word+r"\b", re.sub("-", " ", word), text)
 
-        for reg, replacement in _corrections_abbreviations_fr:
-            text = re.sub(reg, replacement, text)
-
-        for reg, replacement in _multi_spelling_words:
-            text = re.sub(reg, replacement, text)
-
-        # Special Symbols
-        text = format_special_characters(text)
-
         if not keep_punc:
             text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
 
+        if lower_case:
+            text = text.lower()
+
         text = remove_special_characters(text, replace_by = "", latin_characters_only = True, fid = fid_special_chars)
+
 
         # # Non printable characters
         # if '\x81' in text:
@@ -285,43 +229,6 @@ def format_text_latin(text,
         raise e
 
     return text
-
-def roman_to_decimal(str):
-    def value(r):
-        if (r == 'I'):
-            return 1
-        if (r == 'V'):
-            return 5
-        if (r == 'X'):
-            return 10
-        if (r == 'L'):
-            return 50
-        if (r == 'C'):
-            return 100
-        if (r == 'D'):
-            return 500
-        if (r == 'M'):
-            return 1000
-        return -1
-
-    res = 0
-    i = 0
-    while (i < len(str)):
-        s1 = value(str[i])
-        if (i + 1 < len(str)):
-            s2 = value(str[i + 1])
-            if (s1 >= s2):
-                # Value of current symbol is greater or equal to the next symbol
-                res = res + s1
-                i = i + 1
-            else:
-                # Value of current symbol is greater or equal to the next symbol
-                res = res + s2 - s1
-                i = i + 2
-        else:
-            res = res + s1
-            i = i + 1
-    return res
 
 #sorted(list(set([item for sublist in [w.split() for w in [num2words(i, lang='fr') for i in list(range(17)) + [i*10 for i in range(1,11)] + [1000**i for i in range(1,202)]]] for item in sublist])),key = len)
 _all_nums = [
@@ -556,7 +463,11 @@ _all_nums = [
 
 
 
-_corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
+_corrections_abbreviations_fr = [(r'\b'+x[0]+r'\b', x[1]) for x in [
+    ("Mo", "mégas"),
+    ("Go", "gigas"),
+    ("MHz", "méga hertz"),
+    ("GHz", "giga hertz"),
     ("g", "grammes"),
     ("µg", "microgrammes"),
     ("μg", "microgrammes"),
@@ -565,8 +476,12 @@ _corrections_abbreviations_fr = [(r' '+x[0]+r' ', ' '+x[1]+' ') for x in [
     ("mm", "millimètres"),
     ("cm", "centimètres"),
     # ("l", "litres"), # Caution with "l'"
+    # ("L", "litres"), # Caution with "L'"
     ("ml", "millilitres"),
     ("cm2", "centimètres carrés"),
+    (r"[Mm]\.?", "monsieur"),
+    (r"[Mm]me\.?", "madame"),
+    (r"[Mm]lle\.?", "mademoiselle"),
 ]] + [
     ("@", " arobase "),
 ]
@@ -793,7 +708,7 @@ _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1
                     ("°", " degrés "),
                 ]]
 
-_multi_spelling_words = [(r'\b%s\b' % x[0], '%s' % x[1])
+_multi_spelling_words_fr = [(r'\b%s\b' % x[0], '%s' % x[1])
                   for x in [
                     ("ailloli", "aïoli"),
                     ("aillolis", "aïolis"),

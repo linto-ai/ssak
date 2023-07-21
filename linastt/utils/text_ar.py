@@ -1,5 +1,5 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_escape, convert_symbols_to_words, normalize_arabic_currencies
+from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_escape, symbols_to_letters, normalize_arabic_currencies
 from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
@@ -85,7 +85,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
     input_line = line
     try:
         line = remove_url(line)
-        line = convert_symbols_to_words(line, lang="ar", lower_case=False)
+        line = symbols_to_letters(line, lang="ar", lower_case=False)
         line = normalize_arabic_currencies(line, lang="ar")
         line = digit2word(line)
         line = remove_arabic_diacritics(line)

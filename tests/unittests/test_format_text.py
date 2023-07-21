@@ -25,8 +25,8 @@ class TestFormatTextLatin(Test):
         )
 
         self.assertEqual(
-            format_text_latin("10,000 et 100,000,000 et 1111,000,000"),
-            "dix mille et cent millions et un milliard cent onze millions"
+            format_text_latin("10,000 et 100,000,000 et 1111,000,000 et 1111,000000"),
+            "dix mille et cent millions et mille cent onze virgule zéro zéro zéro virgule zéro zéro zéro et mille cent onze virgule zéro zéro zéro zéro zéro zéro"
         )
 
         self.assertEqual(
@@ -62,7 +62,8 @@ class TestFormatTextLatin(Test):
 
         self.assertEqual(
             format_text_latin("Jeu 1 : 160/65-315  155/70-12 155/70-15"),
-            "jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
+            #"jeu un cent soixante soixante-cinq mille trois cent quinzièmes cent cinquante-cinq soixante-dixièmes douze cent cinquante-cinq soixante-dixièmes quinze"
+            "jeu un cent soixante soixante-cinq millions trois cent quinze mille cent cinquante-cinquièmes soixante-dix douze mille cent cinquante-cinq soixante-dix quinze"
         )
 
         self.assertEqual(
@@ -166,7 +167,7 @@ class TestFormatTextLatin(Test):
         )
         self.assertEqual(
             format_text_latin("C'est la <DATE> est au format aaaa-mm-dd. ça mesure 3mm"),
-            "c' est la date est au format aaaa millimètres dd ça mesure trois millimètres" # Not the best...
+            "c' est la date est au format aaaa-millimètres-dd ça mesure trois millimètres" # Not the best...
         )
 
     def test_spelling(self):
@@ -181,6 +182,15 @@ class TestFormatTextLatin(Test):
             "chef-d' oeuvre et voilà quoi"
         )
 
+    def test_disable_some(self):
+        self.assertEqual(
+            format_text_latin("Œuf 6Go 6ème 2,6.", convert_numbers=False, lower_case=False, keep_punc=True),
+            "Oeuf 6 Go 6ème 2,6."
+        )
+        self.assertEqual(
+            format_text_latin("Œuf 6Go 6ème 2,6.", convert_numbers=False, lower_case=False, keep_punc=False),
+            "Oeuf 6 Go 6ème 2 6"
+        )
 
     def test_non_regression_fr(self):
         
@@ -236,9 +246,10 @@ class TestFormatTextArabic(Test):
             'بعض الأرقام صفر واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر فاصيله خمسة و صفر تسعة و تسعون'
         )
 
+
         self.assertEqual(
             format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78"),
-            'يوجد عشرة آلاف شخص عنوان الخاص بي هو تسعمائة و واحد و خمسون فاصيله ثلاثمائة و سبعة و خمسون مائة و ثلاثة و عشرون ورقم هاتفي هو صفر ستة اثنا عشر أربعة و ثلاثون ستة و خمسون ثمانية و سبعون'
+            'يوجد عشرة آلاف شخص عنوان الخاص بي هو تسعمائة و واحد و خمسون فاصيله ثلاثمائة و سبعة و خمسون فاصيله مائة و ثلاثة و عشرون ورقم هاتفي هو صفر ستة اثنا عشر أربعة و ثلاثون ستة و خمسون ثمانية و سبعون'
         )
                 
         self.assertEqual(

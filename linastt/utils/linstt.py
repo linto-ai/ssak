@@ -9,6 +9,7 @@ import json
 import asyncio
 
 from linastt.utils.curl import curl_post, curl_get
+from linastt.utils.text_utils import collapse_whitespace
 
 DIARIZATION_SERVICES = {
     "pybk": "stt-diarization-pybk",
@@ -83,6 +84,7 @@ def linstt_transcribe(
             ws_api = transcription_server_complete,
             verbose = verbose
         )
+        text = collapse_whitespace(text)
         return {
             "transcription_result": text,
             "raw_transcription": text,
@@ -242,7 +244,7 @@ async def _linstt_streaming(
         # Init pyaudio
         audio = pyaudio.PyAudio()
         stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=2048)
-        if verbose:
+        if verbose > 1:
             print("Start recording")
     else:
         stream = open(audio_file, "rb")
@@ -251,54 +253,64 @@ async def _linstt_streaming(
     text = ""
     partial = None
     
-    async with websockets.connect(ws_api) as websocket:
-        await websocket.send(json.dumps({"config" : {"sample_rate": 16000 }}))
-        while alive:
-            try:
-                data = stream.read(2048)
-                if audio_file and not data:
-                    if verbose:
-                        print("\nAudio file finished")
+    try:
+        async with websockets.connect(ws_api) as websocket:
+            await websocket.send(json.dumps({"config" : {"sample_rate": 16000 }}))
+            while alive:
+                try:
+                    data = stream.read(2048)
+                    if audio_file and not data:
+                        if verbose > 1:
+                            print("\nAudio file finished")
+                        alive = False
+                    await websocket.send(data)
+                    res = await websocket.recv()
+                    message = json.loads(res)
+                    if message is None:
+                        if verbose > 1:
+                            print("\n Received None")
+                        continue
+                    if "partial" in message.keys():
+                        partial = message["partial"]
+                        if verbose:
+                            print_partial(partial)
+                    elif "text" in message.keys():
+                        line = message["text"]
+                        if verbose:
+                            print_final(line)
+                        if line:
+                            if text:
+                                text += "\n"
+                            text += line
+                    elif verbose:
+                        print("???", message)
+                except KeyboardInterrupt:
+                    if verbose > 1:
+                        print("\nKeyboard interrupt")
                     alive = False
-                await websocket.send(data)
-                res = await websocket.recv()
-                message = json.loads(res)
-                if message is None:
-                    if verbose:
-                        print("\n Received None")
-                    continue
-                if "partial" in message.keys():
-                    partial = message["partial"]
-                    if verbose:
-                        print("partial", partial, end="\r")
-                elif "text" in message.keys():
-                    partial = message["text"]
-                    if verbose:
-                        print("text", partial, end="\t\t\n")
-                    if text:
-                        text += " "
-                    text += partial
-                elif verbose:
-                    print(message)
-            except KeyboardInterrupt:
-                if verbose:
-                    print("\nKeyboard interrupt")
-                alive = False
-        await websocket.send(json.dumps({"eof" : 1}))
-        res = await websocket.recv()
-        message = json.loads(res)
-        if isinstance(message, str):
-            message = json.loads(message)
-        if text:
-            text += " "
-        text += message["text"]
-        if verbose:
-            print(text)
-        try:
+            await websocket.send(json.dumps({"eof" : 1}))
             res = await websocket.recv()
-        except websockets.ConnectionClosedOK:
-            if verbose and not audio_file:
-                print("Websocket Closed")
+            message = json.loads(res)
+            if isinstance(message, str):
+                message = json.loads(message)
+            if text:
+                text += " "
+            text += message["text"]
+            try:
+                res = await websocket.recv()
+            except websockets.ConnectionClosedOK:
+                if verbose > 1:
+                    print("Websocket Closed")
+    except KeyboardInterrupt:
+        if verbose > 1:
+            print("\nKeyboard interrupt")
+    if verbose:
+
+        terminal_size = shutil.get_terminal_size()
+        width = terminal_size.columns
+        print_final("= FULL TRANSCRIPTION ", background="=")
+        print(text)
+
     return text
 
 def print_progress(result, seconds, keys= ["progress", "status", "state"]):
@@ -315,6 +327,25 @@ def print_progress(result, seconds, keys= ["progress", "status", "state"]):
         string = string[:width]
     print(string + " " * (width - len(string)), end="\r")
 
+def print_partial(text):
+    text = text + "…"
+    terminal_size = shutil.get_terminal_size()
+    width = terminal_size.columns
+    start = ((len(text) - 1)// width) * width
+    if start > 0:
+        print(" "*width, end="\r")
+        if start < len(text) - 1:
+            print("…"+text[start+1:]+" "*(width-len(text)-start-1), end="\r")
+        else:
+            print(text[-width:], end="\r")
+    else:
+        print(text, end="\r")
+
+def print_final(text, background=" "):
+    terminal_size = shutil.get_terminal_size()
+    width = terminal_size.columns
+    print(background * width, end="\r")
+    print(text)
 
 def select_keys(d, keys, ignore_keys = ["preprocessing", "postprocessing"]):
     if isinstance(d, dict):

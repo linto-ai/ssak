@@ -315,18 +315,18 @@ def normalize_arabic_currencies(text, lang="ar"):
          text = replace_keeping_word_boundaries(k, v, text)
     return text
 
-def convert_symbols_to_words(text, lang, lower_case=True):
+def symbols_to_letters(text, lang, lower_case=False):
     symbol_table = _symbol_to_word.get(lang, {})
     for k, v in symbol_table.items():
-         if lower_case:
-             k = k.lower()
-             v = v.lower()
-         text = replace_keeping_word_boundaries(k, v, text)
+        if lower_case:
+            k = k.lower()
+            v = v.lower()
+        text = replace_keeping_word_boundaries(k, v, text)
     return text
 
 
 
-_not_latin_characters_pattern = re.compile("[^a-zA-Z\u00C0-\u00FF\-'\.?!,;: ]")
+_not_latin_characters_pattern = re.compile("[^a-zA-Z0-9\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
 
@@ -374,7 +374,7 @@ def remove_punctuations(text, strong = False):
 
 _non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
 
-def format_special_characters(text):
+def format_special_characters(text, remove_ligatures=False):
 
     for before, after in [
         ("â","â"),
@@ -404,6 +404,15 @@ def format_special_characters(text):
         (r"ᵉ","e"),
     ]:
         text = re.sub(before, after, text)
+
+    if remove_ligatures:
+        text = re.sub(r"œ", "oe", text)
+        text = re.sub(r"æ", "ae", text)
+        text = re.sub(r"ﬁ", "fi", text)
+        text = re.sub(r"ﬂ", "fl", text)
+        text = re.sub("ĳ", "ij", text)
+        text = re.sub(r"Œ", "Oe", text)
+        text = re.sub(r"Æ", "Ae", text)
 
     text = re.sub(' - | -$|^- ', ' ', text)
     # text = re.sub('--+',' ', text)
@@ -460,6 +469,7 @@ def split_around(
         must_not_end_with=None,
         has_to_start_with=None,
         min_length=0,
+        glue_right=False
         ):
     """
     Split text around punctuation.
@@ -470,8 +480,14 @@ def split_around(
         must_not_end_with (str): if the sentence ends with this *regex*, it will be glued to the next sentence
         has_to_start_with (str): if the sentence does not start with this *regex*, it will be glued to the previous sentence
         min_length (int): if the sentence is shorter than this, it will be glued to the next sentence
+        glue_right (bool): if True, glue the punctuations to the right (otherwise to the left)
     """
-    sentences = re.findall(rf"([^{punctuation}]+)([{punctuation}]+|$)", text)
+    sentences = re.findall(rf"([^{re.escape(punctuation)}]+)([{re.escape(punctuation)}]+|$)", text)
+    if glue_right:
+        sentences = zip(
+            [''] + [s[1] for s in sentences],
+            [s[0] for s in sentences] + ['']
+        )
     sentences = ["".join(s) for s in sentences]
     if must_not_end_with or has_to_start_with or min_length:
         new_sentences = []
@@ -494,7 +510,9 @@ def split_around(
             has_to_be_glued = next_has_to_be_glued
         sentences = new_sentences
 
-    return [s.strip() for s in sentences]
+    sentences = [s.strip() for s in sentences]
+    sentences = [s for s in sentences if s]
+    return sentences
 
 def split_around_apostrophe(text):
     words = text.split("'")
@@ -508,14 +526,13 @@ def split_around_space_and_apostrophe(text):
     words = [w for ws in words for w in ws]
     return words
 
-
 def cardinal_numbers_to_letters(text, lang, verbose=False):
     """
     Convert numbers to letters
     """
     # Floating point numbers
-    text = re.sub(r"\b(\d+)[,،](\d+)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
-    text = re.sub(r"\b(\d+)\.(\d+)\b",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
+    text = re.sub(r"(\d)[,،](\d)",r"\1 " + _punct_to_word[lang][","] + r" \2", text)
+    text = re.sub(r"(\d)\.(\d)",r"\1 " + _punct_to_word[lang]["."] + r" \2", text)
     # wav2vec -> wav to vec
     text = re.sub(r'([a-z])2([a-z])', r'\1 to \2', text)
     # space after digits
@@ -614,6 +631,121 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
     
     return text
 
+WARNING_NOTIMPLEMENTED_ORDINAL={}
+
+def ordinal_numbers_to_letters(text, lang):
+    global WARNING_NOTIMPLEMENTED_ORDINAL
+
+    if lang == "en":
+        digits = re.findall(
+            r"\b\d*1(?:st)|\d*2(?:nd)|\d*3(?:rd)|\d+(?:º|th)\b", text)
+    elif lang == "fr":
+        digits = re.findall(
+            r"\b1(?:ère|ere|er|re|r)|2(?:nd|nde)|\d+(?:º|ème|eme|e)\b", text)
+    else:
+        if not WARNING_NOTIMPLEMENTED_ORDINAL.get(lang):
+            warnings.warn(
+                f"WARNING: Normalization of ordinal numbers not supported for language '{lang}'")
+            WARNING_NOTIMPLEMENTED_ORDINAL[lang]=True
+        digits = []
+
+    if digits:
+        digits = sorted(list(set(digits)), reverse=True,
+                        key=lambda x: (len(x), x))
+        for digit in digits:
+            word = undigit(re.findall(r"\d+", digit)
+                        [0], to="ordinal", lang=lang)
+            text = re.sub(r'\b'+str(digit)+r'\b', word, text)
+
+    return text
+
+def roman_numbers_to_letters(text, lang):
+
+    # Roman digits
+    if re.search(r"[IVX]", text):
+        if lang == "en":
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|st|nd|rd|th)?\b", text)
+            digits = ["".join(d) for d in digits]
+        elif lang == "fr":
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})(º|ème|eme|e|er|ère)?\b", text)
+            digits = ["".join(d) for d in digits]
+        else:
+            digits = re.findall(
+                r"\b(?=[XVI])M*(XX{0,3})(I[XV]|V?I{0,3})\b", text)
+            digits = ["".join(d) for d in digits]
+        if digits:
+            digits = sorted(list(set(digits)), reverse=True,
+                            key=lambda x: (len(x), x))
+            for s in digits:
+                filtered = re.sub("[a-zèº]", "", s)
+                ordinal = filtered != s
+                digit = roman_to_decimal(filtered)
+                v = undigit(str(digit), lang=lang,
+                            to="ordinal" if ordinal else "cardinal")
+                text = re.sub(r"\b" + s + r"\b", v, text)
+
+    return text
+
+def roman_to_decimal(str):
+    def value(r):
+        if (r == 'I'):
+            return 1
+        if (r == 'V'):
+            return 5
+        if (r == 'X'):
+            return 10
+        if (r == 'L'):
+            return 50
+        if (r == 'C'):
+            return 100
+        if (r == 'D'):
+            return 500
+        if (r == 'M'):
+            return 1000
+        return -1
+
+    res = 0
+    i = 0
+    while (i < len(str)):
+        s1 = value(str[i])
+        if (i + 1 < len(str)):
+            s2 = value(str[i + 1])
+            if (s1 >= s2):
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s1
+                i = i + 1
+            else:
+                # Value of current symbol is greater or equal to the next symbol
+                res = res + s2 - s1
+                i = i + 2
+        else:
+            res = res + s1
+            i = i + 1
+    return res
+
+def numbers_and_symbols_to_letters(text, lang, verbose=False):
+
+    # "10 000"/"10,000"/"10.000" -> "10000"
+    numbers=re.findall(r"\b[1-9]\d{0,2}(?:[\.,]000)+\b",text)
+    for n in numbers:
+        text = re.sub(r"\b" + n + r"\b",re.sub(r"[,.]","",n), text)
+
+    # Reorder currencies (1,20€ -> 1 € 20)
+    coma = "," if lang in ["fr"] else "\."
+    for c in _currencies:
+        if c in text:
+            c = regex_escape(c)
+            text = re.sub(r"\b(\d+)" + coma + r"(\d+)\s*" +
+                        c, r"\1 " + c + r" \2", text)
+
+    text = roman_numbers_to_letters(text, lang=lang)
+    text = ordinal_numbers_to_letters(text, lang=lang)
+    text = cardinal_numbers_to_letters(text, lang=lang, verbose=verbose)
+    text = symbols_to_letters(text, lang, lower_case=False)
+
+    return text
 
 def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
     s = re.sub(" ", "", s)
@@ -651,8 +783,12 @@ def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
         return ru_card_to_ord_masc_gen(undigit(s, lang, to="cardinal", ignore_first_zeros=True))
     if not ignore_first_zeros and s.startswith("0") and to == "cardinal":
         numZeros = len(re.findall(r"0+", s)[0])
+        zeros = numZeros * (robust_num2words(0, lang=lang, orig=s)+" ")
         if numZeros < len(s):
-            return numZeros * (robust_num2words(0, lang=lang, orig=s)+" ") + robust_num2words(n, lang=lang, to=to, orig=s)
+            return zeros + robust_num2words(n, lang=lang, to=to, orig=s)
+        else:
+            assert float(s) == 0
+            return zeros.strip()
     return robust_num2words(n, lang=lang, to=to, orig=s)
 
 

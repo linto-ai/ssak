@@ -1,8 +1,10 @@
 bs4
 certifi
 docx
+free-proxy
 google-ngram-downloader
 openpyxl
+# proxy_randomizer
 pycurl
 pymupdf
 python-slugify
@@ -10,4 +12,3 @@ pytube
 moviepy
 selenium
 youtube_transcript_api
-langid

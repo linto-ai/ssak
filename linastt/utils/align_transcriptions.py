@@ -2,7 +2,15 @@
 
 from linastt.utils.text import transliterate
 from linastt.utils.viewer import PlayWav
-from linastt.infer.general import load_model, compute_log_probas, decode_log_probas, get_model_vocab, get_model_sample_rate
+from linastt.infer.general import (
+    load_model,
+    compute_logits,
+    compute_log_probas,
+    decode_log_probas,
+    get_model_vocab,
+    get_model_sample_rate,
+)
+from linastt.utils.text_utils import _punctuation
 
 import matplotlib.pyplot as plt
 
@@ -10,8 +18,7 @@ import torch
 import transformers
 from dataclasses import dataclass
 
-imshow_opts = dict(origin = "lower", vmin = -500, vmax = -300)
-imshow_logit_opts = dict(origin = "lower", vmax = 0, vmin = -25)
+imshow_opts = dict(origin = "lower", aspect="auto", vmax = 0) # vmin = -25,
 
 def get_trellis(emission, tokens, blank_id=0, use_max = False):
     num_frame = emission.size(0)
@@ -79,7 +86,7 @@ def backtrack(trellis, emission, tokens, blank_id=0):
             if j == 0:
                 break
     else:
-        raise ValueError("Failed to align")
+        raise RuntimeError("Failed to align (empty output?)")
     return path[::-1]
 
 
@@ -145,7 +152,7 @@ def plot_trellis_with_path(trellis, path):
     plt.imshow(trellis_with_path.T, **imshow_opts)
 
 
-def plot_trellis_with_segments(trellis, segments, transcript, path):
+def plot_trellis_with_segments(trellis, segments, transcript, path, plot_spaces=False):
     # To plot trellis with path, we take advantage of 'nan' value
     trellis_with_path = trellis.clone()
     for _, p in enumerate(path):
@@ -166,18 +173,21 @@ def plot_trellis_with_segments(trellis, segments, transcript, path):
     ax2.set_title("Label probability with and without repetition")
     xs, hs, ws = [], [], []
     for seg in segments:
-        xs.append((seg.end + seg.start) / 2 + 0.4)
+        if not plot_spaces and seg.label == " ":
+            continue
+        xs.append((seg.end + seg.start) / 2 - 0.5)
         hs.append(seg.score)
         ws.append(seg.end - seg.start)
-        ax2.annotate(seg.label, (seg.start + 0.8, -0.07), weight="bold")
+        ax2.annotate(seg.label, (seg.start, -0.07), weight="bold")
     ax2.bar(xs, hs, width=ws, color="gray", alpha=0.5, edgecolor="black")
 
     xs, hs = [], []
     for p in path:
         label = transcript[p.token_index]
-        if label != "|":
-            xs.append(p.time_index + 1)
-            hs.append(p.score)
+        if not plot_spaces and label == " ":
+            continue
+        xs.append(p.time_index)
+        hs.append(p.score)
 
     ax2.bar(xs, hs, width=0.5, alpha=0.5)
     ax2.axhline(0, color="black")
@@ -199,7 +209,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
         ax0 = axes[0]
         if labels is not None and len(labels) < emission.shape[-1]:
             emission = emission[:, :len(labels)]
-        ax0.imshow(emission.T, aspect="auto", **imshow_logit_opts)
+        ax0.imshow(emission.T, aspect="auto", **imshow_opts)
         #ax0.set_ylabel("Labels")
         #ax0.set_yticks([]) 
         if labels is not None:
@@ -256,7 +266,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
 
 # Main function
 
-def compute_alignment(audio, transcript, model, plot = False):
+def compute_alignment(audio, transcript, model, plot=False, verbose=False):
 
     emission = compute_log_probas(model, audio)
 
@@ -264,8 +274,21 @@ def compute_alignment(audio, transcript, model, plot = False):
         transcript = decode_log_probas(model, emission)
         print("Transcript:", transcript)
 
-    if plot:
-        plt.imshow(emission.T, **imshow_logit_opts)
+    if isinstance(transcript, str):
+        transcript_characters = transcript
+        transcript_words = None
+    else:
+        assert isinstance(transcript, list), f"Got unexpected transcript (of type {type(transcript)})"
+        for i, w in enumerate(transcript):
+            assert isinstance(w, str), f"Got unexpected type {type(w)} (not a string)"
+            # if w.strip() != w:
+            #     print(f"WARNING: Got a word starting or ending with a space: '{w}'")
+            #     transcript[i] = w.strip()
+        transcript_characters = " ".join(transcript)
+        transcript_words = transcript
+
+    if plot > 1:
+        plt.imshow(emission.T, **imshow_opts)
         plt.colorbar()
         plt.title("Frame-wise class probability")
         plt.xlabel("Time")
@@ -273,36 +296,64 @@ def compute_alignment(audio, transcript, model, plot = False):
         plt.show()
 
     labels, blank_id = get_model_vocab(model)
+    space_id = blank_id
+    if " " in labels:
+        space_id = labels.index(" ")
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
-    tokens = [loose_get_char_index(dictionary, c, blank_id) for c in transcript]
+    tokens = [loose_get_char_index(dictionary, c, space_id) for c in transcript_characters]
     tokens = [i for i in tokens if i is not None]
 
     trellis = get_trellis(emission, tokens, blank_id = blank_id)
 
-    if plot:
+    if plot > 1:
         plt.imshow(trellis[1:, 1:].T, **imshow_opts)
         plt.colorbar()
         plt.show()
 
     path = backtrack(trellis, emission, tokens, blank_id = blank_id)
     
-    if plot:
+    if plot > 1:
         plot_trellis_with_path(trellis, path)
         plt.title("The path found by backtracking")
         plt.show()
 
-    segments = merge_repeats(transcript, path)
+    char_segments = merge_repeats(transcript_characters, path)
+
+    if transcript_words is None:
+        word_segments = merge_words(char_segments)
+    else:
+        word_segments = []
+        i2 = -1
+        for word in transcript_words:
+            i1 = i2 + 1
+            i2 = i1 + len(word)
+            segs1 = char_segments[i1:i2]
+            word_check = "".join([seg.label for seg in segs1])
+            assert word_check == word
+            segs2 = [s for s in segs1 if s.label not in " "+_punctuation]
+            if len(segs2)!=0:
+                segs = segs2
+            else:
+                segs = segs1
+            score = sum(seg.score * seg.length for seg in segs) / sum(seg.length for seg in segs)
+            word_segments.append(Segment(word, segs[0].start, segs[-1].end, score))
+            if verbose:
+                for s in segs1:
+                    if s == segs[0]:
+                        print(s.label, s.start, s.end, word, word_segments[-1].start, word_segments[-1].end)
+                    else:
+                        print(s.label, s.start, s.end)
 
     if plot:
-        plot_trellis_with_segments(trellis, segments, transcript, path)
+        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
+        plt.axvline(word_segments[0].start - 0.5, color="black")
+        plt.axvline(word_segments[-1].end - 0.5, color="black")
         plt.tight_layout()
-        plt.show()
+        plt.show()            
 
-    word_segments = merge_words(segments)
-
-    return labels, emission, trellis, segments, word_segments
+    return labels, emission, trellis, char_segments, word_segments
 
 def loose_get_char_index(dictionary, c, default):
         i = dictionary.get(c, None)

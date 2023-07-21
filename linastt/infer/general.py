@@ -1,6 +1,5 @@
 import speechbrain as sb
 import transformers
-import torch
 from linastt.infer.speechbrain_infer import(
     speechbrain_load_model,
     speechbrain_compute_logits,
@@ -12,11 +11,18 @@ from linastt.infer.transformers_infer import (
     transformers_infer,
     WAV2VEC_CLASSES,
 )
+from linastt.infer.torchaudio_infer import (
+    torchaudio_load_model,
+    torchaudio_is_valid,
+    torchaudio_compute_logits,
+)
+import torch
 from enum import Enum
 
 class ModelType(str, Enum):
     SPEECHBRAIN = "SpeechBrain"
     TRANSFORMERS = "Transformers"
+    TORCHAUDIO = "TorchAudio"
     WHISPER = "Whisper"
     def __str__(self):
         return self.value
@@ -28,19 +34,25 @@ def load_model(source, device = None):
         try:
             return transformers_load_model(source, device)
         except Exception as e2:
-            raise ValueError(f"Unknown model type: {source}:\n{e1}\n{e2}")
+            try:
+                return torchaudio_load_model(source, device)
+            except Exception as e3:
+                raise ValueError(f"Unknown model type: {source}:\n{e1}\n{e2}\n{e3}")
 
 def get_model_type(model):
     # if isinstance(model, str):
     #     return get_model_type(load_model(model))
+
     if isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)):
         return ModelType.SPEECHBRAIN
     
-    elif isinstance(model, tuple) and len(model) == 2:
-        assert isinstance(model[0], WAV2VEC_CLASSES), f"Unknown model type: {type(model[0])}"
+    elif isinstance(model, tuple) and len(model) == 2 and isinstance(model[0], WAV2VEC_CLASSES):
         assert isinstance(model[1], transformers.Wav2Vec2Processor), f"Unknown processor type: {type(model[1])}"
         return ModelType.TRANSFORMERS
-    
+
+    elif torchaudio_is_valid(model):
+        return ModelType.TORCHAUDIO
+
     raise NotImplementedError(f"Unknown model type: {type(model)}")
 
 def infer(model, batch, **kwargs):
@@ -48,74 +60,95 @@ def infer(model, batch, **kwargs):
     if isinstance(model, str):
         return infer(load_model(model), batch, **kwargs)
     
-    elif get_model_type(model) == ModelType.SPEECHBRAIN:
+    model_type = get_model_type(model)
+
+    if model_type == ModelType.SPEECHBRAIN:
         return speechbrain_infer(model, batch, **kwargs)
     
-    elif get_model_type(model) == ModelType.TRANSFORMERS:
+    elif model_type == ModelType.TRANSFORMERS:
         return transformers_infer(model, batch, **kwargs)
     
     else:
-        raise NotImplementedError(f"Unknown model type: {type(model)}")
+        raise NotImplementedError(f"infer() not implemented for model type: {type(model)}")
 
-def compute_log_probas(model, batch):
+def compute_logits(model, batch):
 
     if isinstance(model, str):
         return compute_log_probas(load_model(model), batch)
     
-    elif get_model_type(model) == ModelType.SPEECHBRAIN:
+    model_type = get_model_type(model)
+
+    if model_type == ModelType.SPEECHBRAIN:
         reco, logits = speechbrain_compute_logits(model, batch)
-        logits = torch.log_softmax(logits, dim=-1)
     
-    elif get_model_type(model) == ModelType.TRANSFORMERS:
+    elif model_type == ModelType.TRANSFORMERS:
         model, processor = model
         logits = transformers_compute_logits(model, processor, batch)
-        logits = torch.log_softmax(logits, dim=-1)
         logits = logits[0,:,:]
+
+    elif model_type == ModelType.TORCHAUDIO:
+        logits = torchaudio_compute_logits(model, batch)
     
     else:
-        raise NotImplementedError(f"Unknown model type: {type(model)}")
+        raise NotImplementedError(f"compute_log_probas() not implemented for model type: {model_type}")
+    
+    return logits
 
-    return logits # .cpu().numpy()
+def compute_log_probas(model, batch):
+    logits = compute_logits(model, batch)
+    return torch.log_softmax(logits, dim=-1) # .cpu().numpy()
 
 def decode_log_probas(model, logits):
     
     if isinstance(model, str):
         return decode_log_probas(load_model(model), logits)
 
-    elif get_model_type(model) == ModelType.SPEECHBRAIN:
+    model_type = get_model_type(model)
+
+    if model_type == ModelType.SPEECHBRAIN:
         _, blank_id = get_model_vocab(model)
         indices = sb.decoders.ctc_greedy_decode(logits.unsqueeze(0), torch.Tensor([1.]), blank_id = blank_id)
         reco = model.tokenizer.decode(indices)
         return reco[0]
 
-    elif get_model_type(model) == ModelType.TRANSFORMERS:
+    elif model_type == ModelType.TRANSFORMERS:
         model, processor = model
         return processor.decode(torch.argmax(logits, dim=-1))
 
     else:
-        raise NotImplementedError(f"Unknown model type: {type(model)}")
+        raise NotImplementedError(f"decode_log_probas() not implement for model type: {model_type}")
 
 def get_model_vocab(model):
 
     if isinstance(model, str):
         return get_model_vocab(load_model(model))
     
-    elif get_model_type(model) == ModelType.SPEECHBRAIN:
+    model_type = get_model_type(model)
+    
+    if model_type == ModelType.SPEECHBRAIN:
         tokenizer = model.tokenizer
         labels = [{'':" ", ' ⁇ ':"<pad>"}.get(i,i).lower() for i in tokenizer.decode([[i] for i in range(tokenizer.get_piece_size())])]
         blank_id = labels.index("<pad>")
         return labels, blank_id
     
-    elif get_model_type(model) == ModelType.TRANSFORMERS:
+    elif model_type == ModelType.TRANSFORMERS:
         processor = model[1]
         labels_dict = dict((v,k) for k,v in processor.tokenizer.get_vocab().items())
         labels = [labels_dict[i] for i in range(len(labels_dict))]
         labels = [l if l!="|" else " " for l in labels]
         blank_id = labels.index("<pad>")
         return labels, blank_id
-    
+
+    elif model_type == ModelType.TORCHAUDIO:
+        _, labels = model
+        labels = list(labels)
+        # blank_id = labels.index("-") # ...? Is it general enough?
+        blank_id = 0
+        labels = [l if l!="|" else " " for l in labels]
+        return labels, blank_id
+
     else:
-        raise NotImplementedError(f"Unknown model type: {type(model)}")
+        raise NotImplementedError(f"get_model_vocab() not implemented for model type: {model_type}")
 
 
 def get_model_sample_rate(model):
@@ -123,15 +156,25 @@ def get_model_sample_rate(model):
     if isinstance(model, str):
         return get_model_sample_rate(load_model(model))
     
-    elif get_model_type(model) == ModelType.SPEECHBRAIN:
+    model_type = get_model_type(model)
+    
+    if model_type == ModelType.SPEECHBRAIN:
         return model.audio_normalizer.sample_rate
     
-    elif get_model_type(model) == ModelType.TRANSFORMERS:
+    elif model_type == ModelType.TRANSFORMERS:
         processor = model[1]
         return processor.feature_extractor.sampling_rate
     
+    elif model_type == ModelType.TORCHAUDIO:
+        # Can we do better?
+        return 16000
+    
     else:
-        raise ValueError(f"Unknown model type: {type(model)}")
+        raise NotImplementedError(f"get_model_sample_rate() not implemented for model type: {model_type}")
+
+### Torch audio models
+
+
 
 if __name__ == "__main__":
 
