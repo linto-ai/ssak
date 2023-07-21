@@ -47,6 +47,9 @@ def format_text_ru(text,
 
     text = remove_parenthesis(text)
 
+    if lower_case:
+        text = text.lower()
+
     return text
 
 
