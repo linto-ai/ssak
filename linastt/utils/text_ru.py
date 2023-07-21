@@ -11,6 +11,7 @@ from linastt.utils.text_utils import (
 def format_text_ru(text,
                    lower_case=True,
                    keep_punc=False,
+                   keep_hyphen=False,
                    remove_optional_diacritics=True,
                    force_transliteration=True):
     """
@@ -19,6 +20,7 @@ def format_text_ru(text,
         text: input text to normalize
         lower_case: switch to lower case
         keep_punc: keep punctuation or not
+        keep_hyphen: keep hyphen even if other punctuations are removed
         remove_optional_diacritics: replaces all ё with е, does not change 'й'
         force_transliteration: transliterates all non-cyrillic sentences to cyrillic
 
@@ -41,8 +43,11 @@ def format_text_ru(text,
     text = numbers_and_symbols_to_letters(text, lang="ru")
 
     if not keep_punc:
-        text = re.sub('-', ' ', text)
-        text = remove_punctuations(text, strong=True)
+        if keep_hyphen:
+            text = re.sub("'", " ", text)
+        else:
+            text = re.sub("[-']", " ", text)
+        text = remove_punctuations(text)
 
     text = format_special_characters(text)
 

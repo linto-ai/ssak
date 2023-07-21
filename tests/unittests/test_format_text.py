@@ -361,6 +361,10 @@ class TestFormatTextRu(Test):
             format_text_ru(sentence, keep_punc=False, lower_case=True, force_transliteration=True, remove_optional_diacritics=True),
             "я помню чудное мгновенье передо мной явилась ты когда нибудь ежики и елки this is a latin text to test а это определение"
         )
+        self.assertEqual(
+            format_text_ru(sentence, keep_punc=False, keep_hyphen=True, lower_case=True, force_transliteration=True, remove_optional_diacritics=True),
+            "я помню чудное мгновенье передо мной явилась ты когда-нибудь ежики и елки this is a latin text to test а это определение"
+        )
 
         sentence = "Now close your eyes, there goes the transliteration"
 
