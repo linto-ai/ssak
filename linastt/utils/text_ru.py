@@ -5,6 +5,7 @@ from linastt.utils.text_utils import (
     numbers_and_symbols_to_letters,
     remove_punctuations,
     format_special_characters,
+    collapse_whitespace,
 )
 
 def format_text_ru(text,
@@ -40,7 +41,7 @@ def format_text_ru(text,
     text = numbers_and_symbols_to_letters(text, lang="ru")
 
     if not keep_punc:
-        text = re.sub('—|-', ' ', text)
+        text = re.sub('-', ' ', text)
         text = remove_punctuations(text, strong=True)
 
     text = format_special_characters(text)
@@ -50,7 +51,7 @@ def format_text_ru(text,
     if lower_case:
         text = text.lower()
 
-    return text
+    return collapse_whitespace(text)
 
 
 if __name__ == "__main__":
