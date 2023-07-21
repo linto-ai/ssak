@@ -446,7 +446,7 @@ if __name__ == "__main__":
         logging_steps=eval_steps,
         save_steps=eval_steps,
         save_total_limit=2,
-        metric_for_best_model="wer",
+        metric_for_best_model="eval_loss",
         greater_is_better=False,
         load_best_model_at_end=True,
         num_train_epochs=NUM_EPOCH,
@@ -468,7 +468,7 @@ if __name__ == "__main__":
         seed=SEED,
         no_cuda = not use_gpu,
         overwrite_output_dir=args.overwrite_output_dir,
-        dataloader_num_workers=1,
+        dataloader_num_workers=4,
     )
 
     trainer = Seq2SeqTrainer(

@@ -18,7 +18,9 @@ def load_csv_text(filename):
     with open(filename, 'r', encoding="utf8") as f:
         reader = csv.reader(f, delimiter=';')
         assert next(reader)[0] == "text"
-        return "\n".join([row[0] for row in reader])
+        text = "\n".join([row[0] for row in reader if row])  # Add a check for non-empty rows
+        return text
+
 
 def custom_clean_text(text,
     do_remove_special_characters=True,
@@ -40,17 +42,21 @@ def custom_clean_text(text,
 def rewrite_csv(
     filename_in, filename_out,
     do_unupper_case=False,
-    ):
+):
     with open(filename_in, 'r', encoding="utf8") as f_in, open(filename_out, 'w', encoding="utf8") as f_out:
         reader = csv.reader(f_in, delimiter=';')
         writer = csv.writer(f_out, delimiter=';')
         for i, row in enumerate(reader):
-            if i > 0:
-                text = custom_clean_text(row[0], do_unupper_case=do_unupper_case)
-                if not text:
-                    continue
-                row[0] = text
-            writer.writerow(row)
+            if i == 0:
+                # Write the header row as is
+                writer.writerow(row)
+            else:
+                if len(row) > 0:  # Check if the row is not empty
+                    text = custom_clean_text(row[0], do_unupper_case=do_unupper_case)
+                    if text:
+                        row[0] = text
+                        writer.writerow(row)
+
 
 def transcription_dont_match(
     csv_file,
