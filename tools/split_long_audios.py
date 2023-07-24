@@ -147,8 +147,9 @@ def split_long_audio_kaldifolder(
                 delta_start = new_start - start # negative
                 start = new_start
                 end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
-                transcript[0] = " "+transcript[0]
-                transcript[-1] = transcript[-1]+" "
+                # NOCOMMIT
+                # transcript[0] = " "+transcript[0]
+                # transcript[-1] = transcript[-1]+" "
             path = wav2path[wavid]
             audio = load_audio(path, start, end, sample_rate)
             if verbose:
@@ -167,7 +168,7 @@ def split_long_audio_kaldifolder(
             #     continue
 
             has_shorten = True
-            ratio = len(audio) / (trellis.size(0) * sample_rate)
+            ratio = len(audio) / ((emission.size(0)) * sample_rate)
             print(f"Alignment done in {time.time()-tic:.2f}s")
             global index, last_start, last_end, new_transcript
             def process():

@@ -18,9 +18,12 @@ import torch
 import transformers
 from dataclasses import dataclass
 
-imshow_opts = dict(origin = "lower", aspect="auto", vmax = 0) # vmin = -25,
+imshow_opts = dict(origin = "upper", aspect="auto", vmax = 0) # vmin = -25,
 
-def get_trellis(emission, tokens, blank_id=0, use_max = False):
+USE_MAX = True
+USE_CHAR_REPEATED = True
+
+def get_trellis(emission, tokens, blank_id=0, first_as_garbage=False):
     num_frame = emission.size(0)
     num_tokens = len(tokens)
 
@@ -34,17 +37,31 @@ def get_trellis(emission, tokens, blank_id=0, use_max = False):
     trellis[-num_tokens:, 0] = float("inf")
 
     for t in range(num_frame):
-        trellis[t + 1, 1:] = torch.maximum(
-            # Score for staying at the same token
-            trellis[t, 1:] + emission[t, blank_id],
-            torch.maximum(trellis[t, 1:] + emission[t, tokens],
-            # Score for changing to the next token
-            trellis[t, :-1] + emission[t, tokens])
-        ) if use_max else torch.logaddexp(
-            trellis[t, 1:] + emission[t, blank_id],
-            torch.logaddexp(trellis[t, 1:] + emission[t, tokens],
-            trellis[t, :-1] + emission[t, tokens])
-        )
+        if USE_CHAR_REPEATED:
+            trellis[t + 1, 1:] = torch.maximum(
+                # Score for staying at the same token
+                trellis[t, 1:] + emission[t, blank_id],
+                torch.maximum(trellis[t, 1:] + emission[t, tokens],
+                # Score for changing to the next token
+                trellis[t, :-1] + emission[t, tokens])
+            ) if USE_MAX else torch.logaddexp(
+                trellis[t, 1:] + emission[t, blank_id],
+                torch.logaddexp(trellis[t, 1:] + emission[t, tokens],
+                trellis[t, :-1] + emission[t, tokens])
+            )
+        else:
+                trellis[t + 1, 1:] = torch.maximum(
+                # Score for staying at the same token
+                trellis[t, 1:] + emission[t, blank_id],
+                # Score for changing to the next token
+                trellis[t, :-1] + emission[t, tokens],
+            ) if USE_MAX else torch.logaddexp(
+                # Score for staying at the same token
+                trellis[t, 1:] + emission[t, blank_id],
+                # Score for changing to the next token
+                trellis[t, :-1] + emission[t, tokens],
+            )
+
     return trellis
 
 @dataclass
@@ -72,11 +89,22 @@ def backtrack(trellis, emission, tokens, blank_id=0):
         # `emission[J-1]` is the emission at time frame `J` of trellis dimension.
         # Score for token staying the same from time frame J-1 to T.
         stayed = trellis[t - 1, j] + emission[t - 1, blank_id]
+        if USE_CHAR_REPEATED:
+            if USE_MAX:
+                stayed = torch.maximum(stayed, trellis[t - 1, j] + emission[t - 1, tokens[j - 1]])
+            else:
+                stayed = torch.logaddexp(stayed, trellis[t - 1, j] + emission[t - 1, tokens[j - 1]])
         # Score for token changing from C-1 at T-1 to J at T.
         changed = trellis[t - 1, j - 1] + emission[t - 1, tokens[j - 1]]
 
         # 2. Store the path with frame-wise probability.
-        prob = emission[t - 1, tokens[j - 1] if changed > stayed else 0].exp().item()
+        if USE_CHAR_REPEATED and changed < stayed and t < emission.shape[0]:
+            if USE_MAX:
+                prob = torch.maximum(emission[t - 1, 0], emission[t, tokens[j-1]]).exp().item()
+            else:
+                prob = torch.logaddexp(emission[t - 1, 0], emission[t, tokens[j-1]]).exp().item()
+        else:
+            prob = emission[t - 1, tokens[j - 1] if changed > stayed else 0].exp().item()
         # Return token index and time index in non-trellis coordinate.
         path.append(Point(j - 1, t - 1, prob))
 
@@ -88,9 +116,6 @@ def backtrack(trellis, emission, tokens, blank_id=0):
     else:
         raise RuntimeError("Failed to align (empty output?)")
     return path[::-1]
-
-
-
 
 # Merge the labels
 @dataclass
@@ -144,31 +169,27 @@ def merge_words(segments, separator=" "):
 
 # Plotting functions
 
-def plot_trellis_with_path(trellis, path):
+def plot_trellis_with_path(trellis, path, ax=plt):
     # To plot trellis with path, we take advantage of 'nan' value
     trellis_with_path = trellis.clone()
     for _, p in enumerate(path):
-        trellis_with_path[p.time_index, p.token_index] = float("nan")
-    plt.imshow(trellis_with_path.T, **imshow_opts)
+        trellis_with_path[p.time_index + 1, p.token_index + 1] = float("nan")
+    ax.imshow(trellis_with_path[1:,:].T, **imshow_opts)
 
 
-def plot_trellis_with_segments(trellis, segments, transcript, path, plot_spaces=False):
-    # To plot trellis with path, we take advantage of 'nan' value
-    trellis_with_path = trellis.clone()
-    for _, p in enumerate(path):
-        trellis_with_path[p.time_index, p.token_index] = float("nan")
-    # for i, seg in enumerate(segments):
-    #     if seg.label != "|":
-    #         trellis_with_path[seg.start + 1 : seg.end + 1, i + 1] = float("nan")
+def plot_trellis_with_segments(trellis, segments, transcript, path, plot_spaces=False, blank_first=True):
+    if blank_first:
+        transcript = ["_"] + list(transcript)
 
     fig, [ax1, ax2] = plt.subplots(2, 1, figsize=(16, 9.5))
     ax1.set_title("Path, label and probability for each label")
-    ax1.imshow(trellis_with_path.T, **imshow_opts)
+    plot_trellis_with_path(trellis, path, ax1)
     ax1.set_xticks([])
 
     for i, seg in enumerate(segments):
+        if blank_first:
+            i += 1
         ax1.annotate(seg.label, (seg.start, i), weight="bold", verticalalignment='center', horizontalalignment='right')
-        # ax1.annotate(f"{seg.score:.2f}", (seg.start + 1, i + 1), verticalalignment='bottom', horizontalalignment='right')
 
     ax2.set_title("Label probability with and without repetition")
     xs, hs, ws = [], [], []
@@ -194,11 +215,12 @@ def plot_trellis_with_segments(trellis, segments, transcript, path, plot_spaces=
     ax2.set_xlim(ax1.get_xlim())
     ax2.set_ylim(-0.1, 1.1)
 
+
 def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16000, wav_file = None, emission = None, labels = None):
 
     trellis_with_path = trellis.clone()
     for i, seg in enumerate(segments):
-        if seg.label != "|":
+        if seg.label != " ":
             trellis_with_path[seg.start + 1 : seg.end + 1, i + 1] = float("nan")
 
     fig, axes = plt.subplots(3 if emission is not None else 2, figsize=(16, 9.5))
@@ -209,7 +231,7 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
         ax0 = axes[0]
         if labels is not None and len(labels) < emission.shape[-1]:
             emission = emission[:, :len(labels)]
-        ax0.imshow(emission.T, aspect="auto", **imshow_opts)
+        ax0.imshow(emission.T, **imshow_opts)
         #ax0.set_ylabel("Labels")
         #ax0.set_yticks([]) 
         if labels is not None:
@@ -224,11 +246,11 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
                 new_labels.append(l)
             ax0.set_yticks(range(len(labels)), labels = new_labels)
 
-    ax1.imshow(trellis_with_path[1:, 1:].T, aspect="auto", **imshow_opts)
+    ax1.imshow(trellis_with_path[1:, :].T, **imshow_opts)
     ax1.set_xticks([])
     transcript = [s.label for s in segments]
     if transcript is not None:
-        ax1.set_yticks(range(len(transcript)), labels = list(transcript))
+        ax1.set_yticks(range(len(transcript) + 1), labels = ["_"] + list(transcript))
     else:
         ax1.set_yticks([])
 
@@ -237,13 +259,11 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
         ax1.axvline(word.end - 0.5)
 
     for i, seg in enumerate(segments):
-        #ax1.annotate(seg.label, (seg.start, i - 0.3))
-        ax1.annotate(seg.label, (i-1.5, i - 0.3))
-        ax1.annotate(seg.label, (i+trellis.shape[0]-trellis.shape[1]+1, i - 0.3))
-        ax1.annotate(f"{seg.score:.2f}", (seg.start, i - 0.3), fontsize=8)
+        ax1.annotate(seg.label, (seg.start, i + 1), weight="bold", verticalalignment='center', horizontalalignment='right')
+        ax1.annotate(f"{seg.score:.2f}", (seg.start, i + 1), fontsize=8)
 
     # The original waveform
-    ratio = len(waveform) / (trellis.size(0) - 1)
+    ratio = len(waveform) / emission.size(0)
     ax2.plot(waveform)
     for word in word_segments:
         x0 = ratio * word.start
@@ -299,21 +319,24 @@ def compute_alignment(audio, transcript, model, plot=False, verbose=False):
     space_id = blank_id
     if " " in labels:
         space_id = labels.index(" ")
+
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
     tokens = [loose_get_char_index(dictionary, c, space_id) for c in transcript_characters]
     tokens = [i for i in tokens if i is not None]
 
-    trellis = get_trellis(emission, tokens, blank_id = blank_id)
+    trellis = get_trellis(emission, tokens, blank_id = blank_id, first_as_garbage=True)
 
     if plot > 1:
         plt.imshow(trellis[1:, 1:].T, **imshow_opts)
         plt.colorbar()
         plt.show()
 
-    path = backtrack(trellis, emission, tokens, blank_id = blank_id)
-    
+    full_path = backtrack(trellis, emission, tokens, blank_id=blank_id)
+
+    path = full_path
+
     if plot > 1:
         plot_trellis_with_path(trellis, path)
         plt.title("The path found by backtracking")
@@ -347,7 +370,7 @@ def compute_alignment(audio, transcript, model, plot=False, verbose=False):
                         print(s.label, s.start, s.end)
 
     if plot:
-        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
+        plot_trellis_with_segments(trellis, char_segments, transcript_characters, full_path)
         plt.axvline(word_segments[0].start - 0.5, color="black")
         plt.axvline(word_segments[-1].end - 0.5, color="black")
         plt.tight_layout()
@@ -379,7 +402,7 @@ if __name__ == "__main__":
     parser.add_argument('audio', help='Input audio files', type=str)
     # optional arguments
     parser.add_argument('transcription', help='Audio Transcription. If not provided, the automatic transcription from the model will be used.', type=str, default=[], nargs='*')
-    parser.add_argument('--intermediate_plots', help='To make intermediate plots.', default=False, action='store_true')
+    parser.add_argument('--plot_intermediate', help='To make intermediate plots.', default=False, action='store_true')
     args = parser.parse_args()
 
 
@@ -398,7 +421,7 @@ if __name__ == "__main__":
 
     audio = load_audio(audio_path, sample_rate = sample_rate)
 
-    labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = args.intermediate_plots)
+    labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = args.plot_intermediate)
 
     del model
 
