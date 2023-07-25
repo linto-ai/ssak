@@ -32,7 +32,11 @@ def get_trellis(emission, tokens, blank_id=0, first_as_garbage=False):
     # The extra dim for time axis is for simplification of the code.
     trellis = torch.empty((num_frame + 1, num_tokens + 1)).to(emission.device)
     trellis[0, 0] = 0
-    trellis[1:, 0] = torch.cumsum(emission[:, blank_id], 0)
+    if first_as_garbage:
+        trellis[1:, 0] = (1 - emission[:, tokens[0]].exp()).log()
+    else:
+        trellis[1:, 0] = torch.cumsum(emission[:, blank_id], 0)
+
     trellis[0, -num_tokens:] = -float("inf")
     trellis[-num_tokens:, 0] = float("inf")
 
@@ -286,7 +290,15 @@ def plot_alignments(trellis, segments, word_segments, waveform, sample_rate = 16
 
 # Main function
 
-def compute_alignment(audio, transcript, model, plot=False, verbose=False):
+def compute_alignment(
+    audio,
+    transcript,
+    model,
+    add_before_after=None,
+    first_as_garbage=False,
+    plot=False,
+    verbose=False,
+    ):
 
     emission = compute_log_probas(model, audio)
 
@@ -320,22 +332,25 @@ def compute_alignment(audio, transcript, model, plot=False, verbose=False):
     if " " in labels:
         space_id = labels.index(" ")
 
+    if add_before_after:
+        assert len(add_before_after) == 1, f"The character to add before and after the transcript must be a single character ({add_before_after} is not a single character)"
+        assert add_before_after in labels, f"The character to add before and after the transcript must be in the model vocabulary ({add_before_after} not in {labels})"
+        transcript_characters = add_before_after + transcript_characters + add_before_after
+
     labels = labels[:emission.shape[1]]
     dictionary = {c: i for i, c in enumerate(labels)}
 
     tokens = [loose_get_char_index(dictionary, c, space_id) for c in transcript_characters]
     tokens = [i for i in tokens if i is not None]
 
-    trellis = get_trellis(emission, tokens, blank_id = blank_id, first_as_garbage=True)
+    trellis = get_trellis(emission, tokens, blank_id = blank_id, first_as_garbage=first_as_garbage)        
 
     if plot > 1:
-        plt.imshow(trellis[1:, 1:].T, **imshow_opts)
+        plt.imshow(trellis.T, **imshow_opts)
         plt.colorbar()
         plt.show()
 
-    full_path = backtrack(trellis, emission, tokens, blank_id=blank_id)
-
-    path = full_path
+    path = backtrack(trellis, emission, tokens, blank_id=blank_id)
 
     if plot > 1:
         plot_trellis_with_path(trellis, path)
@@ -343,6 +358,13 @@ def compute_alignment(audio, transcript, model, plot=False, verbose=False):
         plt.show()
 
     char_segments = merge_repeats(transcript_characters, path)
+
+    if add_before_after:
+        assert char_segments[0].label == add_before_after
+        assert char_segments[-1].label == add_before_after
+        char_segments = char_segments[1:-1]
+        trellis = trellis[:, [0] + list(range(2, trellis.shape[1]-1))]
+        transcript_characters = transcript_characters[1:-1]
 
     if transcript_words is None:
         word_segments = merge_words(char_segments)
@@ -370,7 +392,7 @@ def compute_alignment(audio, transcript, model, plot=False, verbose=False):
                         print(s.label, s.start, s.end)
 
     if plot:
-        plot_trellis_with_segments(trellis, char_segments, transcript_characters, full_path)
+        plot_trellis_with_segments(trellis, char_segments, transcript_characters, path)
         plt.axvline(word_segments[0].start - 0.5, color="black")
         plt.axvline(word_segments[-1].end - 0.5, color="black")
         plt.tight_layout()

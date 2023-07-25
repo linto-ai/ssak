@@ -4,7 +4,7 @@ from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
 from linastt.utils.text_utils import remove_punctuations, remove_special_words, format_special_characters, numbers_and_symbols_to_letters, collapse_whitespace, _punctuation
 from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
-from linastt.infer.general import load_model, get_model_sample_rate
+from linastt.infer.general import load_model, get_model_sample_rate, get_model_vocab
 from linastt.utils.align_transcriptions import compute_alignment
 
 import os
@@ -25,11 +25,22 @@ def custom_text_normalization(transcript, regex_rm = None):
         transcript = remove_special_words(transcript)
     return collapse_whitespace(transcript)
 
-def custom_word_normalization(word, lang):
-    word = format_special_characters(word, remove_ligatures=True)
-    word = numbers_and_symbols_to_letters(word, lang=lang)
-    word = word.replace("ß", "ss") # Not taken into account by transliterate
-    word_ = remove_punctuations(word)
+def labels_to_norm_args(labels):
+    return {
+        "remove_digits": "9" not in labels,
+        "remove_punc": "." not in labels,
+        "remove_ligatures": "œ" not in labels and "æ" not in labels,
+        "remove_etset": "ß" not in labels,
+    }
+
+def custom_word_normalization(word, lang, remove_digits, remove_punc, remove_ligatures, remove_etset):
+    word = format_special_characters(word, remove_ligatures=remove_ligatures)
+    if remove_digits:
+        word = numbers_and_symbols_to_letters(word, lang=lang)
+    if remove_etset:
+        word = word.replace("ß", "ss") # Not taken into account by transliterate
+    if remove_punc:
+        word_ = remove_punctuations(word)
     if len(word_):
         word = word_
     return collapse_whitespace(word)
@@ -68,6 +79,8 @@ def split_long_audio_kaldifolder(
 
     model = load_model(model)
     sample_rate = get_model_sample_rate(model)
+    labels, blank_id = get_model_vocab(model)
+    kwargs_word_norm = labels_to_norm_args(labels)
 
     # Parse input folder
     with(open(dirin+"/text")) as f:            
@@ -139,7 +152,7 @@ def split_long_audio_kaldifolder(
                     all_words_no_isolated_punc.append(w)
             all_words = all_words_no_isolated_punc
             ###### special normalizations that preserve word segmentations (2/2)
-            transcript = [custom_word_normalization(w, lang=lang) for w in all_words]
+            transcript = [custom_word_normalization(w, lang=lang, **kwargs_word_norm) for w in all_words]
             wavid, start, end = id2seg[id]
             delta_start = 0
             if refine_timestamps:
@@ -147,9 +160,6 @@ def split_long_audio_kaldifolder(
                 delta_start = new_start - start # negative
                 start = new_start
                 end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
-                # NOCOMMIT
-                # transcript[0] = " "+transcript[0]
-                # transcript[-1] = transcript[-1]+" "
             path = wav2path[wavid]
             audio = load_audio(path, start, end, sample_rate)
             if verbose:
@@ -159,7 +169,11 @@ def split_long_audio_kaldifolder(
                 MAX_LEN_PROCESSED_ = max(MAX_LEN_PROCESSED_, audio.shape[0])
                 print(f"---------> {transcript}")
             tic = time.time()
-            labels, emission, trellis, segments, word_segments = compute_alignment(audio, transcript, model, plot = plot)
+            labels, emission, trellis, segments, word_segments = compute_alignment(
+                audio, transcript, model,
+                first_as_garbage=bool(refine_timestamps),
+                plot=plot
+            )
             
             # try:
             # ...
@@ -168,7 +182,8 @@ def split_long_audio_kaldifolder(
             #     continue
 
             has_shorten = True
-            ratio = len(audio) / ((emission.size(0)) * sample_rate)
+            num_frames = emission.size(0)
+            ratio = len(audio) / (num_frames * sample_rate)
             print(f"Alignment done in {time.time()-tic:.2f}s")
             global index, last_start, last_end, new_transcript
             def process():
@@ -210,6 +225,9 @@ def split_long_audio_kaldifolder(
             def ignore_word(word):
                 return word.strip() in _punctuation
             assert len(word_segments) == len(all_words), f"{[w.label for w in word_segments]}\n{all_words}\n{len(word_segments)} != {len(all_words)}"
+            if len(word_segments) and not refine_timestamps:
+                word_segments[0].start = 0
+                word_segments[-1].end = num_frames
             for i, (segment, word) in enumerate(zip(word_segments, all_words)):
                 if ignore_word(word):
                     segment.end = segment.start
@@ -233,6 +251,22 @@ def split_long_audio_kaldifolder(
         print("No audio was shorten. Folder should be (quasi) unchanged")
         if not has_segments:
             os.remove(dirout+"/segments")
+
+    # if refine_timestamps:
+    #     # Avoid overlapping segments
+    #     with open(dirout+"/segments") as f:
+    #         previous_segments = f.readlines()
+    #     with open(dirout+"/segments", "w") as new_segments, open(dirout+"/utt2dur", "w") as new_utt2dur:
+    #         previous_end = {}
+    #         for line in previous_segments:
+    #             id, wav, start, end = line.strip().split(" ")
+    #             start = float(start)
+    #             end = float(end)
+    #             if previous_end.get(wav, 0) > start and previous_end.get(wav, 0) < end:
+    #                 start = previous_end[wav]
+    #             previous_end[wav] = end
+    #             new_segments.write(f"{id} {wav} {start:.3f} {end:.3f}\n")
+    #             new_utt2dur.write(f"{id} {end-start:.3f}\n")
 
     for file in "wav.scp", "spk2gender",:
         if os.path.isfile(os.path.join(dirin, file)):
