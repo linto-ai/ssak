@@ -117,7 +117,7 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
         assert "" not in additional_commands, "Empty string is not allowed as a key in additional_commands"
         assert "r" not in additional_commands, "Key 'r' is reserved for replay"
     
-    msg = "(Type 'r' to replay"+ (", "+", ".join(f"'{k}' to {v}" for k,v in additional_commands.items()) if additional_commands else "") +")"
+    msg = "(Type 'r' to replay"+ (", "+", ".join(f"'{k}' to {v}" for k,v in additional_commands.items() if v not in ["debug"]) if additional_commands else "") +")"
     keys = list(additional_commands.keys()) + ["r", ""]
     afford_float = max([isinstance(k, float) for k in keys])
     afford_int = max([isinstance(k, int) for k in keys])
@@ -141,10 +141,13 @@ def play_audiofile(filename, start = None, end = None, ask_for_replay = False, p
         while x == "r":
             player.seek(start)
             player.play()
-            slept = 0
-            while player.playing() and (end is None or slept < end-start):
-                time.sleep(precision)
-                slept += precision
+            if end is None:
+                slept = 0
+                while player.playing() and (end is None or slept < end-start):
+                    time.sleep(precision)
+                    slept += precision
+            else:
+                time.sleep(end-start)
             player.pause()
             if ask_for_replay:
                 x = None
