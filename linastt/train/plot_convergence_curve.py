@@ -27,11 +27,13 @@ def get_log_history_huggingface(path):
     initpath = os.path.join(os.path.dirname(os.path.dirname(path)), "init_eval.json")
     if os.path.isfile(initpath):
         with open(initpath) as f:
-            data = json.load(f)
+            d = json.load(f)
+        key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
+        key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_wer"
         log_history["step"] = [0]
         log_history["loss/train"] = [None]
-        log_history["loss/valid"] = [data["loss/valid"]]
-        log_history["WER/valid"] = [data["WER/valid"]]
+        log_history["loss/valid"] = [d[key_loss_valid]]
+        log_history["WER/valid"] = [d[key_wer_valid]]
         log_history["lr_model"] = [None]
 
     with open(path, 'r') as f:
