@@ -217,21 +217,14 @@ if __name__ == "__main__":
     output_untrained_folder = f"{prefix}{args_to_str({'base_model': args.base_model})}"
     
     # Detecting last checkpoint.
-    last_checkpoint = None
-    if os.path.isdir(output_folder) and not args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(output_folder)
-        if last_checkpoint is None and len(os.listdir(output_folder)) > 0:
-            last_checkpoint = get_last_checkpoint(output_folder)
-        elif last_checkpoint is None and len(os.listdir(output_folder)) > 0:
-            raise ValueError(
-                f"Output directory ({output_folder}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
-    elif last_checkpoint is not None:
-        logger.info(
-            f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
-            "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
-        )
+    resume_from_checkpoint = None
+    if os.path.isdir(output_folder):
+        if args.overwrite_output_dir:
+            shutil.rmtree(output_folder)
+        else:
+            resume_from_checkpoint = transformers.trainer_utils.get_last_checkpoint(output_folder)
+            if resume_from_checkpoint:
+                print("Resuming from checkpoint:", resume_from_checkpoint)
     
     if os.path.isdir(os.path.join(output_folder, 'finals')):
         print(f"Output folder{output_folder} already exists: skipping it.")
@@ -417,14 +410,6 @@ if __name__ == "__main__":
         mem = gpu_usage("Model loaded", stream = gpu_log)
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
-
-    if last_checkpoint is not None:
-        checkpoint = last_checkpoint
-    elif base_model is not None and os.path.isdir(base_model):
-        checkpoint = base_model
-    else:
-        checkpoint = None
-    
     
     random.seed(SEED)
     transformers.set_seed(SEED)
@@ -454,7 +439,7 @@ if __name__ == "__main__":
         generation_max_length=MAX_TEXT_LENGTH,
         logging_dir=f'{output_folder}/logs',
         remove_unused_columns=not PEFT,
-        resume_from_checkpoint=checkpoint,
+        resume_from_checkpoint=resume_from_checkpoint,
         data_seed=SEED,
         seed=SEED,
         no_cuda = not use_gpu,
@@ -492,7 +477,7 @@ if __name__ == "__main__":
 
     # training
     tic()
-    trainer.train(resume_from_checkpoint=checkpoint) # resume_from_checkpoint=resume_from_checkpoint
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     toc("Training", stream = readme)
     
     # Save model
