@@ -1,6 +1,5 @@
-# Hedi Naouara
-# hnaouara@linagora.com
-## ____HN____
+#!/usr/bin/env python3
+
 import os
 import datetime
 import shutil
