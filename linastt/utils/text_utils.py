@@ -374,7 +374,7 @@ def remove_punctuations(text, strong = False):
 
 _non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
 
-def format_special_characters(text, remove_ligatures=False):
+def format_special_characters(text, remove_ligatures=False, format_whitespace=True):
 
     for before, after in [
         ("â","â"),
@@ -424,7 +424,10 @@ def format_special_characters(text, remove_ligatures=False):
     # text = re.sub("'+", "'", text)
     # text = re.sub('\*+', ' ', text)
 
-    return collapse_whitespace(text)
+    if format_whitespace:
+        text = collapse_whitespace(text)
+    
+    return text
 
 def remove_special_words(text,
     glue_apostrophe = True,
