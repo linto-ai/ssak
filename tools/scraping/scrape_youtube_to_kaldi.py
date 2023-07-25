@@ -45,7 +45,7 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
             transcription_path = os.path.join(transcription_folder, audio_name + ".csv")
             # print(transcription_path)
             if not os.path.exists(transcription_path):
-                warnings.warn(f"Missing transcription file: {transcription_path}\nSkipping this iteration.", UserWarning)
+                warnings.warn(f"Missing transcription file: {transcription_path}", UserWarning)
                 continue
       
             try:
@@ -62,10 +62,13 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                         except ValueError as err:
                             raise RuntimeError(f"Error on line {_id}: {row}") from err
                         text = format_special_characters(text)
-                        start = float(start)
-                        duration = float(duration)
-                        end = start + duration
-                        segments.write(f"{utt_id} {audio_name} {start:.2f} {end:.2f}\n")
+                        start = round(float(start), 3)
+                        end = round(start + float(duration), 3)
+                        duration = end - start
+                        if duration == 0:
+                            warnings.warn(f"Duration is 0 for {utt_id}", UserWarning)
+                            continue
+                        segments.write(f"{utt_id} {audio_name} {start:.3f} {end:.3f}\n")
                         txt.write(f"{utt_id} {text}\n")
                         utt2dur.write(f"{utt_id} {duration}\n")
                         utt2spk.write(f"{utt_id} {utt_id}\n")
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument('audios', help="Path to folder that contain the audios", type=str)
     parser.add_argument('transcription', help="Path to folder contain the transcription",  type=str)
     parser.add_argument('output', help="Path to kaldi data folder", type=str)
-    parser.add_argument('--extension', help="The file extension should be one of:[.mp3, .wav, .ogg]",  type=str, default='mp3')
+    parser.add_argument('--extension', help="The file extension should be one of: [.mp3, .wav, .ogg]",  type=str, default='mp3')
     args = parser.parse_args()
 
     generate_kaldi_data(args.audios, args.transcription, args.output, args.extension)

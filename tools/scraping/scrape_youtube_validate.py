@@ -117,9 +117,20 @@ def transcription_dont_match(
         }, indent=4, ensure_ascii=False)
     return False
 
-# TODO
-# - UPPER TEXT
-# - check audio and text
+def looks_like_generated_from_ASR(text, language):
+    """
+    Return True if the text looks like it was obtained from an ASR.
+    """
+    if language == "ar":
+        # TODO?
+        return False
+    text = format_special_characters(text, format_whitespace=False)
+    if text.islower():
+        return "Lower case"
+    if "," not in text:
+        return "No coma"
+    return False
+
 
 if __name__ == '__main__':
     from linastt.utils.misc import hashmd5
@@ -151,20 +162,27 @@ if __name__ == '__main__':
         assert os.path.exists(folder), "Folder {} does not exist.".format(folder)
 
     mp3_folder_ok_lang = mp3_folder + "_checked_" + lang
-    mp3_folder_ok_stt = mp3_folder_ok_lang + "_stt"
+    mp3_folder_ok_noauto = mp3_folder_ok_lang + "_noauto"
+    mp3_folder_ok_stt = mp3_folder_ok_noauto + "_stt"
+    mp3_folder_ok_stt_deprecated = mp3_folder_ok_lang + "_stt"
 
     csv_folder_ok_lang = csv_folder + "_checked_" + lang
-    csv_folder_ok_stt = csv_folder_ok_lang + "_stt"
+    csv_folder_ok_noauto = csv_folder + "_checked_" + lang + "_noauto"
+    csv_folder_ok_stt = csv_folder_ok_noauto + "_stt"
+    csv_folder_ok_stt_deprecated = csv_folder_ok_lang + "_stt"
     csv_folder_ko_lang = csv_folder + "_discarded_" + lang
-    csv_folder_ko_stt = csv_folder_ko_lang + "_stt"
+    csv_folder_ko_noauto = csv_folder + "_discarded_" + lang + "_noauto"
+    csv_folder_ko_stt = csv_folder_ko_noauto + "_stt"
+    csv_folder_ko_stt_deprecated = csv_folder_ko_lang + "_stt"
     csv_folder_ok_lang_rewritten = csv_folder_ok_lang + "_formatted"
+    csv_folder_ok_noauto_rewritten = csv_folder_ok_noauto + "_formatted"
     csv_folder_ok_stt_rewritten = csv_folder_ok_stt + "_formatted"
 
     for folder in [
-        mp3_folder_ok_lang, mp3_folder_ok_stt,
-        csv_folder_ok_lang, csv_folder_ok_stt,
-        csv_folder_ko_lang, csv_folder_ko_stt,
-        csv_folder_ok_lang_rewritten, csv_folder_ok_stt_rewritten, 
+        mp3_folder_ok_lang, mp3_folder_ok_noauto, mp3_folder_ok_stt,
+        csv_folder_ok_lang, csv_folder_ok_noauto, csv_folder_ok_stt,
+        csv_folder_ko_lang, csv_folder_ko_noauto, csv_folder_ko_stt,
+        csv_folder_ok_lang_rewritten, csv_folder_ok_noauto_rewritten, csv_folder_ok_stt_rewritten, 
         ]:
         os.makedirs(folder, exist_ok=True)
 
@@ -184,18 +202,23 @@ if __name__ == '__main__':
         csv_file = os.path.join(csv_folder, filename)
         mp3_file = os.path.join(mp3_folder, filename.replace(".csv", ".mp3"))
         output_file_ok_lang = os.path.join(csv_folder_ok_lang, filename)
+        output_file_ok_noauto = os.path.join(csv_folder_ok_noauto, filename)
         output_file_ok_stt = os.path.join(csv_folder_ok_stt, filename)
+        output_file_ok_stt_deprecated = os.path.join(csv_folder_ok_stt_deprecated, filename)
         output_file_ok_lang_rewritten = os.path.join(csv_folder_ok_lang_rewritten, filename)
+        output_file_ok_noauto_rewritten = os.path.join(csv_folder_ok_noauto_rewritten, filename)
         output_file_ok_stt_rewritten = os.path.join(csv_folder_ok_stt_rewritten, filename)
         output_file_ko_lang = os.path.join(csv_folder_ko_lang, filename)
+        output_file_ko_noauto = os.path.join(csv_folder_ko_noauto, filename)
         output_file_ko_stt = os.path.join(csv_folder_ko_stt, filename)
+        output_file_ko_stt_deprecated = os.path.join(csv_folder_ko_stt_deprecated, filename)
 
         # Skip if done
         if do_stt:
-            if os.path.exists(output_file_ok_stt) or os.path.exists(output_file_ko_stt) or os.path.exists(output_file_ko_lang):
+            if os.path.exists(output_file_ok_stt) or os.path.exists(output_file_ko_stt) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
                 continue
         else:
-            if os.path.exists(output_file_ok_lang) or os.path.exists(output_file_ko_lang):
+            if os.path.exists(output_file_ok_noauto) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
                 continue
 
         # Skip if audio is missing (may arrive later...)
@@ -210,8 +233,11 @@ if __name__ == '__main__':
         num_chars = len(text_one_line)
         num_words = len(text_one_line.split())
 
+        if os.path.isfile(output_file_ko_lang) or os.path.isfile(output_file_ok_lang):
+            dicarded = not os.path.isfile(output_file_ok_lang)
+
         # Discard too short text    
-        if args.min_num_words and num_words < args.min_num_words:
+        elif args.min_num_words and num_words < args.min_num_words:
             discarded = f"Text too short: {text_one_line}"
 
         # Discard text in paranthesis
@@ -244,7 +270,6 @@ if __name__ == '__main__':
             else:
                 discarded = f"Other language detected: {detected_language} -- ({text_one_line[:100]})"
         
-
         if discarded:
             if args.verbose:
                 print(f">> {filename} -- {discarded}")
@@ -269,13 +294,29 @@ if __name__ == '__main__':
             rewrite_csv(csv_file, output_file_ok_lang_rewritten, do_unupper_case=do_unupper_case)
             shutil.copy2(csv_file, output_file_ok_lang)
 
+        if not discarded:
+            discarded = looks_like_generated_from_ASR(text, lang)
+            if discarded:
+                shutil.copy2(csv_file, output_file_ko_noauto)
+            else:
+                mp3_file_ok = os.path.join(mp3_folder_ok_noauto, os.path.basename(mp3_file))
+                if not os.path.exists(mp3_file_ok):
+                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_noauto), mp3_file_ok)
+                shutil.copy2(output_file_ok_lang_rewritten, output_file_ok_noauto_rewritten)
+                shutil.copy2(csv_file, output_file_ok_noauto)
 
         if do_stt and not discarded:
 
-            res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
-            if res:
-                discarded = f"Audio does not match transcription: {res}"
-
+            if os.path.exists(output_file_ok_stt_deprecated) or os.path.exists(output_file_ko_stt_deprecated):
+                discarded = not os.path.exists(output_file_ok_stt_deprecated)
+                if discarded:
+                    assert os.path.exists(output_file_ko_stt_deprecated)
+                    with open(output_file_ko_stt_deprecated, "r") as f:
+                        discarded = f.read().rstrip("\n")
+            else:
+                res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
+                if res:
+                    discarded = f"Audio does not match transcription: {res}"
 
             if discarded:
                 if args.verbose:
@@ -283,18 +324,19 @@ if __name__ == '__main__':
                 with open(output_file_ko_stt, "w") as f:
                     f.write(f"{discarded}\n")
             else:
-                do_unupper_case = text_one_line.isupper()
-                if args.verbose and do_unupper_case:
-                    print(f">> {filename} -- Upper text detected ({text_one_line[:100]})")
-
                 mp3_file_ok = os.path.join(mp3_folder_ok_stt, os.path.basename(mp3_file))
                 if not os.path.exists(mp3_file_ok):
                     os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_stt), mp3_file_ok)
-                rewrite_csv(csv_file, output_file_ok_stt_rewritten, do_unupper_case=do_unupper_case)
+                shutil.copy2(output_file_ok_lang_rewritten, output_file_ok_stt_rewritten)
                 shutil.copy2(csv_file, output_file_ok_stt)
 
     print(f"Minimum number of characters: {min_num_char} ({argmin_num_char})")
     print(f"Minimum number of words: {min_num_words} ({argmin_num_words})")
 
-
-
+    # for folder in [
+    #     mp3_folder_ok_stt_deprecated,
+    #     csv_folder_ok_stt_deprecated,
+    #     csv_folder_ko_stt_deprecated,
+    # ]:
+    #     if os.path.exists(folder):
+    #         shutil.rmtree(folder)
