@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 from linastt.utils.format_transcription import to_linstt_transcription
@@ -282,9 +283,8 @@ def merge_transcriptions(transcriptions,
         new_texts = new_texts["punctuated_sentences"]
         assert len(new_texts) == len(texts)
         assert len(new_texts) == len(segments)
-        # NOCOMMIT
-        for t1, t2 in zip(texts, new_texts):
-            print(t1, "->", t2)
+        # for t1, t2 in zip(texts, new_texts):
+        #     print(t1, "->", t2)
         for i, text in enumerate(new_texts):
             segments[i]["segment"] = text
 
