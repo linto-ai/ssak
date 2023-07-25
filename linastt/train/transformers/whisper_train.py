@@ -11,6 +11,7 @@ from linastt.utils.augment import SpeechAugment
 
 import jiwer
 import logging
+import json
 
 from datasets import DatasetDict, Dataset, concatenate_datasets
 
@@ -121,11 +122,12 @@ class SavePeftModelCallback(TrainerCallback):
 
 
 def args_to_str(args, ignore = ["data_augment_rir", "data_augment_noise", "train", "valid","output_dir", "overwrite_output_dir"]):
-    d = args.__dict__
+    if not isinstance(args, dict):
+        args = args.__dict__
 
     s = "_".join(("{}-{}".format("".join([a[0] for a in k.replace("-","_").split("_")]),
             {True: 1, False: 0}.get(v, str(v).replace("/","_"))
-        )) for k,v in d.items()
+        )) for k,v in args.items()
         if k not in ignore
     )
     while "__" in s:
@@ -169,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_text_length', help='text max length of each sentence in label',default=448, type=int)
     parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
     parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
+    parser.add_argument('--disable_first_eval', help="to disable the evaluation of the init model", default=False, action="store_true")
     # parser.add_argument('--warmup_steps', help='warmup steps',default=500, type=int)
     parser.add_argument('--output_dir', help='Output trained model', default="./Model")
     args = parser.parse_args()
@@ -209,18 +212,19 @@ if __name__ == "__main__":
     task = args.task
     data_augmentation = args.data_augmentation
 
-    tasks_train = args_to_str(args)
-    save_path = f'{args.output_dir}/t-{os.path.basename(args.train)}_v-{os.path.basename(args.valid)}_{tasks_train}/'
+    prefix = f'{args.output_dir}/t-{os.path.basename(args.train.rstrip("/"))}_v-{os.path.basename(args.valid.rstrip("/"))}_'
+    output_folder = f"{prefix}{args_to_str(args)}"
+    output_untrained_folder = f"{prefix}{args_to_str({'base_model': args.base_model})}"
     
     # Detecting last checkpoint.
     last_checkpoint = None
-    if os.path.isdir(save_path) and not args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(save_path)
-        if last_checkpoint is None and len(os.listdir(save_path)) > 0:
-            last_checkpoint = get_last_checkpoint(save_path)
-        elif last_checkpoint is None and len(os.listdir(save_path)) > 0:
+    if os.path.isdir(output_folder) and not args.overwrite_output_dir:
+        last_checkpoint = get_last_checkpoint(output_folder)
+        if last_checkpoint is None and len(os.listdir(output_folder)) > 0:
+            last_checkpoint = get_last_checkpoint(output_folder)
+        elif last_checkpoint is None and len(os.listdir(output_folder)) > 0:
             raise ValueError(
-                f"Output directory ({save_path}) already exists and is not empty. "
+                f"Output directory ({output_folder}) already exists and is not empty. "
                 "Use --overwrite_output_dir to overcome."
             )
     elif last_checkpoint is not None:
@@ -229,13 +233,13 @@ if __name__ == "__main__":
             "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
         )
     
-    if os.path.isdir(os.path.join(save_path, 'finals')):
-        print(f"Output folder{save_path} already exists: skipping it.")
+    if os.path.isdir(os.path.join(output_folder, 'finals')):
+        print(f"Output folder{output_folder} already exists: skipping it.")
         sys.exit(0)
-    os.makedirs(save_path, exist_ok=True)
-    shutil.copy2(__file__, os.path.join(save_path, os.path.basename(__file__)))
+    os.makedirs(output_folder, exist_ok=True)
+    shutil.copy2(__file__, os.path.join(output_folder, os.path.basename(__file__)))
 
-    readme = open(save_path+"/README.txt", "a")
+    readme = open(output_folder+"/README.txt", "a")
 
     # Print the date and time
     print(datetime.datetime.now(), file=readme)
@@ -404,7 +408,7 @@ if __name__ == "__main__":
     model.config.suppress_tokens = []
     model.train(True)
        
-    gpu_log = open(os.path.join(save_path, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
+    gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
     gpu_usage("START", stream = gpu_log)
     device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     if use_gpu:
@@ -425,7 +429,7 @@ if __name__ == "__main__":
     random.seed(SEED)
     transformers.set_seed(SEED)
     training_args = Seq2SeqTrainingArguments(
-        output_dir=save_path, # change to a repo name of your choice
+        output_dir=output_folder, # change to a repo name of your choice
         label_names = ['labels'],
         evaluation_strategy="steps",
         max_steps =  max_steps,
@@ -448,7 +452,7 @@ if __name__ == "__main__":
         predict_with_generate=True,
         fp16 = use_gpu,
         generation_max_length=MAX_TEXT_LENGTH,
-        logging_dir=f'{save_path}/logs',
+        logging_dir=f'{output_folder}/logs',
         remove_unused_columns=not PEFT,
         resume_from_checkpoint=checkpoint,
         data_seed=SEED,
@@ -470,11 +474,27 @@ if __name__ == "__main__":
     )
     model.config.use_cache = False 
 
+    # Evaluate initial model
+    if not args.disable_first_eval:
+        init_results = output_folder + "/init_eval.json"
+        if not os.path.isfile(init_results):
+            init_results0 = output_untrained_folder + "/init_eval.json"
+            if not os.path.exists(init_results0):
+                print("Evaluating initial model", init_results0)
+                if not os.path.exists(output_untrained_folder):
+                    os.makedirs(output_untrained_folder)
+                
+                res = trainer.evaluate()
+                json.dump(res, open(init_results0, "w"), indent = 2)
+
+            if init_results != init_results0:
+                shutil.copy(init_results0, init_results)
+
     # training
     tic()
     trainer.train(resume_from_checkpoint=checkpoint) # resume_from_checkpoint=resume_from_checkpoint
     toc("Training", stream = readme)
     
     # Save model
-    processor.save_pretrained(save_path+"/finals")
-    model.save_pretrained(save_path+"/finals")
+    processor.save_pretrained(output_folder+"/finals")
+    model.save_pretrained(output_folder+"/finals")
