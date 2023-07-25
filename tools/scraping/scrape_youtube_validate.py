@@ -18,7 +18,9 @@ def load_csv_text(filename):
     with open(filename, 'r', encoding="utf8") as f:
         reader = csv.reader(f, delimiter=';')
         assert next(reader)[0] == "text"
-        return "\n".join([row[0] for row in reader])
+        text = "\n".join([row[0] for row in reader if row])  # Add a check for non-empty rows
+        return text
+
 
 def custom_clean_text(text,
     do_remove_special_characters=True,
@@ -40,14 +42,21 @@ def custom_clean_text(text,
 def rewrite_csv(
     filename_in, filename_out,
     do_unupper_case=False,
-    ):
+):
     with open(filename_in, 'r', encoding="utf8") as f_in, open(filename_out, 'w', encoding="utf8") as f_out:
         reader = csv.reader(f_in, delimiter=';')
         writer = csv.writer(f_out, delimiter=';')
+        num_fields = 0
         for i, row in enumerate(reader):
-            if i > 0:
+            if i == 0:
+                num_fields = len(row)
+                assert num_fields, "Got empty header"
+            else:
+                if len(row) == 0: # Ignore empty rows
+                    continue
+                assert len(row) == num_fields, f"Got {len(row)} fields instead of {num_fields} on line {i+1}"
                 text = custom_clean_text(row[0], do_unupper_case=do_unupper_case)
-                if not text:
+                if not text: # Ignore empty text
                     continue
                 row[0] = text
             writer.writerow(row)

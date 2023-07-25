@@ -50,13 +50,15 @@ def transformers_infer(
 
     if language is not None and hasattr(processor, "tokenizer") and hasattr(processor.tokenizer, "vocab"):
         languages = list(processor.tokenizer.vocab.keys())
-        if language not in languages:
-            candidate_languages = [l for l in languages if l.startswith(language)]
-            if len(candidate_languages) == 0:
-                raise ValueError(f"Language {language} not in {languages}")
-            elif len(candidate_languages) > 1:
-                raise ValueError(f"Language {language} not in {languages}.\nCould it be one of {candidate_languages}?")
-            language = candidate_languages[0]
+        assert len(languages) > 0
+        if isinstance(processor.tokenizer.vocab[languages[0]], dict):
+            if language not in languages:
+                candidate_languages = [l for l in languages if l.startswith(language)]
+                if len(candidate_languages) == 0:
+                    raise ValueError(f"Language {language} not in {languages}")
+                elif len(candidate_languages) > 1:
+                    raise ValueError(f"Language {language} not in {languages}.\nCould it be one of {candidate_languages}?")
+                language = candidate_languages[0]
 
     sample_rate = processor.feature_extractor.sampling_rate
     device = model.device
@@ -198,9 +200,15 @@ def transformers_compute_logits(model, processor, batch, device = None, language
         # Wav2Vec style
 
         if language is not None:
-            processor.tokenizer.vocab.keys()
-            processor.tokenizer.set_target_lang(language)
-            model.load_adapter(language)
+            try:
+                processor.tokenizer.set_target_lang(language)
+            except ValueError as err:
+                if "is not a multi-lingual" in str(err):
+                    language = None
+                else:
+                    raise err
+            if language:
+                model.load_adapter(language)
 
         processed_batch = processor(batch, sampling_rate = sample_rate, padding = "longest")
 
