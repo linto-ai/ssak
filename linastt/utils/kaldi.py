@@ -88,9 +88,11 @@ def check_kaldi_dir(dirname, language=None):
     weird_characters = {}
     with open(os.path.join(dirname, "text"), "r", encoding="utf8") as f:
         ids = [s.split()[0] for s in f.read().splitlines()]
+    missing_things = False
     for id, text in texts.items():
         if id not in ids:
             print("WARNING: Filtered out:", id, text)
+            missing_things = True
         elif not text.strip():
             print("WARNING: Empty text:", id, text)
         else:
@@ -106,6 +108,8 @@ def check_kaldi_dir(dirname, language=None):
         print(f"WARNING: Got character {c} (example: {example})")
 
     for tmpdir in ".backup", "log", "split4utt":
+        if missing_things and tmpdir == ".backup":
+            continue
         tmpdir = os.path.join(dirname, tmpdir)
         if os.path.isdir(tmpdir):
             shutil.rmtree(tmpdir)
