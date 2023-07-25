@@ -3,8 +3,7 @@
 import os
 import datetime
 import shutil
-from linastt.utils.text_ar import format_text_ar
-from linastt.utils.text_latin import format_text_latin
+from linastt.utils.text import format_text
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
@@ -55,17 +54,6 @@ def move_model_to_device(model, device):
     # move to device
     return model.to(device)
 
-# Text Normalization
-def normalization_text(text, lang):
-    if lang == 'ar':
-        text = format_text_ar(text, keep_punc=False, keep_latin_chars=True)
-    elif lang in ['fr', 'en']:
-        text = format_text_latin(text, lang, lower_case=True, keep_punc=False)
-    else: 
-        print("we do not support this language, maybe later!!")
-    
-    return text
-
 
 # data Collator
 @dataclass
@@ -107,8 +95,8 @@ def compute_metrics(pred):
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-    pred_str = [normalization_text(pred, lang=language) for pred in pred_str]
-    label_str = [normalization_text(label, lang=language) for label in label_str]
+    pred_str = [format_text(pred, language) for pred in pred_str]
+    label_str = [format_text(label, language) for label in label_str]
     
     wer = 100 * jiwer.wer(label_str, pred_str)
     return {"wer": wer}
