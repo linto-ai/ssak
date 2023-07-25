@@ -52,7 +52,7 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                 with open(transcription_path, "r") as f:  
                     reader = csv.reader(f, delimiter=";")
                     next(reader)  # skip the first row (headers)
-                    wav_scp.write(f"{audio_name} sox {audio_path} -t wav -r 16000  -b 16 -c 1 - |\n")
+                    has_written = False
                     for _id, row in enumerate(reader):
                         if len(row) == 0:
                             continue
@@ -74,6 +74,9 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                         utt2spk.write(f"{utt_id} {utt_id}\n")
                         spk2utt.write(f"{utt_id} {utt_id}\n")
                         spk2gender.write(f"{utt_id} m\n")
+                        has_written = True
+                    if has_written:
+                        wav_scp.write(f"{audio_name} sox {audio_path} -t wav -r 16000  -b 16 -c 1 - |\n")
             except Exception as e:
                 raise RuntimeError(f"Error while reading {transcription_path}") from e
 
