@@ -47,7 +47,6 @@ def get_model_type(model):
         return ModelType.SPEECHBRAIN
     
     elif isinstance(model, tuple) and len(model) == 2 and isinstance(model[0], WAV2VEC_CLASSES):
-        assert isinstance(model[1], transformers.Wav2Vec2Processor), f"Unknown processor type: {type(model[1])}"
         return ModelType.TRANSFORMERS
 
     elif torchaudio_is_valid(model):
