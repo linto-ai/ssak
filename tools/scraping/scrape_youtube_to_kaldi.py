@@ -62,6 +62,8 @@ def generate_kaldi_data(audio_folder, transcription_folder, output_folder, exten
                         except ValueError as err:
                             raise RuntimeError(f"Error on line {_id}: {row}") from err
                         text = format_special_characters(text)
+                        if not text:
+                            continue
                         start = round(float(start), 3)
                         end = round(start + float(duration), 3)
                         duration = end - start
