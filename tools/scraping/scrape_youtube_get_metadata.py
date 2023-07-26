@@ -47,7 +47,7 @@ def yt_to_dict(
         "backgroundability",
         "audioOnlyPlayability",
         "miniplayer",
-        "captions",
+        # "captions",
         "stream_monostate",
         "embed_url",
         "stream_monostate",
@@ -215,10 +215,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.ids:
+
         # Some interesting cases:
         args.ids = [
             # Good:
-            "NCtzkaL2t_Y", # OK
+            "--QWtZrko9w", # OK
+            "--GikApuNNU", # OK with streaming subtitles
             "kBF_NkwT768", # available but marked as not playable
             # Bad:
             "32nkdvLq3oQ", # "This video has been removed for violating YouTube's Terms of Service"
@@ -232,9 +234,6 @@ if __name__ == "__main__":
 
 
     WAIT=0.3
-
-    if len(sys.argv) < 2:
-        sys.argv += ["zzz1NVibRJQ", "--t52OPG994"]
 
     all_possible = {}
 
