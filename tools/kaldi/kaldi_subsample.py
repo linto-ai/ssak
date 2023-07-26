@@ -21,6 +21,9 @@ def create_cut(
     if isinstance(input_folders, str):
         input_folders = [input_folders]
 
+    if regex and isinstance(regex, str):
+        regex = [regex]
+
     has_segments = None
     has_genders = None
 
@@ -84,7 +87,7 @@ def create_cut(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
-                        if regex and not re.search(regex + r"$", id):
+                        if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
@@ -96,7 +99,7 @@ def create_cut(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
-                        if regex and not re.search(regex + r"$", id):
+                        if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
@@ -175,9 +178,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Create a kaldi folder with only a subset of utterances from a kaldi folder")
     parser.add_argument("input_folder", type=str, help="Input folder(s) with kaldi files", nargs='+')
     parser.add_argument("output_folder", type=str, help="Output folder")
-    parser.add_argument("--maximum", type=int, help="Number of lines to keep (maximum)", default=None)
-    parser.add_argument("--regex", default=None, type=str, help="A regular expression to select an id")
-    parser.add_argument("--random_seed", default=None, type=int, help="Random seed to choose randomly the utterances (if not specified, the first utterances will be taken)")
+    parser.add_argument("--maximum", type=int, help="Maximum number of lines to keep (if --random_seed is not specified, the first utterances will be taken)", default=None)
+    parser.add_argument("--regex", default=[], type=str, help="One or several regular expressions to select an id", nargs='*')
+    parser.add_argument("--random_seed", default=None, type=int, help="Random seed to shuffle randomly the utterances")
     args = parser.parse_args()
 
     create_cut(
