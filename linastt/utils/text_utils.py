@@ -25,15 +25,12 @@ def transliterate(c):
 
 _whitespace_re = re.compile(r'[\s\r\n]+')
 
-_special_characters_pattern = re.compile("["
+# Source: https://stackoverflow.com/questions/33404752/removing-emojis-from-a-string-in-python
+_emoji_pattern = re.compile("["
                             u"\U0001F600-\U0001F64F"  # emoticons
                             u"\U0001F300-\U0001F5FF"  # symbols & pictographs
                             u"\U0001F680-\U0001F6FF"  # transport & map symbols
                             u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                            u"\U00002500-\U00002BEF"  # chinese char
-                            u"\U00002702-\U000027B0"
-                            u"\U00002702-\U000027B0"
-                            u"\U000024C2-\U0001F251"
                             u"\U0001f926-\U0001f937"
                             u"\U00010000-\U0010ffff"
                             u"\u2640-\u2642"
@@ -45,6 +42,13 @@ _special_characters_pattern = re.compile("["
                             u"\ufe0f"  # dingbats
                             u"\u3030"
                             "]+", flags=re.UNICODE)
+#                            u"\U000024C2-\U0001F251"  # chinese char
+# _emoji_pattern = re.compile("["
+#         u"\U0001F600-\U0001F64F"  # emoticons
+#         u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+#         u"\U0001F680-\U0001F6FF"  # transport & map symbols
+#         u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+#                            "]+", flags=re.UNICODE)
 
 _currencies = ["€", "$", "£", "¥", "₽"]
 
@@ -345,7 +349,7 @@ def remove_special_characters(
     if latin_characters_only:
         output = _not_latin_characters_pattern.sub(replace_by, string)
     else:
-        output = _special_characters_pattern.sub(replace_by, string)
+        output = _emoji_pattern.sub(replace_by, string)
     if fid is not None:
         global _ALL_SPECIAL_CHARACTERS
         removed = [c for c in string if c not in output]
@@ -428,6 +432,13 @@ def format_special_characters(text, remove_ligatures=False, format_whitespace=Tr
         text = collapse_whitespace(text)
     
     return text
+
+def remove_quotes(text):
+    text = re.sub(r"[\"]", "", text)
+    text = re.sub(r"''+", "", text)
+    text = re.sub(r" '([^']+)'", r" \1", text)
+    return text
+
 
 def remove_special_words(text,
     glue_apostrophe = True,

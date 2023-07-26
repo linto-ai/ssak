@@ -2,7 +2,16 @@
 
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
-from linastt.utils.text_utils import remove_punctuations, remove_special_words, format_special_characters, numbers_and_symbols_to_letters, collapse_whitespace, _punctuation
+from linastt.utils.text_utils import (
+    format_special_characters,
+    remove_punctuations,
+    remove_special_words,
+    remove_special_characters,
+    remove_quotes,
+    numbers_and_symbols_to_letters,
+    collapse_whitespace,
+    _punctuation
+)
 from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
 from linastt.infer.general import load_model, get_model_sample_rate, get_model_vocab
 from linastt.utils.align_transcriptions import compute_alignment
@@ -16,6 +25,9 @@ from slugify import slugify
 
 
 def custom_text_normalization(transcript, regex_rm = None):
+    transcript = format_special_characters(transcript, remove_ligatures=False)
+    transcript = remove_special_characters(transcript, replace_by=" ")
+    transcript = remove_quotes(transcript)
     if regex_rm:
         if isinstance(regex_rm, str):
             regex_rm = [regex_rm]
@@ -321,8 +333,24 @@ if __name__ == "__main__":
                         )
     parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 30, type = float)
     parser.add_argument('--refine_timestamps', help="A value (in seconds) to refine timestamps with", default = None, type = float)
-    parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", default = None, type = str, nargs='+')
-    parser.add_argument('--regex_rm_full', help="One or several regex to remove a full utterance.", default = None, type = str, nargs='+')
+    parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", type = str, nargs='*',
+                        default = [
+                            "\\[[^\\]]*\\]", # Brackets for special words (e.g. "[Music]")
+                            "\\([^\\)]*\\)", # Parenthesis for background words (e.g. "(Music)")
+                            '"', " '[^']*'", # Quotes
+                            ]
+                        )
+    parser.add_argument('--regex_rm_full', help="One or several regex to remove a full utterance.", type = str, nargs='*',
+                        default = [
+                            " *[Vv]idéo sous-titrée par.*",
+                            " *SOUS-TITRES.+",
+                            " *[Ss]ous-titres.+",
+                            " *SOUS-TITRAGE.+",
+                            " *[Ss]ous-titrage.+",
+                            " *[Mm]erci d'avoir regardé cette vidéo.*",
+                            " *\.+ *",
+                        ]
+                        )
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
