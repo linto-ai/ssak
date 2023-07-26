@@ -22,7 +22,6 @@ import torch
 import random
 
 from transformers import (
-    WhisperTokenizer,
     WhisperFeatureExtractor,
     WhisperForConditionalGeneration,
     WhisperProcessor,
@@ -31,12 +30,10 @@ from transformers import (
     TrainerCallback, 
     TrainerState, 
     TrainerControl,
-    BitsAndBytesConfig
 )
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
@@ -162,8 +159,8 @@ if __name__ == "__main__":
         default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_noise/[simulated_rirs_16k/smallroom/rir_list,simulated_rirs_16k/mediumroom/rir_list,simulated_rirs_16k/largeroom/rir_list]", type=str
     )
     # hyparams :
-    parser.add_argument('--batch_size', help='Batch size',default=8, type=int)
-    parser.add_argument('--batch_size_eval', help='Batch size to eval',default=8, type=int)
+    parser.add_argument('--batch_size', help='Batch size', default=8, type=int)
+    parser.add_argument('--batch_size_eval', help='Batch size for validation (by default same as for training)', default=None, type=int)
     parser.add_argument('--learning_rate', help='Learning rate',default=1e-03, type=float)
     parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
@@ -178,6 +175,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
 
+    if not args.batch_size_eval:
+        args.batch_size_eval = args.batch_size
     
     # HyperParams 
     SAMPLE_RATE = 16000
@@ -367,10 +366,14 @@ if __name__ == "__main__":
         raise RuntimeError("Empty dataset.")
           
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-    
-    quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
-    
+        
     if PEFT: 
+
+        from transformers import BitsAndBytesConfig
+        from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
+
+        quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
+
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
             load_in_8bit=True,
