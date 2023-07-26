@@ -13,6 +13,8 @@ def create_cut(
     input_folders,
     output_folder,
     maximum,
+    min_duration=None,
+    max_duration=None,
     regex=None,
     random_seed=None,
     throw_if_output_exists=True,
@@ -69,6 +71,22 @@ def create_cut(
     if os.path.exists(output_folder + "/spk2gender"):
         os.remove(output_folder + "/spk2gender")
 
+    utt_to_filter_out = []
+    if min_duration or max_duration:
+        if min_duration:
+            assert min_duration > 0, f"min_duration must be > 0, got {min_duration}"
+        if max_duration:
+            assert max_duration > 0, f"max_duration must be > 0, got {max_duration}"
+            if min_duration:
+                assert max_duration > min_duration, f"max_duration must be > min_duration, got {max_duration} <= {min_duration}"
+        with open(input_folder + "/utt2dur", 'r') as f:
+            for line in f:
+                id, duration = line.strip().split(" ")
+                duration = float(duration)
+                if (min_duration and duration < min_duration) or (max_duration and duration > max_duration):
+                    utt_to_filter_out.append(id)
+
+
     with open(output_folder + "/text", 'w') as text_file, \
         open(output_folder + "/wav.scp", 'w') as wavscp_file, \
         open(output_folder + "/utt2dur", 'w') as utt2dur, \
@@ -87,6 +105,8 @@ def create_cut(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
+                        if utt_to_filter_out and id in utt_to_filter_out:
+                            continue
                         if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
@@ -99,6 +119,8 @@ def create_cut(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
+                        if utt_to_filter_out and id in utt_to_filter_out:
+                            continue
                         if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
@@ -180,6 +202,8 @@ if __name__ == '__main__':
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument("--maximum", type=int, help="Maximum number of lines to keep (if --random_seed is not specified, the first utterances will be taken)", default=None)
     parser.add_argument("--regex", default=[], type=str, help="One or several regular expressions to select an id", nargs='*')
+    parser.add_argument("--min_duration", default=None, type=float, help="Minimum duration for a utterance")
+    parser.add_argument("--max_duration", default=None, type=float, help="Maximum duration for a utterance")
     parser.add_argument("--random_seed", default=None, type=int, help="Random seed to shuffle randomly the utterances")
     args = parser.parse_args()
 
@@ -188,4 +212,6 @@ if __name__ == '__main__':
         maximum=args.maximum,
         random_seed=args.random_seed,
         regex=args.regex,
+        min_duration=args.min_duration,
+        max_duration=args.max_duration,
     )
