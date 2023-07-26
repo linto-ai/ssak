@@ -87,23 +87,23 @@ def check_kaldi_dir(dirname, language=None):
     # - if there were weird characters in the text
     weird_characters = {}
     with open(os.path.join(dirname, "text"), "r", encoding="utf8") as f:
-        ids = [s.split()[0] for s in f.read().splitlines()]
+        ids = [s.split(" ", 1)[0] for s in f.read().splitlines()]
     missing_things = False
-    for id, text in texts.items():
-        if id not in ids:
-            print("WARNING: Filtered out:", id, text)
-            missing_things = True
-        elif not text.strip():
-            print("WARNING: Empty text:", id, text)
-        else:
-            # Filter out usual characters
-            if language:
-                weirdos = re.sub(r"[a-zA-Z0-9 \.,\?\!\-\'\:\;"+ re.escape(SPECIAL_CHARS.get(language, "")) + r"]", "", text)
-            else:
-                weirdos = ""
-            for c in weirdos:
-                if c in weird_characters:continue
-                weird_characters[c] = text
+    if len(texts) != len(ids) or language:
+        check_missing = len(texts) != len(ids)
+        regex_not_weird = r"[a-zA-Z0-9 \.,\?\!\-\'\:\;"+ re.escape(SPECIAL_CHARS.get(language, "")) + r"]"
+        for id, text in texts.items():
+            if check_missing and id not in ids:
+                print("WARNING: Filtered out:", id, text)
+                missing_things = True
+            elif not text.strip():
+                print("WARNING: Empty text:", id, text)
+            elif language:
+                # Filter out usual characters
+                weirdos = re.sub(regex_not_weird, "", text)
+                for c in weirdos:
+                    if c in weird_characters:continue
+                    weird_characters[c] = text
     for c, example in weird_characters.items():
         print(f"WARNING: Got character {c} (example: {example})")
 
