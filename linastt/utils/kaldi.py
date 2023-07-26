@@ -113,3 +113,12 @@ def check_kaldi_dir(dirname, language=None):
         tmpdir = os.path.join(dirname, tmpdir)
         if os.path.isdir(tmpdir):
             shutil.rmtree(tmpdir)
+
+if __name__ == "__main__":
+
+    import argparse
+    parser = argparse.ArgumentParser(description='Check a kaldi folder')
+    parser.add_argument('dirname', help='Input kaldi folder', type=str)
+    args = parser.parse_args()
+
+    check_kaldi_dir(args.dirname)
