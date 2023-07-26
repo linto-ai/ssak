@@ -11,13 +11,13 @@ class TestSplitLongAudios(Test):
         output_folder = self.get_temp_path("split_long_audio_speechbrain")
         shutil.rmtree(output_folder, ignore_errors=True)
         self.assertRun([
-            self.get_tool_path("split_long_audios.py"),
+            self.get_tool_path("align_audio_transcript.py"),
             self.get_data_path("kaldi/small"),
             output_folder,
             "--model", "speechbrain/asr-wav2vec2-commonvoice-fr",
             "--max_duration", "4",
         ])
-        self.assertNonRegression(output_folder, "split_long_audios/speechbrain")
+        self.assertNonRegression(output_folder, "align_audio_transcript/speechbrain")
         shutil.rmtree(output_folder)
 
     def test_split_long_audios_transformers(self):
@@ -25,11 +25,11 @@ class TestSplitLongAudios(Test):
         output_folder = self.get_temp_path("split_long_audio_transformers")
         shutil.rmtree(output_folder, ignore_errors=True)
         self.assertRun([
-            self.get_tool_path("split_long_audios.py"),
+            self.get_tool_path("align_audio_transcript.py"),
             self.get_data_path("kaldi/small"),
             output_folder,
             "--model", "Ilyes/wav2vec2-large-xlsr-53-french",
             "--max_duration", "4",
         ])
-        self.assertNonRegression(output_folder, "split_long_audios/transformers")
+        self.assertNonRegression(output_folder, "align_audio_transcript/transformers")
         shutil.rmtree(output_folder)
