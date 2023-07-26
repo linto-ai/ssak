@@ -168,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', help='seed',default=42, type=int)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
     parser.add_argument('--num_epochs', help='Num of Epochs',default=3, type=int)
+    parser.add_argument('--eval_steps', help="Validation and checkpoint model every n steps (advised: 400)", default=None, type=int)
     parser.add_argument('--max_text_length', help='text max length of each sentence in label',default=448, type=int)
     parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
     parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
@@ -280,7 +281,10 @@ if __name__ == "__main__":
     testset_len = testsetmeta["samples"]
     BATCH_SIZE = min(trainset_len, BATCH_SIZE)
     max_steps = round(NUM_EPOCH * trainset_len / BATCH_SIZE)
-    eval_steps = round(max_steps / NUM_EPOCH)
+    if args.eval_steps:
+        eval_steps = args.eval_steps
+    else:
+        eval_steps = round(max_steps / NUM_EPOCH)
     warmup_steps = round(max_steps * warmup_ratio)
 
     num_devices = len(gpus) or 1
@@ -417,10 +421,10 @@ if __name__ == "__main__":
         output_dir=output_folder, # change to a repo name of your choice
         label_names = ['labels'],
         evaluation_strategy="steps",
-        max_steps =  max_steps,
-        eval_steps=eval_steps,
-        logging_steps=eval_steps,
-        save_steps=eval_steps,
+        max_steps = max_steps,
+        eval_steps = eval_steps,
+        logging_steps = eval_steps,
+        save_steps = eval_steps,
         save_total_limit=2,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
