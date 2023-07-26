@@ -21,6 +21,12 @@ def load_csv_text(filename):
         text = "\n".join([row[0] for row in reader if row])  # Add a check for non-empty rows
         return text
 
+def load_csv_times(filename):
+    with open(filename, 'r', encoding="utf8") as f:
+        reader = csv.reader(f, delimiter=';')
+        assert next(reader) == ["text", "start", "duration"]
+        return [(float(row[1]), float(row[1]) + float(row[2])) for row in reader if row]
+
 
 def custom_clean_text(text,
     do_remove_special_characters=True,
@@ -216,9 +222,13 @@ if __name__ == '__main__':
         # Skip if done
         if do_stt:
             if os.path.exists(output_file_ok_stt) or os.path.exists(output_file_ko_stt) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
+                if args.verbose:
+                    print(f"Aleady processed: {filename}")
                 continue
         else:
             if os.path.exists(output_file_ok_noauto) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
+                if args.verbose:
+                    print(f"Aleady processed: {filename}")
                 continue
 
         # Skip if audio is missing (may arrive later...)
@@ -296,7 +306,26 @@ if __name__ == '__main__':
 
         if not discarded:
             discarded = looks_like_generated_from_ASR(text, lang)
+
+            times = load_csv_times(csv_file)
+            num_overlaps = 0
+            previous_end = 0
+            for start, end in times:
+                if start < previous_end - 0.5:
+                    num_overlaps += 1
+                previous_end = end
+            discarded_from_times = num_overlaps and num_overlaps > (len(times) // 2)
+
+            if discarded_from_times:
+                reason = f"Overlapping times ({num_overlaps} overlaps out of {len(times)} times)"
+                if discarded:
+                    discarded += " & " + reason
+                else:
+                    discarded = reason
+
             if discarded:
+                if args.verbose:
+                    print(f">> {filename} -- {discarded}")
                 shutil.copy2(csv_file, output_file_ko_noauto)
             else:
                 mp3_file_ok = os.path.join(mp3_folder_ok_noauto, os.path.basename(mp3_file))
@@ -307,19 +336,21 @@ if __name__ == '__main__':
 
         if do_stt and not discarded:
 
+            verbose = args.verbose
             if os.path.exists(output_file_ok_stt_deprecated) or os.path.exists(output_file_ko_stt_deprecated):
                 discarded = not os.path.exists(output_file_ok_stt_deprecated)
                 if discarded:
                     assert os.path.exists(output_file_ko_stt_deprecated)
                     with open(output_file_ko_stt_deprecated, "r") as f:
                         discarded = f.read().rstrip("\n")
+                verbose = False
             else:
                 res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
                 if res:
                     discarded = f"Audio does not match transcription: {res}"
 
             if discarded:
-                if args.verbose:
+                if verbose:
                     print(f">> {filename} -- {discarded}")
                 with open(output_file_ko_stt, "w") as f:
                     f.write(f"{discarded}\n")
