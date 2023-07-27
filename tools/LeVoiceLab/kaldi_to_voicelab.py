@@ -127,84 +127,26 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        'dir_in',
-        help='input folder',
-        type=str)
-    parser.add_argument(
-        'dir_out',
-        help='output folder',
-        type=str)
-    parser.add_argument(
-        '--max',
-        help='Maximum number of audio files',
-        default=10000000000000000000000000000000,
-        type=int
-    )
-    parser.add_argument(
-        '--license',
-        help='License',
-        default="",
-        type=str
-    )
-    parser.add_argument(
-        '--description',
-        help='Description',
-        default="",
-        type=str
-    )
-    parser.add_argument(
-        '--private',
-        help='Whether the db is private',
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        '--name',
-        help='Corpus name',
-        default=None,
-        type=str
-    )
-    parser.add_argument(
-        '--ext',
-        help='Audio extension (.wav, .mp3 ...)',
-        default=".wav",
-        type=str
-    )
-    parser.add_argument(
-        '--disable_kaldi_checks',
-        help='To disable checking that all ids have all info in the input kaldi files',
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        '--disable_file_checks',
-        help='To disable checking that input file exists',
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        '--ignore_existing',
-        help='To ignore existing output file',
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        '--subsample_checks',
-        help='To take only a subsample of audio to check formats',
-        default=False,
-        action="store_true"
-    )
-    parser.add_argument(
-        '--folder_depth',
-        help='Number of folder name to include in the final id',
-        default=0,
-        type=int
-    )
+    parser.add_argument('dir_in', help='input folder', type=str)
+    parser.add_argument('dir_out', help='output folder', type=str)
+    parser.add_argument('--raw', help='input folder for raw transcription (same as input folder if not specified)', type=str)
+    parser.add_argument('--max', help='Maximum number of audio files', default=10000000000000000000000000000000, type=int)
+    parser.add_argument('--license', help='License', default="", type=str)
+    parser.add_argument('--description', help='Description', default="", type=str)
+    parser.add_argument('--private', help='Whether the db is private', default=False, action="store_true")
+    parser.add_argument('--name', help='Corpus name', default=None, type=str)
+    parser.add_argument('--ext', help='Audio extension (.wav, .mp3 ...)', default=".wav", type=str)
+    parser.add_argument('--version', help='Format version', choices=["0.0.1", "0.0.2"], default="0.0.1", type=str)
+    parser.add_argument('--disable_kaldi_checks', help='To disable checking that all ids have all info in the input kaldi files', default=False, action="store_true")
+    parser.add_argument('--disable_file_checks', help='To disable checking that input file exists', default=False, action="store_true")
+    parser.add_argument('--ignore_existing', help='To ignore existing output file', default=False, action="store_true")
+    parser.add_argument('--subsample_checks', help='To take only a subsample of audio to check formats', default=False, action="store_true")
+    parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
     args = parser.parse_args()
 
     # params used from data processing
     folder = args.dir_in #"/home/jlouradour/projects/VoiceLabData/data_kaldi/TCOF"
+    folder_raw = args.raw if args.raw else folder
     output_folder = args.dir_out #"to_upload/tcof"
     MAX= args.max
 
@@ -220,19 +162,24 @@ if __name__ == "__main__":
 
     with open(os.path.join(folder, "text")) as f:
         lines = f.readlines()
+    print("Parsing text")
     text = {}
     for line in lines:
         line = line.strip().split()
         text[line[0]] = ' '.join(line[1:])
     
-    HAS_RAW = os.path.exists(os.path.join(folder, "text_raw"))
+
+    file_raw = os.path.join(folder_raw, "text") if folder_raw!=folder else os.path.join(folder, "text_raw")
+    HAS_RAW = os.path.exists(file_raw)
     if HAS_RAW:
-        with open(os.path.join(folder, "text_raw")) as f:
+        print("Parsing", file_raw)
+        with open(file_raw) as f:
             lines = f.readlines()
         rawtext = {}
         for line in lines:
             line = line.strip().split()
             rawtext[line[0]] = ' '.join(line[1:])
+        assert len(rawtext) == len(text), f"rawtext and text have different number of lines: {len(rawtext)} != {len(text)}"
 
     with open(os.path.join(folder, "wav.scp")) as f:
         print("Parsing wav.scp")
@@ -494,32 +441,37 @@ if __name__ == "__main__":
                     "extra": extra
                 })
             total_duration_speech += utterance['duration']
+
+        transcript_base = {
+            "format_specification_uri" : f"http://levoicelab.org/schemas/{args.version}/annotation-single.schema.transcription.json",
+        }
         if not os.path.isfile(os.path.join(output_folder_annots, out_name+".annotations.json")):
             with open(os.path.join(output_folder_annots, out_name+".annotations.json"), "w") as f:
-                json_dump({"transcripts": transcriptions}, f)
+                json_dump(transcript_base | {"transcripts": transcriptions}, f)
         
         if HAS_RAW:
             with open(os.path.join(output_folder_annots_raw, out_name+".annotations.json"), "w") as f:
-                json_dump({"transcripts": transcriptions_raw}, f)
+                json_dump(transcript_base | {"transcripts": transcriptions_raw}, f)
 
         if not os.path.isfile(os.path.join(output_folder, out_name+".meta.json")):
             duration = get_audio_duration(_out_wav)
             with open(os.path.join(output_folder, out_name+".meta.json"), "w") as f:
                 json_dump({
+                    "format_specification_uri" : f"http://levoicelab.org/schemas/{args.version}/audio-format.schema.json",
                     "duration_milliseconds": int(duration * 1000),
                     "is_natural": True, 
                     "is_augmented": False, 
                     "is_synthetic": False, 
                     "date_created": time2str(now), 
-                    "collection_date": time2str(date)
+                    "collection_date": time2str(date),
                 }, f)
 
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         with open(os.path.join(output_folder, "meta.json"), "w") as f:
             extra = {
-                    "corpus_name": corpus_name,
-                    "num_speakers": len(speakers),
-                }
+                "corpus_name": corpus_name,
+                "num_speakers": len(speakers),
+            }
             fcount = list(genders.values()).count("f")
             mcount = list(genders.values()).count("m")
             if fcount > 0 and mcount > 0:
@@ -543,7 +495,8 @@ if __name__ == "__main__":
                 "date_created": time2str(now),
                 "collection_date_from": time2str(min_date),
                 "collection_date_to": time2str(max_date),
-                "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1", #"https://github.com/voicelab-org/voicelab_speech_data_spec/blob/master/server_deploy/audio-format.schema.json", 
+                # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
+                "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/main-db.schema.json",
                 "num_channels": channels,
                 "sample_rate": sample_rate,
                 "license": args.license,
@@ -564,7 +517,7 @@ if __name__ == "__main__":
                 "num_audio_files": num_audio_files,
                 "augmented_speech_duration_seconds": 0,
                 "synthetic_speech_duration_seconds": 0,
-                "extra": extra
+                "extra": extra,
             }
             if args.description:
                 metadata.update({"notes": args.description})
@@ -576,7 +529,14 @@ if __name__ == "__main__":
                 "date_created": time2str(now),
                 "annotation_date_from": time2str(min_date_annot),
                 "annotation_date_to": time2str(max_date_annot),
-                "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1", #"https://github.com/voicelab-org/voicelab_speech_data_spec/blob/master/server_deploy/annotation-single.schema.json", 
+                # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
+                "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
+            } | (
+            {
+                "annotation_type": "transcription",
+                "contains_speaker_information": False,
+            } if args.version >= "0.0.2" else {}
+            ) | {
                 "contact": {
                     "organization": "LINAGORA",
                     "name": "Jean-Pierre LORRE",
