@@ -4,15 +4,18 @@
 import os
 import subprocess
 
-def walk_files(inputs):
-    for file_or_folder in args.input:
+def walk_files(inputs, verbose=True):
+    for file_or_folder in inputs:
         if not os.path.exists(file_or_folder):
             raise ValueError(f"{file_or_folder} does not exists")
         if os.path.isfile(file_or_folder):
             yield file_or_folder
-        for root, dirs, files in os.walk(file_or_folder):
-            for f in files:
-                yield os.path.join(root, f)
+        else:
+            if verbose:
+                print("Scanning", os.path.abspath(file_or_folder), "...")
+            for root, dirs, files in os.walk(file_or_folder):
+                for f in files:
+                    yield os.path.join(root, f)
 
 def run_command(command, check=True):
     if isinstance(command, str):
@@ -97,7 +100,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get duration of audio file(s)")
     parser.add_argument("input", type=str, help="Input files or folders", nargs="+")
     args = parser.parse_args()
-
+    
     nb, duration = sox_duration(walk_files(args.input))
 
     print(f"Total Duration of {nb} files: {second2time(duration)}")
