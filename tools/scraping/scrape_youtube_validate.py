@@ -139,7 +139,7 @@ def looks_like_generated_from_ASR(text, language):
 
 
 if __name__ == '__main__':
-    from linastt.utils.misc import hashmd5
+
     import os
     import argparse
     parser = argparse.ArgumentParser(
@@ -168,27 +168,33 @@ if __name__ == '__main__':
         assert os.path.exists(folder), "Folder {} does not exist.".format(folder)
 
     mp3_folder_ok_lang = mp3_folder + "_checked_" + lang
-    mp3_folder_ok_noauto = mp3_folder_ok_lang + "_noauto"
-    mp3_folder_ok_stt = mp3_folder_ok_noauto + "_stt"
+    mp3_folder_ok_noasr_stream = mp3_folder_ok_lang + "_noasr_stream"
+    mp3_folder_ok_noasr_nostream = mp3_folder_ok_lang + "_noasr_nostream"
+    mp3_folder_ok_stt_stream = mp3_folder_ok_noasr_stream + "_stt"
+    mp3_folder_ok_stt_nostream = mp3_folder_ok_noasr_nostream + "_stt"
     mp3_folder_ok_stt_deprecated = mp3_folder_ok_lang + "_stt"
 
     csv_folder_ok_lang = csv_folder + "_checked_" + lang
-    csv_folder_ok_noauto = csv_folder + "_checked_" + lang + "_noauto"
-    csv_folder_ok_stt = csv_folder_ok_noauto + "_stt"
-    csv_folder_ok_stt_deprecated = csv_folder_ok_lang + "_stt"
+    csv_folder_ok_noasr_stream = csv_folder + "_checked_" + lang + "_noasr_stream"
+    csv_folder_ok_noasr_nostream = csv_folder + "_checked_" + lang + "_noasr_nostream"
+    csv_folder_ok_stt_stream = csv_folder_ok_noasr_stream + "_stt"
+    csv_folder_ok_stt_nostream = csv_folder_ok_noasr_nostream + "_stt"
     csv_folder_ko_lang = csv_folder + "_discarded_" + lang
-    csv_folder_ko_noauto = csv_folder + "_discarded_" + lang + "_noauto"
-    csv_folder_ko_stt = csv_folder_ko_noauto + "_stt"
+    csv_folder_ko_noasr = csv_folder + "_discarded_" + lang + "_noasr"
+    csv_folder_ko_stt = csv_folder_ko_noasr + "_stt"
+
+    # From a time where STT test was done after checking language but no ASR looking selection
+    csv_folder_ok_stt_deprecated = csv_folder_ok_lang + "_stt"
     csv_folder_ko_stt_deprecated = csv_folder_ko_lang + "_stt"
-    csv_folder_ok_lang_rewritten = csv_folder_ok_lang + "_formatted"
-    csv_folder_ok_noauto_rewritten = csv_folder_ok_noauto + "_formatted"
-    csv_folder_ok_stt_rewritten = csv_folder_ok_stt + "_formatted"
 
     for folder in [
-        mp3_folder_ok_lang, mp3_folder_ok_noauto, mp3_folder_ok_stt,
-        csv_folder_ok_lang, csv_folder_ok_noauto, csv_folder_ok_stt,
-        csv_folder_ko_lang, csv_folder_ko_noauto, csv_folder_ko_stt,
-        csv_folder_ok_lang_rewritten, csv_folder_ok_noauto_rewritten, csv_folder_ok_stt_rewritten, 
+        mp3_folder_ok_lang,
+        mp3_folder_ok_noasr_stream, mp3_folder_ok_noasr_nostream, 
+        mp3_folder_ok_stt_stream, mp3_folder_ok_stt_nostream,
+        csv_folder_ok_lang,
+        csv_folder_ok_noasr_stream, csv_folder_ok_noasr_nostream, 
+        csv_folder_ok_stt_stream, csv_folder_ok_stt_nostream,
+        csv_folder_ko_lang, csv_folder_ko_noasr, csv_folder_ko_stt,
         ]:
         os.makedirs(folder, exist_ok=True)
 
@@ -204,32 +210,41 @@ if __name__ == '__main__':
 
     do_stt = bool(model)
 
+    def rewrite_formatted(csv_file, do_unupper_case):
+        dirname = os.path.dirname(csv_file) + "_formatted"
+        os.makedirs(dirname, exist_ok=True)
+        rewrite_csv(csv_file, os.path.join(dirname, os.path.basename(csv_file)), do_unupper_case=do_unupper_case)
+
     for filename in tqdm(os.listdir(csv_folder)):
         csv_file = os.path.join(csv_folder, filename)
         mp3_file = os.path.join(mp3_folder, filename.replace(".csv", ".mp3"))
         output_file_ok_lang = os.path.join(csv_folder_ok_lang, filename)
-        output_file_ok_noauto = os.path.join(csv_folder_ok_noauto, filename)
-        output_file_ok_stt = os.path.join(csv_folder_ok_stt, filename)
-        output_file_ok_stt_deprecated = os.path.join(csv_folder_ok_stt_deprecated, filename)
-        output_file_ok_lang_rewritten = os.path.join(csv_folder_ok_lang_rewritten, filename)
-        output_file_ok_noauto_rewritten = os.path.join(csv_folder_ok_noauto_rewritten, filename)
-        output_file_ok_stt_rewritten = os.path.join(csv_folder_ok_stt_rewritten, filename)
+        output_file_ok_noasr_stream = os.path.join(csv_folder_ok_noasr_stream, filename)
+        output_file_ok_noasr_nostream = os.path.join(csv_folder_ok_noasr_nostream, filename)
+        output_file_ok_stt_stream = os.path.join(csv_folder_ok_stt_stream, filename)
+        output_file_ok_stt_nostream = os.path.join(csv_folder_ok_stt_nostream, filename)
         output_file_ko_lang = os.path.join(csv_folder_ko_lang, filename)
-        output_file_ko_noauto = os.path.join(csv_folder_ko_noauto, filename)
+        output_file_ko_noasr = os.path.join(csv_folder_ko_noasr, filename)
         output_file_ko_stt = os.path.join(csv_folder_ko_stt, filename)
+
+        output_file_ok_stt_deprecated = os.path.join(csv_folder_ok_stt_deprecated, filename)
         output_file_ko_stt_deprecated = os.path.join(csv_folder_ko_stt_deprecated, filename)
 
         # Skip if done
         if do_stt:
-            if os.path.exists(output_file_ok_stt) or os.path.exists(output_file_ko_stt) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
-                if args.verbose:
-                    print(f"Aleady processed: {filename}")
-                continue
+            can_be_files = [
+                output_file_ok_stt_stream, output_file_ok_stt_nostream,
+                output_file_ko_stt, output_file_ko_noasr, output_file_ko_lang,
+            ]
         else:
-            if os.path.exists(output_file_ok_noauto) or os.path.exists(output_file_ko_noauto) or os.path.exists(output_file_ko_lang):
-                if args.verbose:
-                    print(f"Aleady processed: {filename}")
-                continue
+            can_be_files = [
+                output_file_ok_noasr_stream, output_file_ok_noasr_nostream,
+                output_file_ko_noasr, output_file_ko_lang,
+            ]
+        if max([os.path.isfile(f) for f in can_be_files]):
+            if args.verbose:
+                print(f"Aleady processed: {filename}")
+            continue
 
         # Skip if audio is missing (may arrive later...)
         if not os.path.exists(mp3_file):
@@ -301,38 +316,39 @@ if __name__ == '__main__':
             mp3_file_ok = os.path.join(mp3_folder_ok_lang, os.path.basename(mp3_file))
             if not os.path.exists(mp3_file_ok):
                 os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_lang), mp3_file_ok)
-            rewrite_csv(csv_file, output_file_ok_lang_rewritten, do_unupper_case=do_unupper_case)
             shutil.copy2(csv_file, output_file_ok_lang)
+            # rewrite_formatted(output_file_ok_lang, do_unupper_case)
+
+        has_stream = False
 
         if not discarded:
+
             discarded = looks_like_generated_from_ASR(text, lang)
-
-            times = load_csv_times(csv_file)
-            num_overlaps = 0
-            previous_end = 0
-            for start, end in times:
-                if start < previous_end - 0.5:
-                    num_overlaps += 1
-                previous_end = end
-            discarded_from_times = num_overlaps and num_overlaps > (len(times) // 2)
-
-            if discarded_from_times:
-                reason = f"Overlapping times ({num_overlaps} overlaps out of {len(times)} times)"
-                if discarded:
-                    discarded += " & " + reason
-                else:
-                    discarded = reason
 
             if discarded:
                 if args.verbose:
                     print(f">> {filename} -- {discarded}")
-                shutil.copy2(csv_file, output_file_ko_noauto)
+                shutil.copy2(csv_file, output_file_ko_noasr)
             else:
-                mp3_file_ok = os.path.join(mp3_folder_ok_noauto, os.path.basename(mp3_file))
+
+                # Check for "streaming-like" subtitles, usually generated from ASR
+                times = load_csv_times(csv_file)
+                num_overlaps = 0
+                previous_end = 0
+                for start, end in times:
+                    if start < previous_end - 0.5:
+                        num_overlaps += 1
+                    previous_end = end
+                has_stream = num_overlaps and num_overlaps > (len(times) // 2)
+
+                mp3_folder_ok_noasr = mp3_folder_ok_noasr_stream if has_stream else mp3_folder_ok_noasr_nostream
+                output_file_ok_noasr = output_file_ok_noasr_stream if has_stream else output_file_ok_noasr_nostream
+                mp3_file_ok = os.path.join(mp3_folder_ok_noasr, os.path.basename(mp3_file))
                 if not os.path.exists(mp3_file_ok):
-                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_noauto), mp3_file_ok)
-                shutil.copy2(output_file_ok_lang_rewritten, output_file_ok_noauto_rewritten)
-                shutil.copy2(csv_file, output_file_ok_noauto)
+                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_noasr), mp3_file_ok)
+                shutil.copy2(csv_file, output_file_ok_noasr)
+                if not do_stt:
+                    rewrite_formatted(output_file_ok_noasr, do_unupper_case)
 
         if do_stt and not discarded:
 
@@ -355,11 +371,14 @@ if __name__ == '__main__':
                 with open(output_file_ko_stt, "w") as f:
                     f.write(f"{discarded}\n")
             else:
+                mp3_folder_ok_stt = mp3_folder_ok_stt_stream if has_stream else mp3_folder_ok_stt_nostream
+                output_file_ok_stt = output_file_ok_stt_stream if has_stream else output_file_ok_stt_nostream
+
                 mp3_file_ok = os.path.join(mp3_folder_ok_stt, os.path.basename(mp3_file))
                 if not os.path.exists(mp3_file_ok):
                     os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_stt), mp3_file_ok)
-                shutil.copy2(output_file_ok_lang_rewritten, output_file_ok_stt_rewritten)
                 shutil.copy2(csv_file, output_file_ok_stt)
+                rewrite_formatted(output_file_ok_stt, do_unupper_case)
 
     print(f"Minimum number of characters: {min_num_char} ({argmin_num_char})")
     print(f"Minimum number of words: {min_num_words} ({argmin_num_words})")
