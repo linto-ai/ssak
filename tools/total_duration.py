@@ -3,8 +3,9 @@
 
 import os
 import subprocess
+from tqdm import tqdm
 
-def walk_files(inputs, verbose=True):
+def walk_files(inputs, verbose=True, ignore_extensions=[".json", ".csv", ".txt"]):
     for file_or_folder in inputs:
         if not os.path.exists(file_or_folder):
             raise ValueError(f"{file_or_folder} does not exists")
@@ -14,7 +15,9 @@ def walk_files(inputs, verbose=True):
             if verbose:
                 print("Scanning", os.path.abspath(file_or_folder), "...")
             for root, dirs, files in os.walk(file_or_folder):
-                for f in files:
+                for f in tqdm(files):
+                    if any(f.endswith(ext) for ext in ignore_extensions):
+                        continue
                     yield os.path.join(root, f)
 
 def run_command(command, check=True):
