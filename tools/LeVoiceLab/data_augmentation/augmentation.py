@@ -15,14 +15,25 @@ from audiomentations import (
 from augmentations.reverberation import Reverberation
 
 _class2name = {
-    AddGaussianNoise : "AddGaussianNoise",
-    AddBackgroundNoise : "AddBackgroundNoise",
+    AddGaussianNoise : "GaussianNoise",
+    AddBackgroundNoise : "BackgroundNoise",
     ClippingDistortion : "ClippingDistortion",
     BandStopFilter : "BandStopFilter",
-    Gain : "Gain",
-    TimeStretch : "TimeStretch",
     PitchShift : "PitchShift",
     Reverberation : "Reverberation",
+    Gain : "Gain",
+    TimeStretch : "TimeStretch",
+}
+
+_class2descr = {
+    AddGaussianNoise : "Ajout de bruit Gaussien",
+    AddBackgroundNoise : "Ajout de bruit de fond",
+    ClippingDistortion : "distorsion par clipping",
+    BandStopFilter : "Filtre passe bande",
+    PitchShift : "Modification du pitch de la voix",
+    Reverberation : "Simulation de réverbération",
+    Gain : "Modification du gain",
+    TimeStretch : "Extension du temps",
 }
 
 def parameter2str(val):
@@ -34,9 +45,16 @@ def parameter2str(val):
         return "{:.3g}".format(val)
     return str(val)
 
+def transform2genericstr(transform):
+    if transform == None: return ""
+    return _class2name[type(transform)]
+
+def transform2description(transform):
+    return _class2descr[type(transform)]
+
 def transform2str(transform, short = False):
     if transform == None: return ""
-    s = _class2name[type(transform)]
+    s = transform2genericstr(transform)
     d = {}
     for k,v in sorted(transform.parameters.items()):
         if k in ["should_apply", "noise_start_index", "noise_end_index"]:
@@ -54,6 +72,7 @@ def transform2str(transform, short = False):
     if short:
         return s + "_" + "_".join([k + ":" + v for k,v in d.items()])
     return s + " (" + ", ".join([k + ":" + v for k,v in d.items()]) + ")"
+
 
 class SpeechAugment:
     def __init__(self,
@@ -80,6 +99,10 @@ class SpeechAugment:
         
         self.num_trans = len(self.transforms)
         self.i_trans = -1
+
+    def get_num_transforms(self):
+        assert self.num_trans == len(self.transforms)
+        return len(self.transforms)
 
     def __call__(self, input_values, sample_rate):
         """apply a random data augmentation technique from a list of transformations"""
