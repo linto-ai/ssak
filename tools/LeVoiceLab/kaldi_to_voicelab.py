@@ -211,8 +211,10 @@ if __name__ == "__main__":
             #     print("WARNING: could not find "+audio_path)
 
     total_duration = None
+    has_segments = False
     if os.path.exists(os.path.join(folder, "segments")):
         print("Parsing segments")
+        has_segments = True
         sys.stdout.flush()
         with open(os.path.join(folder, "segments")) as f:
             lines = f.readlines()
@@ -286,6 +288,8 @@ if __name__ == "__main__":
     genders = {}
     speakers = set()
     durations = []
+    several_utt_per_wav = False
+    all_wavs = set()
     for key in tqdm(keys):
         _text = text[key]
         _spk = spks[key]
@@ -295,6 +299,12 @@ if __name__ == "__main__":
         _end = float(_segment[2])
         _duration = _end - _start
         _wav = wavs[_segment[0]] if _segment[0] in wavs.keys() else ""
+
+        if has_segments and not several_utt_per_wav:
+            if _wav in all_wavs:
+                several_utt_per_wav = True
+            else:
+                all_wavs.add(_wav)
 
         data.append({
                 "id": key,
@@ -310,14 +320,24 @@ if __name__ == "__main__":
         genders[_spk] = _gender
         speakers.add(_spk)
         durations.append(_end - _start)
-    data = sorted(data, key= lambda x: x["wav"]) # Data must be sorted before groupby
+
+    if several_utt_per_wav:
+        data = sorted(data, key= lambda x: x["wav"]) # Data must be sorted before groupby
+        def get_iterator():
+            return groupby(data, lambda x: x["wav"])
+        new_wavs = None
+    else:
+        def get_iterator():
+            for d in data:
+                yield d["wav"], [d]
+        new_wavs = len(data)
 
     now = datetime.now()
 
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         audio_files = []
         num_audio_files = 0
-        for _wav, utt in groupby(data, lambda x: x["wav"]):
+        for _wav, utt in tqdm(get_iterator(), total=new_wavs):
             if args.disable_file_checks or os.path.exists(_wav):
                 num_audio_files += 1
                 if num_audio_files > MAX: break
@@ -330,7 +350,7 @@ if __name__ == "__main__":
             assert total_duration is not None, "The total duration cannot be computed with option --subsample_checks and without precomputed duration info"
             if len(sample) > 1000:
                 sample = random.sample(audio_files, 1000)
-        elif len(" ".join(sample)) >= 2097152 - 5:
+        if len(" ".join(sample)) >= 2097152 - 5:
             while len(" ".join(sample)) >= 2097152 - 5:
                 sample = sample[:int(len(sample)/2)]
 
@@ -358,7 +378,7 @@ if __name__ == "__main__":
 
     num_audio_files = 0
     total_duration_speech = 0
-    for _wav, utt in groupby(data, lambda x: x["wav"]):
+    for _wav, utt in tqdm(get_iterator(), total=new_wavs):
         num_audio_files += 1
         if num_audio_files > MAX: break
 
@@ -469,7 +489,6 @@ if __name__ == "__main__":
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         with open(os.path.join(output_folder, "meta.json"), "w") as f:
             extra = {
-                "corpus_name": corpus_name,
                 "num_speakers": len(speakers),
             }
             fcount = list(genders.values()).count("f")
@@ -492,6 +511,8 @@ if __name__ == "__main__":
                 extra.update({"bit_depth" : note_bit_depth})
 
             metadata = {
+                "name": corpus_name,
+                "description": args.description if args.description else corpus_name,
                 "date_created": time2str(now),
                 "collection_date_from": time2str(min_date),
                 "collection_date_to": time2str(max_date),
@@ -519,8 +540,6 @@ if __name__ == "__main__":
                 "synthetic_speech_duration_seconds": 0,
                 "extra": extra,
             }
-            if args.description:
-                metadata.update({"notes": args.description})
             json_dump(metadata, f)
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
@@ -544,7 +563,6 @@ if __name__ == "__main__":
                     "uri": "https://labs.linagora.com/"
                 },
                 "extra": {
-                    "corpus_name": corpus_name,
                     "word_alignement": False,
                     "utt_alignement": True,
                     "avg_utt_alignement_duration_second" : sum(durations)/len(durations),
