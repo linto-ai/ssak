@@ -9,7 +9,7 @@ import regex as re
 from linastt.utils.kaldi import check_kaldi_dir
 
 
-def create_cut(
+def kaldi_subsample(
     input_folders,
     output_folder,
     maximum,
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     parser.add_argument("--random_seed", default=None, type=int, help="Random seed to shuffle randomly the utterances")
     args = parser.parse_args()
 
-    create_cut(
+    kaldi_subsample(
         args.input_folder, args.output_folder,
         maximum=args.maximum,
         random_seed=args.random_seed,
