@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import numpy as np
+import re
+
 CANDIDATE_LANGUAGES = None
 
 # List of language codes supported by langid
@@ -106,6 +109,74 @@ def translate_language(text, dest, src=None):
         translations = GOOGLE_TRANSLATOR.translate(text, src=src, dest=dest)
     return [tr.text for tr in translations]
 
+HATE_SPEECH_MODELS_SRC = {
+    # "fr" : "Hate-speech-CNERG/dehatebert-mono-french", # Bad
+    "fr": "Poulpidot/distilcamenbert-french-hate-speech", # Betters
+}
+HATE_SPEECH_MODELS = {}
+
+
+def is_hate_speech(text, lang="fr", return_score=False, use_max_to_combine=False):
+    if isinstance(text, str):
+        return is_hate_speech([text], lang=lang, return_score=return_score)[0]
+
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    import torch
+
+    if lang not in HATE_SPEECH_MODELS:
+        assert lang in HATE_SPEECH_MODELS_SRC, f"Language {lang} not supported"
+        tokenizer = AutoTokenizer.from_pretrained(HATE_SPEECH_MODELS_SRC[lang])
+        model = AutoModelForSequenceClassification.from_pretrained(HATE_SPEECH_MODELS_SRC[lang])
+        model.train(False)
+        HATE_SPEECH_MODELS[lang] = (tokenizer, model)
+
+    tokenizer, model = HATE_SPEECH_MODELS[lang]
+    inputs = tokenizer(text, return_tensors="pt", padding=True)
+    if inputs.input_ids.shape[-1] > tokenizer.model_max_length:
+        # If one text is too long, split it into smaller texts
+        probas = []
+        for t in text:
+            sublines = [t]
+            input = tokenizer(sublines, return_tensors="pt")
+            while input.input_ids.shape[-1] > tokenizer.model_max_length:
+                # Take the biggest subline
+                imax = np.argmax([len(s) for s in sublines])
+                # Split it into two sublines
+                sublines = sublines[:imax] + sublines[imax+1:] + cut_line(sublines[imax])
+                # Recompute
+                input = tokenizer(sublines, return_tensors="pt", padding=True)
+
+            proba = model(**input).logits
+            if use_max_to_combine:
+                proba = proba.softmax(dim=-1).max(dim=0).values
+            else:
+                proba = proba.mean(dim=0).softmax(dim=-1)
+            probas.append(proba)
+        probas = torch.cat([p.unsqueeze(0) for p in probas])
+    else:
+        outputs = model(**inputs)
+        probas = outputs.logits.softmax(dim=-1)
+
+    probas = probas[:,1]
+    if return_score:
+        return probas.tolist()
+    else:
+        return (probas > 0.5).tolist()
+    
+def cut_line(line):
+    # Look for all the "." in the line
+    dots = [s.start() for s in re.finditer(r"\.[^\.]", line)]
+    if len(dots):
+        # Choose the dot the more in the middle
+        imax = np.argmin([abs(len(line)/2 - d) for d in dots])
+        return [line[:dots[imax]+1], line[dots[imax]+1:]]
+    spaces = [s.start() for s in re.finditer(r"\s+", line)]
+    if len(spaces):
+        # Choose the space the more in the middle
+        imax = np.argmin([abs(len(line)/2 - s) for s in spaces])
+        return [line[:spaces[imax]+1], line[spaces[imax]+1:]]
+    print("WARNING: Cutting line without space")
+    return [line[:len(line)//2], line[len(line)//2:]]
 
 if __name__ == "__main__":
 
@@ -118,8 +189,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     text = " ".join(args.text)
-    print(json.dumps(
-        check_language(text, args.language, return_meta=True),
-        indent=4))
+    # texts = text.split(".")
+    texts = [text]
+
+    if args.language in ["fr"]:
+        
+        hs = is_hate_speech(texts, args.language, return_score=True)
+        assert len(hs) == len(texts)
+        for t, h in zip(texts, hs):
+            print("is_hate_speech", h, t)
+
+    print("check_language",
+          json.dumps(
+            check_language(text, args.language, return_meta=True),
+            indent=4)
+    )
     
-    print(translate_language(text, args.target if args.target else args.language, src=args.language))
+    print("translate_language", translate_language(text, args.target if args.target else args.language, src=args.language))

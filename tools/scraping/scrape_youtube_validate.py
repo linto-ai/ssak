@@ -5,7 +5,10 @@ import shutil
 import json
 from tqdm import tqdm
 
-from linastt.utils.language import check_language
+from linastt.utils.language import (
+    check_language,
+    is_hate_speech,
+)
 from linastt.utils.text import (
     collapse_whitespace,
     remove_special_characters,
@@ -148,9 +151,8 @@ if __name__ == '__main__':
     )
     parser.add_argument('path', help= "Output folder path where audio and annotations will be saved (default: YouTubeFr, or YouTubeLang for another language than French).", type=str, nargs='?', default=None)
     parser.add_argument('--language', default="fr", help= "The language code of the transcripts you want to retrieve. For example, 'en' for English, 'fr' for French, etc.", type=str)
-    parser.add_argument('--model', help="An ASR to check that the audio content seems to be right",
-        default=None,
-    )
+    parser.add_argument('--model', help="An ASR to check that the audio content seems to be right", default=None,)
+    parser.add_argument('--check_no_hate', help="Classify into hate_speech or not", default=False, action="store_true")
     parser.add_argument('--min_num_words', default=7, type = int, help= "Minimum number of words to be retained")
     parser.add_argument('--max_char', default=1000, type = int, help= "Maximum number of characters in a transcription to consider for language identification")
     parser.add_argument('-v', '--verbose', help= "Print more information", action='store_true')
@@ -161,6 +163,14 @@ if __name__ == '__main__':
     if not path:
         # YouTubeEn, YouTubeFr, etc.
         path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
+
+    model = None
+    if args.model:
+        from linastt.infer.general import load_model
+        model = load_model(args.model) # device?
+
+    do_stt = bool(model)
+    do_hate = args.check_no_hate
 
     csv_folder = os.path.join(path, lang)
     mp3_folder = os.path.join(path, "mp3")
@@ -198,17 +208,6 @@ if __name__ == '__main__':
         ]:
         os.makedirs(folder, exist_ok=True)
 
-    min_num_char = float("inf")
-    min_num_words = float("inf")
-    argmin_num_char = None
-    argmin_num_words = None
-
-    model = None
-    if args.model:
-        from linastt.infer.general import load_model
-        model = load_model(args.model) # device?
-
-    do_stt = bool(model)
 
     def rewrite_formatted(csv_file, do_unupper_case):
         dirname = os.path.dirname(csv_file) + "_formatted"
@@ -241,9 +240,16 @@ if __name__ == '__main__':
                 output_file_ok_noasr_stream, output_file_ok_noasr_nostream,
                 output_file_ko_noasr, output_file_ko_lang,
             ]
+        if do_hate:
+            can_be_files.append(can_be_files[0] + "_nohate")
+            can_be_files[0] += "_hate"
+            can_be_files.append(can_be_files[1] + "_nohate")
+            can_be_files[1] += "_hate"
+
         if max([os.path.isfile(f) for f in can_be_files]):
             if args.verbose:
-                print(f"Aleady processed: {filename}")
+                dirname = os.path.dirname([f for f in can_be_files if os.path.isfile(f)][0])
+                print(f"Aleady processed: {filename} -> {dirname}")
             continue
 
         # Skip if audio is missing (may arrive later...)
@@ -252,137 +258,159 @@ if __name__ == '__main__':
 
         text = load_csv_text(csv_file)
         text_one_line = collapse_whitespace(text)
+        do_unupper_case = text_one_line.isupper()
 
         discarded = False
 
-        num_chars = len(text_one_line)
-        num_words = len(text_one_line.split())
-
         if os.path.isfile(output_file_ko_lang) or os.path.isfile(output_file_ok_lang):
-            dicarded = not os.path.isfile(output_file_ok_lang)
 
-        # Discard too short text    
-        elif args.min_num_words and num_words < args.min_num_words:
-            discarded = f"Text too short: {text_one_line}"
-
-        # Discard text in paranthesis
-        elif text_one_line.startswith("(") and text_one_line.endswith(")") and len(text_one_line) < 200:
-            discarded = f"Text between parenthesis: {text_one_line}"
+            discarded = not os.path.isfile(output_file_ok_lang)
 
         else:
 
-            # Take the start
-            text_start = text_one_line
-            if args.max_char and len(text_start) > args.max_char:
-                text_start = text_start[:args.max_char+1]
-                while text_start[-1] not in " .,;:!?":
-                    text_start = text_start[:-1]
-                assert len(text_start)
+            num_chars = len(text_one_line)
+            num_words = len(text_one_line.split())
 
-            # Check language on the start
-            meta = check_language(
-                custom_clean_text(text_start, do_remove_parenthesis=False),
-                lang,
-                return_meta=True
-            )
-            is_lang = meta["result"]
-            detected_language = meta["best"]
+            if os.path.isfile(output_file_ko_lang) or os.path.isfile(output_file_ok_lang):
+                dicarded = not os.path.isfile(output_file_ok_lang)
 
-            # Discard audio in other language
-            if is_lang:
-                if args.verbose and detected_language != lang:
-                    print(f">> {filename} -- Borderline detected -- {lang} or {detected_language}? ({text_one_line[:100]})")
+            # Discard too short text    
+            elif args.min_num_words and num_words < args.min_num_words:
+                discarded = f"Text too short: {text_one_line}"
+
+            # Discard text in paranthesis
+            elif text_one_line.startswith("(") and text_one_line.endswith(")") and len(text_one_line) < 200:
+                discarded = f"Text between parenthesis: {text_one_line}"
+
             else:
-                discarded = f"Other language detected: {detected_language} -- ({text_one_line[:100]})"
-        
-        if discarded:
-            if args.verbose:
-                print(f">> {filename} -- {discarded}")
-            with open(output_file_ko_lang, "w") as f:
-                f.write(f"{discarded}\n")
-        else:
-            # Only for reporting
-            if num_chars < min_num_char:
-                min_num_char = num_chars
-                argmin_num_char = text_one_line
-            if num_words < min_num_words:
-                min_num_words = num_words
-                argmin_num_words = text_one_line
 
-            do_unupper_case = text_one_line.isupper()
-            if args.verbose and do_unupper_case:
-                print(f">> {filename} -- Upper text detected ({text_one_line[:100]})")
+                # Take the start
+                text_start = text_one_line
+                if args.max_char and len(text_start) > args.max_char:
+                    text_start = text_start[:args.max_char+1]
+                    while text_start[-1] not in " .,;:!?":
+                        text_start = text_start[:-1]
+                    assert len(text_start)
 
-            mp3_file_ok = os.path.join(mp3_folder_ok_lang, os.path.basename(mp3_file))
-            if not os.path.exists(mp3_file_ok):
-                os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_lang), mp3_file_ok)
-            shutil.copy2(csv_file, output_file_ok_lang)
-            # rewrite_formatted(output_file_ok_lang, do_unupper_case)
+                # Check language on the start
+                meta = check_language(
+                    custom_clean_text(text_start, do_remove_parenthesis=False),
+                    lang,
+                    return_meta=True
+                )
+                is_lang = meta["result"]
+                detected_language = meta["best"]
+
+                # Discard audio in other language
+                if is_lang:
+                    if args.verbose and detected_language != lang:
+                        print(f">> {filename} -- Borderline detected -- {lang} or {detected_language}? ({text_one_line[:100]})")
+                else:
+                    discarded = f"Other language detected: {detected_language} -- ({text_one_line[:100]})"
+            
+            if discarded:
+                if args.verbose:
+                    print(f">> {filename} -- {discarded}")
+                with open(output_file_ko_lang, "w") as f:
+                    f.write(f"{discarded}\n")
+            else:
+                if args.verbose and do_unupper_case:
+                    print(f">> {filename} -- Upper text detected ({text_one_line[:100]})")
+
+                mp3_file_ok = os.path.join(mp3_folder_ok_lang, os.path.basename(mp3_file))
+                if not os.path.exists(mp3_file_ok):
+                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_lang), mp3_file_ok)
+                shutil.copy2(csv_file, output_file_ok_lang)
+                # rewrite_formatted(output_file_ok_lang, do_unupper_case)
 
         has_stream = False
 
         if not discarded:
 
-            discarded = looks_like_generated_from_ASR(text, lang)
+            mp3_folder_ok_noasr = mp3_folder_ok_noasr_stream if has_stream else mp3_folder_ok_noasr_nostream
+            output_file_ok_noasr = output_file_ok_noasr_stream if has_stream else output_file_ok_noasr_nostream
+            output_file_ok = output_file_ok_noasr
+            mp3_file_ok = os.path.join(mp3_folder_ok_noasr, os.path.basename(mp3_file))
 
-            if discarded:
-                if args.verbose:
-                    print(f">> {filename} -- {discarded}")
-                shutil.copy2(csv_file, output_file_ko_noasr)
-            else:
+            if not os.path.exists(output_file_ok_noasr) and not os.path.exists(output_file_ko_noasr):
 
-                # Check for "streaming-like" subtitles, usually generated from ASR
-                times = load_csv_times(csv_file)
-                num_overlaps = 0
-                previous_end = 0
-                for start, end in times:
-                    if start < previous_end - 0.5:
-                        num_overlaps += 1
-                    previous_end = end
-                has_stream = num_overlaps and num_overlaps > (len(times) // 2)
+                discarded = looks_like_generated_from_ASR(text, lang)
 
-                mp3_folder_ok_noasr = mp3_folder_ok_noasr_stream if has_stream else mp3_folder_ok_noasr_nostream
-                output_file_ok_noasr = output_file_ok_noasr_stream if has_stream else output_file_ok_noasr_nostream
-                mp3_file_ok = os.path.join(mp3_folder_ok_noasr, os.path.basename(mp3_file))
-                if not os.path.exists(mp3_file_ok):
-                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_noasr), mp3_file_ok)
-                shutil.copy2(csv_file, output_file_ok_noasr)
-                if not do_stt:
-                    rewrite_formatted(output_file_ok_noasr, do_unupper_case)
+                if discarded:
+                    if args.verbose:
+                        print(f">> {filename} -- {discarded}")
+                    shutil.copy2(csv_file, output_file_ko_noasr)
+                else:
+
+                    # Check for "streaming-like" subtitles, usually generated from ASR
+                    times = load_csv_times(csv_file)
+                    num_overlaps = 0
+                    previous_end = 0
+                    for start, end in times:
+                        if start < previous_end - 0.5:
+                            num_overlaps += 1
+                        previous_end = end
+                    has_stream = num_overlaps and num_overlaps > (len(times) // 2)
+
+                    if not os.path.exists(mp3_file_ok):
+                        os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_noasr), mp3_file_ok)
+                    shutil.copy2(csv_file, output_file_ok_noasr)
+                    if not do_stt:
+                        rewrite_formatted(output_file_ok_noasr, do_unupper_case)
 
         if do_stt and not discarded:
 
-            verbose = args.verbose
-            if os.path.exists(output_file_ok_stt_deprecated) or os.path.exists(output_file_ko_stt_deprecated):
-                discarded = not os.path.exists(output_file_ok_stt_deprecated)
+            mp3_folder_ok_stt = mp3_folder_ok_stt_stream if has_stream else mp3_folder_ok_stt_nostream
+            output_file_ok_stt = output_file_ok_stt_stream if has_stream else output_file_ok_stt_nostream
+            output_file_ok = output_file_ok_stt
+            mp3_file_ok = os.path.join(mp3_folder_ok_stt, os.path.basename(mp3_file))
+
+            if not os.path.exists(output_file_ok_stt) and not os.path.exists(output_file_ko_stt):
+
+                verbose = args.verbose
+                if os.path.exists(output_file_ok_stt_deprecated) or os.path.exists(output_file_ko_stt_deprecated):
+                    discarded = not os.path.exists(output_file_ok_stt_deprecated)
+                    if discarded:
+                        assert os.path.exists(output_file_ko_stt_deprecated)
+                        with open(output_file_ko_stt_deprecated, "r") as f:
+                            discarded = f.read().rstrip("\n")
+                    verbose = False
+                else:
+                    res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
+                    if res:
+                        discarded = f"Audio does not match transcription: {res}"
+
                 if discarded:
-                    assert os.path.exists(output_file_ko_stt_deprecated)
-                    with open(output_file_ko_stt_deprecated, "r") as f:
-                        discarded = f.read().rstrip("\n")
-                verbose = False
-            else:
-                res = transcription_dont_match(csv_file, mp3_file, model, language=lang)
-                if res:
-                    discarded = f"Audio does not match transcription: {res}"
+                    if verbose:
+                        print(f">> {filename} -- {discarded}")
+                    with open(output_file_ko_stt, "w") as f:
+                        f.write(f"{discarded}\n")
+                else:
+                    if not os.path.exists(mp3_file_ok):
+                        os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_stt), mp3_file_ok)
+                    shutil.copy2(csv_file, output_file_ok_stt)
+                    rewrite_formatted(output_file_ok_stt, do_unupper_case)
 
-            if discarded:
-                if verbose:
-                    print(f">> {filename} -- {discarded}")
-                with open(output_file_ko_stt, "w") as f:
-                    f.write(f"{discarded}\n")
-            else:
-                mp3_folder_ok_stt = mp3_folder_ok_stt_stream if has_stream else mp3_folder_ok_stt_nostream
-                output_file_ok_stt = output_file_ok_stt_stream if has_stream else output_file_ok_stt_nostream
+        if do_hate and not discarded:
+            hate_score = is_hate_speech(text, lang=lang, return_score=True)
+            is_hate = hate_score > 0.5
+            if is_hate:
+                print("Hate score", os.path.basename(csv_file), ":", hate_score)
 
-                mp3_file_ok = os.path.join(mp3_folder_ok_stt, os.path.basename(mp3_file))
-                if not os.path.exists(mp3_file_ok):
-                    os.symlink(os.path.relpath(mp3_file, mp3_folder_ok_stt), mp3_file_ok)
-                shutil.copy2(csv_file, output_file_ok_stt)
-                rewrite_formatted(output_file_ok_stt, do_unupper_case)
+            # Link mp3
+            dirname = os.path.dirname(mp3_file_ok) + ("_hate" if is_hate else "_nohate")
+            os.makedirs(dirname, exist_ok=True)
+            output_file = os.path.join(dirname, os.path.basename(mp3_file_ok))
+            if not os.path.exists(output_file):
+                os.symlink(os.path.relpath(mp3_file, dirname), output_file)
 
-    print(f"Minimum number of characters: {min_num_char} ({argmin_num_char})")
-    print(f"Minimum number of words: {min_num_words} ({argmin_num_words})")
-
+            # Copy transcription
+            dirname = os.path.dirname(output_file_ok) + ("_hate" if is_hate else "_nohate")
+            os.makedirs(dirname, exist_ok=True)
+            output_file = os.path.join(dirname,os.path.basename(output_file_ok))
+            shutil.copy2(csv_file, output_file)
+            rewrite_formatted(output_file, do_unupper_case)
+            
     # for folder in [
     #     mp3_folder_ok_stt_deprecated,
     #     csv_folder_ok_stt_deprecated,
@@ -390,3 +418,4 @@ if __name__ == '__main__':
     # ]:
     #     if os.path.exists(folder):
     #         shutil.rmtree(folder)
+
