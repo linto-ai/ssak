@@ -57,14 +57,10 @@ def kaldi_split(
         if throw_if_output_exists and os.path.isdir(output_folder_base):
             raise RuntimeError(f"Output folder already exists. Please remove it first if you want to regenerate it:\n#\trm -R {output_folder_base}")
 
-    utt2wav = {}
-    # segment2wav = {} # Which wav is each utterance
+    utt2wav = {} # Which audio file is each utt
     wav2dur = {} # How long is each wav
 
     for input_folder in input_folders:
-
-        # _utt2wav = parse_kaldi_wavscp(input_folder + "/wav.scp")
-        # segment2wav.update(_utt2wav)
 
         if has_segments:
             with open(input_folder + "/segments", 'r') as f:
