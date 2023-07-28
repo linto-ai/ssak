@@ -7,8 +7,7 @@ Some scripts to convert usual format to Kaldi:
 - `tsv2kaldi.py`         : convert TSV format like CommonVoice
 - `transcriber2kaldi.py` : convert Transcriber format
 
-
-The main Kaldi scripts are:
+The main scripts taken from Kaldi are:
 - `utils/get_utt2dur.sh`       : generate utt2dur file in a kaldi folder
 - `utils/fix_data_dir.sh`      : fix kaldi folder
 - `utils/validate_data_dir.sh` : validate kaldi folder
