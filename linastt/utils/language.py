@@ -116,7 +116,13 @@ HATE_SPEECH_MODELS_SRC = {
 HATE_SPEECH_MODELS = {}
 
 
-def is_hate_speech(text, lang="fr", return_score=False, use_max_to_combine=False):
+def is_hate_speech(
+    text,
+    lang="fr",
+    return_score=False,
+    max_paragraph=100,
+    combine_paragraphs_with_max=False
+    ):
     if isinstance(text, str):
         return is_hate_speech([text], lang=lang, return_score=return_score)[0]
 
@@ -143,11 +149,13 @@ def is_hate_speech(text, lang="fr", return_score=False, use_max_to_combine=False
                 imax = np.argmax([len(s) for s in sublines])
                 # Split it into two sublines
                 sublines = sublines[:imax] + sublines[imax+1:] + cut_line(sublines[imax])
+                if max_paragraph and len(sublines) > max_paragraph:
+                    sublines = sublines[:max_paragraph]
                 # Recompute
                 input = tokenizer(sublines, return_tensors="pt", padding=True)
 
             proba = model(**input).logits
-            if use_max_to_combine:
+            if combine_paragraphs_with_max:
                 proba = proba.softmax(dim=-1).max(dim=0).values
             else:
                 proba = proba.mean(dim=0).softmax(dim=-1)

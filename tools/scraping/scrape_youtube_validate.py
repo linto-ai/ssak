@@ -155,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--check_no_hate', help="Classify into hate_speech or not", default=False, action="store_true")
     parser.add_argument('--min_num_words', default=7, type = int, help= "Minimum number of words to be retained")
     parser.add_argument('--max_char', default=1000, type = int, help= "Maximum number of characters in a transcription to consider for language identification")
+    parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('-v', '--verbose', help= "Print more information", action='store_true')
     args = parser.parse_args()
 
@@ -214,6 +215,9 @@ if __name__ == '__main__':
         os.makedirs(dirname, exist_ok=True)
         rewrite_csv(csv_file, os.path.join(dirname, os.path.basename(csv_file)), do_unupper_case=do_unupper_case)
 
+    def add_folder_suffix(filename, suffix):
+        return os.path.join(os.path.dirname(filename) + suffix, os.path.basename(filename))
+
     for filename in tqdm(os.listdir(csv_folder)):
         csv_file = os.path.join(csv_folder, filename)
         mp3_file = os.path.join(mp3_folder, filename.replace(".csv", ".mp3"))
@@ -241,15 +245,14 @@ if __name__ == '__main__':
                 output_file_ko_noasr, output_file_ko_lang,
             ]
         if do_hate:
-            can_be_files.append(can_be_files[0] + "_nohate")
-            can_be_files[0] += "_hate"
-            can_be_files.append(can_be_files[1] + "_nohate")
-            can_be_files[1] += "_hate"
+            for i in 1, 0,:
+                can_be_files.append(add_folder_suffix(can_be_files[i], "_hate"))
+                can_be_files[i] = add_folder_suffix(can_be_files[i], "_nohate")
 
         if max([os.path.isfile(f) for f in can_be_files]):
-            if args.verbose:
+            if args.verbose > 1:
                 dirname = os.path.dirname([f for f in can_be_files if os.path.isfile(f)][0])
-                print(f"Aleady processed: {filename} -> {dirname}")
+                print(f"Already processed: {filename} -> {dirname}")
             continue
 
         # Skip if audio is missing (may arrive later...)
