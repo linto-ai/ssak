@@ -55,7 +55,7 @@ def whisper_infer(
         device = auto_device()
 
     if isinstance(model, str):
-        model = load_model(model, device = device, download_root = get_cache_dir("whisper"))
+        model = load_model(model, device = device, download_root = None)
 
     batches = to_audio_batches(audios, return_format = 'torch',
         sample_rate = whisper.audio.SAMPLE_RATE,
@@ -111,9 +111,13 @@ def load_model(
     extension = os.path.splitext(name)[-1] if os.path.isfile(name) else None
 
     if name in whisper.available_models() or extension == ".pt":
+        if download_root is None:
+            download_root = get_cache_dir("whisper")
         return whisper.load_model(name, device=device, download_root=download_root, in_memory=in_memory)
     
     # Otherwise, assume transformers
+    if download_root is None:
+        download_root = get_cache_dir("huggingface/hub")
     peft_folder = None
     if extension in [".ckpt", ".bin"]:
         model_path = name
