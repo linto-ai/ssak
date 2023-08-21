@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 import shutil
 import time
+import glob
 
 def json_dump(dic, f):
     json.dump(dic, f, indent = 2, ensure_ascii = False)
@@ -86,17 +87,19 @@ def augment_audio(path_in, dir_out, target_sr = None, append_transform_to_dir = 
 
     transform_str = transform2str(transform, True)
     generic_transform_str = transform2genericstr(transform)
-    description = transform2description(transform)
 
     fname = os.path.basename(path_in)
     fname, ext = fname.split(".", 1)
-    if append_transform_to_dir:
-        dir_out = os.path.join(dir_out, os.path.basename(dir_out) + "_" + generic_transform_str)
     path_out = os.path.join(dir_out, fname + "." + transform_str + "." + ext)
-    if not os.path.isdir(dir_out):
-        os.makedirs(dir_out)
 
-    save_audio(path_out, audio, sr)
+    if not os.path.isfile(path_out):
+
+        if append_transform_to_dir:
+            dir_out = os.path.join(dir_out, os.path.basename(dir_out) + "_" + generic_transform_str)
+        if not os.path.isdir(dir_out):
+            os.makedirs(dir_out)
+
+        save_audio(path_out, audio, sr)
 
     return transform, path_out
 
@@ -122,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("input", type=str, help="Input folder")
     parser.add_argument("output", type=str, help="Output folder")
     parser.add_argument("--split_by_augmentation_type", default=False, action="store_true", help="Split in sub-folders depending on the augmentation type")
+    parser.add_argument("--continue", dest="continue_", default=False, action="store_true", help="Continue from where we stopped")
     parser.add_argument("--to16k", default=False, action="store_true", help="Convert audio to 16kHz")
     args = parser.parse_args()
 
@@ -156,9 +160,21 @@ if __name__ == "__main__":
         meta["date_created"] = now
         meta["collection_date"] = now
 
+        if args.continue_:
+
+            # Basic heuristic to check if things were computed already
+            bname = os.path.splitext(os.path.splitext(fname)[0])[0]
+            if args.split_by_augmentation_type:
+                outputs = glob.glob(os.path.join(dir_out, "**", bname + ".*.audio.mp3"), recursive=True)
+            else:
+                outputs = glob.glob(os.path.join(dir_out, bname + ".*.audio.mp3"))
+            if len(outputs) >= NUM_MULTI_AUG:
+                continue
+
         for _ in range(NUM_MULTI_AUG):
 
             tic = time.time()
+            
             transform, fname = augment_audio(
                 audio,
                 dir_out,
