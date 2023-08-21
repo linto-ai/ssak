@@ -9,7 +9,12 @@ from linastt.utils.kaldi import check_kaldi_dir
 from linastt.utils.text_utils import format_special_characters
 
 
-def generate_kaldi_data(audio_folder, transcription_folder, output_folder, extension='mp3'):
+def generate_kaldi_data(
+    audio_folder,
+    transcription_folder,
+    output_folder,
+    extension='mp3'
+    ):
     # Check if output folder exists
     os.makedirs(output_folder, exist_ok=True)
     
@@ -92,4 +97,9 @@ if __name__ == "__main__":
     parser.add_argument('--extension', help="The file extension should be one of: [.mp3, .wav, .ogg]",  type=str, default='mp3')
     args = parser.parse_args()
 
-    generate_kaldi_data(args.audios, args.transcription, args.output, args.extension)
+    generate_kaldi_data(
+        args.audios,
+        args.transcription,
+        args.output,
+        extension=args.extension,
+    )
