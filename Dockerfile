@@ -32,7 +32,8 @@ RUN apt-get install -y --no-install-recommends \
         libsox-fmt-mp3 \
         libsox-dev \
         ffmpeg \
-        libsndfile1
+        libsndfile1 \
+        portaudio19-dev
 
 RUN python3 -m pip install --upgrade pip
 
@@ -55,10 +56,6 @@ RUN pip3 install git+https://github.com/openai/whisper.git
 
 # Fix for hyperpyyaml
 RUN pip3 install git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd7fb01e1e6e063be492fddeab
-
-# Used to display audio
-RUN apt-get install -y --no-install-recommends portaudio19-dev
-RUN pip3 install PyAudio
 
 # Used to scrap
 COPY tools/requirements.txt ./

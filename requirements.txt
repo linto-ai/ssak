@@ -22,7 +22,7 @@ openai-whisper
 # peft>0.3.0
 git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
 psutil
-pyaudio
+PyAudio
 py3nvml
 pyannote.audio
 pyannote.pipeline

@@ -54,7 +54,6 @@ docker pull registry.linto.ai/training/jlouradour_wav2vec:latest
 ```
 or build it:
 ```
-cd docker/
 docker build -t jlouradour_wav2vec:latest .
 ```
 
