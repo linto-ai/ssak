@@ -154,7 +154,10 @@ def transformers_load_model(source, device = None):
             model = PeftModel.from_pretrained(model, peft_folder).to(device)
         else:
             model = auto_model(source, device)
-        processor = transformers.AutoProcessor.from_pretrained(source)
+        if isinstance(model, WAV2VEC_CLASSES):
+            processor = transformers.Wav2Vec2Processor.from_pretrained(source)
+        else:
+            processor = transformers.AutoProcessor.from_pretrained(source)
     elif isinstance(source, (list, tuple)) and len(source) == 2:
         model, processor = source
         assert isinstance(model, WAV2VEC_CLASSES)
@@ -165,7 +168,7 @@ def transformers_load_model(source, device = None):
 
     return model, processor
 
-# AutoModel does produce a WhisperModel that latter fails to decode with "generate"
+# Wrapper of "AutoModel" which does produce unintuitive things like WhisperModel that latter fails to decode with "generate"
 def auto_model(source, device = None):
     model = transformers.AutoModel.from_pretrained(source)
     if isinstance(model, transformers.models.whisper.modeling_whisper.WhisperModel):
