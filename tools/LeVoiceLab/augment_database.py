@@ -43,7 +43,13 @@ def save_audio(path, audio, sampling_rate):
     """ 
     Save an audio file from a numpy array.
     """
-    sox.write(path, audio, sampling_rate)
+    try:
+        sox.write(path, audio, sampling_rate)
+    except Exception as e:
+        print("Error while saving audio file:", e)
+        print("Retrying in 1 minute...")
+        time.sleep(60)
+        return save_audio(path, audio, sampling_rate)
 
 augmenter8k = None
 augmenter16k = None
@@ -90,12 +96,12 @@ def augment_audio(path_in, dir_out, target_sr = None, append_transform_to_dir = 
 
     fname = os.path.basename(path_in)
     fname, ext = fname.split(".", 1)
+    if append_transform_to_dir:
+        dir_out = os.path.join(dir_out, os.path.basename(dir_out) + "_" + generic_transform_str)
     path_out = os.path.join(dir_out, fname + "." + transform_str + "." + ext)
 
     if not os.path.isfile(path_out):
 
-        if append_transform_to_dir:
-            dir_out = os.path.join(dir_out, os.path.basename(dir_out) + "_" + generic_transform_str)
         if not os.path.isdir(dir_out):
             os.makedirs(dir_out)
 
