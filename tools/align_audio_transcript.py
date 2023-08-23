@@ -61,6 +61,7 @@ def split_long_audio_kaldifolder(
     dirin,
     dirout,
     model,
+    min_duration = 0,
     max_duration = 30,
     refine_timestamps = None,
     lang="fr",
@@ -147,6 +148,8 @@ def split_long_audio_kaldifolder(
                         transcript = ""
                         break
             if not transcript:
+                continue
+            if dur <= min_duration:
                 continue
             if dur <= max_duration and not refine_timestamps:
                 f_text.write(f"{id} {transcript}\n")
@@ -331,6 +334,7 @@ if __name__ == "__main__":
                         # default = "VOXPOPULI_ASR_BASE_10K_FR",
                         default = None,
                         )
+    parser.add_argument('--min_duration', help="Maximum length (in seconds)", default = 0.005, type = float)
     parser.add_argument('--max_duration', help="Maximum length (in seconds)", default = 30, type = float)
     parser.add_argument('--refine_timestamps', help="A value (in seconds) to refine timestamps with", default = None, type = float)
     parser.add_argument('--regex_rm_part', help="One or several regex to remove parts from the transcription.", type = str, nargs='*',
@@ -342,12 +346,14 @@ if __name__ == "__main__":
                         )
     parser.add_argument('--regex_rm_full', help="One or several regex to remove a full utterance.", type = str, nargs='*',
                         default = [
+                            # End notes
                             " *[Vv]idéo sous-titrée par.*",
                             " *SOUS-TITRES.+",
                             " *[Ss]ous-titres.+",
                             " *SOUS-TITRAGE.+",
                             " *[Ss]ous-titrage.+",
                             " *[Mm]erci d'avoir regardé cette vidéo.*",
+                            # Only dots
                             " *\.+ *",
                         ]
                         )
@@ -368,6 +374,7 @@ if __name__ == "__main__":
     split_long_audio_kaldifolder(dirin, dirout,
         model = args.model,
         lang = args.language,
+        min_duration = args.min_duration,
         max_duration = args.max_duration,
         debug_folder = args.debug_folder,
         refine_timestamps = args.refine_timestamps,
