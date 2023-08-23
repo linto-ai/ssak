@@ -145,13 +145,15 @@ def split_long_audio_kaldifolder(
             transcript = custom_text_normalization(id2text[id], regex_rm = regex_rm_part)
             if regex_rm_full:
                 for regex in regex_rm_full:
-                    if re.search(regex + r"$", transcript):
-                        print(f"WARNING: {id} removed because of regex {regex}")
+                    if re.search(r"^" + regex + r"$", transcript):
+                        print(f"WARNING: {id} with transcript \"{transcript}\" removed because of regex {regex}")
                         transcript = ""
                         break
             if not transcript:
+                print(f"WARNING: Removing id {id} with text \"{id2text[id]}\"")
                 continue
             if dur <= min_duration:
+                print(f"WARNING: Removing id {id} with duration \"{dur}\"")
                 continue
             if dur <= max_duration and not refine_timestamps:
                 f_text.write(f"{id} {transcript}\n")
