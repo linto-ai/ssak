@@ -11,6 +11,7 @@ from linastt.infer.general import (
     get_model_sample_rate,
 )
 from linastt.utils.text_basic import _punctuation
+from linastt.utils.misc import hashmd5
 
 import matplotlib.pyplot as plt
 
@@ -400,18 +401,26 @@ def compute_alignment(
 
     return labels, emission, trellis, char_segments, word_segments
 
+MISSING_LABELS = {}
+
 def loose_get_char_index(dictionary, c, default):
-        i = dictionary.get(c, None)
+    global MISSING_LABELS
+    i = dictionary.get(c, None)
+    if i is None:
+        other_char = list(set([c.lower(), c.upper(), transliterate(c), transliterate(c).lower(), transliterate(c).upper()]))
+        for c2 in other_char:
+            i = dictionary.get(c2, None)
+            if i is not None:
+                break
         if i is None:
-            other_char = list(set([c.lower(), c.upper(), transliterate(c), transliterate(c).lower(), transliterate(c).upper()]))
-            for c2 in other_char:
-                i = dictionary.get(c2, None)
-                if i is not None:
-                    break
-            if i is None:
+            key = hashmd5(dictionary)
+            if key not in MISSING_LABELS:
+                MISSING_LABELS[key] = []
+            if c not in MISSING_LABELS[key]:
                 print("WARNING: cannot find label " + " / ".join(list(set([c] + other_char))))
-                i = default
-        return i
+                MISSING_LABELS[key].append(c)
+            i = default
+    return i
 
 if __name__ == "__main__":
 
