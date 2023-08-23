@@ -112,6 +112,7 @@ def print_stats(stats):
     def align(k):
         return "<" if k == "name" else ">"
 
+    stats = sorted(stats, key=lambda s: s["name"])
     for i, s in enumerate(stats):
         s = {k: to_string(v) for k, v in s.items()}
         fstring = "| " + " | ".join(f"{{{k}:{align(k)}{max_len[k]}}}" for k in keys) + " |"

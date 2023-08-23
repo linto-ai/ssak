@@ -78,7 +78,8 @@ def commonprefix(m, end = None):
     s2 = max(m)
     for i, c in enumerate(s1):
         if c != s2[i]:
-            return s1[:i]
+            s1 = s1[:i]
+            break
     if end:
         while len(s1) and not s1.endswith(end):
             s1 = s1[:-1]
