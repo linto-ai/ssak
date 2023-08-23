@@ -15,11 +15,12 @@ def generate_kaldi_data(
     output_folder,
     extension='mp3'
     ):
-    # Check if output folder exists
-    os.makedirs(output_folder, exist_ok=True)
     
     for folder in [audio_folder,transcription_folder]:
         assert os.path.isdir(folder), f"Input folder {folder} does not exist."
+
+    # Create output folder if it does not exist
+    os.makedirs(output_folder, exist_ok=True)
 
     segments_file = os.path.join(output_folder, "segments")
     wav_scp_file = os.path.join(output_folder, "wav.scp")
@@ -37,22 +38,20 @@ def generate_kaldi_data(
         open(text_file, "w", encoding='utf-8') as txt:
 
         
-        for audio_file in sorted(os.listdir(audio_folder)):
-            if not audio_file.endswith(f".{extension}"):
-                warnings.warn(f"Ignoring {audio_file} because it is not in the expected format (no extension .{extension}).", UserWarning)
+        for transcription_file in sorted(os.listdir(transcription_folder)):
+
+            if not transcription_file.endswith(".csv"):
+                print(f"Skipping {transcription_file}")
                 continue
 
-            audio_name = os.path.splitext(audio_file)[0]
-            # Remove the extension
+            audio_name = os.path.splitext(transcription_file)[0]            
+            audio_file = f"{audio_name}.{extension}"
             audio_path = os.path.join(audio_folder, audio_file)
 
-            # Check if transcription file exists for this audio file
-            transcription_path = os.path.join(transcription_folder, audio_name + ".csv")
-            # print(transcription_path)
-            if not os.path.exists(transcription_path):
-                warnings.warn(f"Missing transcription file: {transcription_path}", UserWarning)
-                continue
-      
+            assert os.path.isfile(audio_path), f"Missing audio file: {audio_path}"
+
+            transcription_path = os.path.join(transcription_folder, transcription_file)
+
             try:
                 with open(transcription_path, "r") as f:  
                     reader = csv.reader(f, delimiter=";")
@@ -90,6 +89,7 @@ def generate_kaldi_data(
     check_kaldi_dir(output_folder)
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('audios', help="Path to folder that contain the audios", type=str)
     parser.add_argument('transcription', help="Path to folder contain the transcription",  type=str)
