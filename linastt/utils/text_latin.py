@@ -11,6 +11,9 @@ from linastt.utils.text_utils import (
     undigit,
     numbers_and_symbols_to_letters,
     _currencies,
+    
+)
+from linastt.utils.text_basic import (
     _punctuation,
 )
 

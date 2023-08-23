@@ -6,7 +6,7 @@ import csv
 import numpy as np
 import re
 
-from linastt.utils.text_utils import _punctuation
+from linastt.utils.text_basic import _punctuation
 from linastt.utils.transcriber import read_transcriber
 
 EXTENSIONS = [

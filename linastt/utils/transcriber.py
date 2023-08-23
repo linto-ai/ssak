@@ -1,10 +1,9 @@
 import os
 import re
 
-import magic
 import xmltodict
 
-from linastt.utils.text_utils import collapse_whitespace, transliterate
+from linastt.utils.text_basic import collapse_whitespace, transliterate
 
 
 def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):

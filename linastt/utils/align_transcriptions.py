@@ -10,7 +10,7 @@ from linastt.infer.general import (
     get_model_vocab,
     get_model_sample_rate,
 )
-from linastt.utils.text_utils import _punctuation
+from linastt.utils.text_basic import _punctuation
 
 import matplotlib.pyplot as plt
 
