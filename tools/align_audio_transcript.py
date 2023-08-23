@@ -23,7 +23,8 @@ import shutil
 import time
 import re
 import soxbindings as sox
-from slugify import slugify
+import numpy as np
+from tqdm import tqdm
 
 
 def custom_text_normalization(transcript, regex_rm = None):
@@ -65,11 +66,13 @@ def split_long_audio_kaldifolder(
     model,
     min_duration = 0,
     max_duration = 30,
+    special_duration_meaning_tonext = [0.001, 0.002],
     refine_timestamps = None,
+    can_reject_based_on_score = False,
     lang="fr",
     regex_rm_part = None,
     regex_rm_full = None,
-    verbose = True,
+    verbose = False,
     debug_folder = None, # "check_audio/split",
     plot = False,
     ):
@@ -139,23 +142,38 @@ def split_long_audio_kaldifolder(
                 f.flush()
 
         idx_processed = 0
-        for id, dur in id2dur.items():
+        for i_dur, (id, dur) in enumerate(tqdm(id2dur.items())):
             if id not in id2text: continue # Removed because empty transcription
             ###### special normalizations (1/2)
-            transcript = custom_text_normalization(id2text[id], regex_rm = regex_rm_part)
+            transcript_orig = id2text[id]
+            transcript = custom_text_normalization(transcript_orig, regex_rm = regex_rm_part)
+            if not transcript:
+                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of empty transcript after normalization.")
+                continue
             if regex_rm_full:
+                do_continue = False
                 for regex in regex_rm_full:
                     if re.search(r"^" + regex + r"$", transcript):
-                        print(f"WARNING: {id} with transcript \"{transcript}\" removed because of regex {regex}")
+                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of regex >{regex}<")
                         transcript = ""
+                        do_continue = True
                         break
-            if not transcript:
-                print(f"WARNING: Removing id {id} with text \"{id2text[id]}\"")
-                continue
+                if do_continue:
+                    continue
+            if has_segments and min([abs(dur - d) for d in special_duration_meaning_tonext]) < 0.0001:
+                next_id = list(id2dur.keys())[i_dur+1]
+                path = wav2path[id2seg[id][0]]
+                next_path = wav2path[id2seg[next_id][0]]
+                if path == next_path:
+                    _, next_start, _ = id2seg[next_id]
+                    _, start, _ = id2seg[id]
+                    new_dur = next_start - start
+                    print(f"WARNING: changing duration from {dur:.3f} to {new_dur:.3f} for {id} with transcript \"{transcript_orig}\"")
+                    dur = new_dur
             if dur <= min_duration:
-                print(f"WARNING: Removing id {id} with duration \"{dur}\"")
+                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of small duration {dur}.")
                 continue
-            if dur <= max_duration and not refine_timestamps:
+            if dur <= max_duration and not refine_timestamps and not can_reject_based_on_score:
                 f_text.write(f"{id} {transcript}\n")
                 f_utt2spk.write(f"{id} {id2spk[id]}\n")
                 f_utt2dur.write(f"{id} {id2dur[id]}\n")
@@ -193,6 +211,12 @@ def split_long_audio_kaldifolder(
                 first_as_garbage=bool(refine_timestamps),
                 plot=plot
             )
+            if can_reject_based_on_score:
+                char_score = np.mean([seg.score for seg in segments])
+                word_score = np.mean([seg.score for seg in word_segments])
+                if max(char_score, word_score) < 0.4:
+                    print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
+                    continue
             
             # try:
             # ...
@@ -203,7 +227,8 @@ def split_long_audio_kaldifolder(
             has_shorten = True
             num_frames = emission.size(0)
             ratio = len(audio) / (num_frames * sample_rate)
-            print(f"Alignment done in {time.time()-tic:.2f}s")
+            if verbose:
+                print(f"Alignment done in {time.time()-tic:.2f}s")
             global index, last_start, last_end, new_transcript
             def process():
                 global index, f_text, f_utt2spk, f_utt2dur, f_segments, start, end, last_start, last_end, new_transcript
@@ -217,7 +242,8 @@ def split_long_audio_kaldifolder(
                     print(f"WARNING: {new_transcript} {last_start}-{last_end} ignored")
                 else:
                     assert new_end > new_start
-                    print(f"Got: {new_transcript} {last_start}-{last_end} ({new_end - new_start})")
+                    if verbose:
+                        print(f"Got: {new_transcript} {last_start}-{last_end} ({new_end - new_start})")
                     f_text.write(f"{new_id} {new_transcript}\n")
                     f_utt2spk.write(f"{new_id} {id2spk[id]}\n")
                     f_utt2dur.write(f"{new_id} {new_end - new_start:.3f}\n")
@@ -364,6 +390,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
+    parser.add_argument('--verbose', default=False, action="store_true", help="To print more information")
     args = parser.parse_args()
 
     if args.model is None:
@@ -382,7 +409,9 @@ if __name__ == "__main__":
         max_duration = args.max_duration,
         debug_folder = args.debug_folder,
         refine_timestamps = args.refine_timestamps,
+        can_reject_based_on_score = bool(args.refine_timestamps),
         regex_rm_part = args.regex_rm_part,
         regex_rm_full = args.regex_rm_full,
         plot = args.plot,
+        verbose = args.verbose,
     )
