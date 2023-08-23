@@ -3,12 +3,18 @@
 
 import sys
 import os
+import warnings
 
 from linastt.utils.misc import commonprefix
 from linastt.utils.kaldi import parse_kaldi_wavscp
 from linastt.utils.audio import get_audio_duration
 
-def get_utt2dur_duration(utt2dur_file, check_wav_duration=False):
+def get_utt2dur_duration(
+    utt2dur_file,
+    check_wav_duration=False,
+    warn_if_longer_than=3600,
+    warn_if_shorter_than=0.005,
+    ):
 
     if os.path.isdir(utt2dur_file):
         utt2dur_file += "/utt2dur"
@@ -27,8 +33,12 @@ def get_utt2dur_duration(utt2dur_file, check_wav_duration=False):
                 duration = float(duration)
                 if duration < min_duration:
                     min_duration = duration
+                    if warn_if_shorter_than and duration < warn_if_shorter_than:
+                        warnings.warn(f"Duration of {id} in {utt2dur_file} is short: {duration}")
                 if duration > max_duration:
                     max_duration = duration
+                    if warn_if_longer_than and duration > warn_if_longer_than:
+                        warnings.warn(f"Duration of {id} in {utt2dur_file} is long: {duration}")
                 total_duration += duration
                 number += 1
 
@@ -150,9 +160,11 @@ def accu_stats(stats, default="TOTAL"):
 if __name__ == "__main__":
 
     import argparse
-    parser = argparse.ArgumentParser(description='Get duration of a dataset in kaldi format.')
-    parser.add_argument('input', type=str, help='Path to utt2dur file or folder containing it.', nargs='+')
-    parser.add_argument('--check-wav-duration', action='store_true', help='Check total duration of wav files as well (might be long to compute).')
+    parser = argparse.ArgumentParser(description="Get duration of a dataset in kaldi format.")
+    parser.add_argument("input", type=str, help="Path to utt2dur file or folder containing it.", nargs='+')
+    parser.add_argument("--check-wav-duration", action='store_true', help="Check total duration of wav files as well (might be long to compute).")
+    parser.add_argument("--warn-if-longer-than", default=3600, type=float, help="Warn if duration is longer than this value (in seconds).")
+    parser.add_argument("--warn-if-shorter-than", default=0.005, type=float, help="Warn if duration is shorter than this value (in seconds).")
     args = parser.parse_args()
 
     all_stats = []
@@ -165,6 +177,13 @@ if __name__ == "__main__":
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
-            all_stats.append(get_utt2dur_duration(filename, check_wav_duration=args.check_wav_duration))
+            all_stats.append(
+                get_utt2dur_duration(
+                    filename,
+                    check_wav_duration=args.check_wav_duration,
+                    warn_if_longer_than=args.warn_if_longer_than,
+                    warn_if_shorter_than=args.warn_if_shorter_than,
+                )
+            )
 
     print_stats(all_stats)
