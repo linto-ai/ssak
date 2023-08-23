@@ -5,16 +5,12 @@ from num2words import num2words
 import warnings
 
 from linastt.utils.misc import flatten
+from linastt.utils.text_basic import collapse_whitespace, remove_parenthesis
 
 def custom_formatwarning(msg, *args, **kwargs):
     # ignore everything except the message
     return str(msg) + '\n'
 warnings.formatwarning = custom_formatwarning
-
-
-
-def collapse_whitespace(text):
-    return re.sub(_whitespace_re, ' ', text).strip()
 
 def transliterate(c):
     # Transliterates a character to its closest ASCII equivalent.
@@ -22,8 +18,6 @@ def transliterate(c):
     # This is useful for converting Vietnamese text to ASCII.
     # See https://stackoverflow.com/a/517974/446579
     return unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("ascii")
-
-_whitespace_re = re.compile(r'[\s\r\n]+')
 
 # Source: https://stackoverflow.com/questions/33404752/removing-emojis-from-a-string-in-python
 _emoji_pattern = re.compile("["
@@ -333,9 +327,6 @@ def symbols_to_letters(text, lang, lower_case=False):
 _not_latin_characters_pattern = re.compile("[^a-zA-Z0-9\u00C0-\u00FF\-'\.?!,;: ]")
 
 _ALL_SPECIAL_CHARACTERS = []
-
-def remove_parenthesis(text):
-    return collapse_whitespace(re.sub(r"\([^)]*\)", "", text))
 
 def remove_special_characters(
     string,

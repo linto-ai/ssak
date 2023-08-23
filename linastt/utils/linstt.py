@@ -4,12 +4,11 @@ import sys
 import shutil
 
 import subprocess
-import torchaudio
 import json
 import asyncio
 
 from linastt.utils.curl import curl_post, curl_get
-from linastt.utils.text_utils import collapse_whitespace
+from linastt.utils.text_basic import collapse_whitespace
 
 DIARIZATION_SERVICES = {
     "pybk": "stt-diarization-pybk",
@@ -367,19 +366,31 @@ def check_wav_16khz_mono(wavfile):
     """
     Returns True if a wav file is 16khz and single channel
     """
-    if not wavfile.endswith(".wav"):
+    if not wavfile.lower().endswith(".wav"):
         return False
-    try:
-        signal, fs = torchaudio.load(wavfile)
+    
+    # import torchaudio
+    # try:
+    #     signal, fs = torchaudio.load(wavfile)
+    #     mono = signal.shape[0] == 1
+    #     freq = fs == 16000
+    #     if mono and freq:
+    #         return True
+    #     else:
+    #         return False
+    # except:
+    #     return False
 
-        mono = signal.shape[0] == 1
-        freq = fs == 16000
-        if mono and freq:
-            return True
-        else:
-            return False
-    except:
+    cmd = "soxi -r {}".format(wavfile)
+    output = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    if output.strip() != "16000":
         return False
+    cmd = "soxi -c {}".format(wavfile)
+    output = subprocess.check_output(cmd, shell=True).decode("utf-8")
+    if output.strip() != "1":
+        return False
+    return True
+
     
 def convert_wav_16khz_mono(wavfile, outfile):
     """
