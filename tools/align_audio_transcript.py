@@ -3,14 +3,16 @@
 from linastt.utils.env import * # manage option --gpus
 from linastt.utils.audio import load_audio
 from linastt.utils.text_utils import (
+    remove_special_characters,
+    numbers_and_symbols_to_letters,   
+)
+from linastt.utils.text_basic import (
     format_special_characters,
     remove_punctuations,
     remove_special_words,
-    remove_special_characters,
     remove_quotes,
-    numbers_and_symbols_to_letters,
     collapse_whitespace,
-    _punctuation
+    _punctuation,
 )
 from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
 from linastt.infer.general import load_model, get_model_sample_rate, get_model_vocab
