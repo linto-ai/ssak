@@ -236,9 +236,13 @@ def split_long_audio_kaldifolder(
                     first_as_garbage=bool(refine_timestamps),
                     plot=plot
                 )
-            except Exception as err:
-                print(f"WARNING: {id} failed to align with error: {err}")
+            except KeyboardInterrupt as err:
                 raise err
+            except Exception as err:
+                # raise RuntimeError(f"Failed to align {id}") from err
+                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of alignment error {err} (not enough duration for all the tokens?).")
+                continue
+
             if can_reject_based_on_score:
                 char_score = np.mean([seg.score for seg in segments])
                 word_score = np.mean([seg.score for seg in word_segments])
@@ -246,12 +250,6 @@ def split_long_audio_kaldifolder(
                     print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                     continue
             
-            # try:
-            # ...
-            # except RuntimeError as err:
-            #     print(f"WARNING: {id} failed to align with error: {err}")
-            #     continue
-
             has_shorten = True
             num_frames = emission.size(0)
             ratio = len(audio) / (num_frames * sample_rate)
