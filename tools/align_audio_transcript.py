@@ -197,7 +197,9 @@ def split_long_audio_kaldifolder(
                 if do_continue:
                     continue
             next_path = None
-            if has_segments and min([abs(dur - d) for d in special_duration_meaning_tonext]) < 0.0001:
+            # Sometimes on YouTube, some very short segments (0.001, 0.002) means up to the next segment
+            is_weird = False
+            if refine_timestamps and has_segments and min([abs(dur - d) for d in special_duration_meaning_tonext]) < 0.0001:
                 next_id = list(id2dur.keys())[i_dur+1]
                 path = wav2path[id2seg[id][0]]
                 next_path = wav2path[id2seg[next_id][0]]
@@ -207,6 +209,9 @@ def split_long_audio_kaldifolder(
                     new_dur = next_start - start
                     print(f"WARNING: changing duration from {dur:.3f} to {new_dur:.3f} for {id} with transcript \"{transcript_orig}\"")
                     dur = new_dur
+                    end = start + dur
+                    id2seg[id] = (wavid, start, end)
+                    is_weird = True
             if dur <= min_duration:
                 print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of small duration {dur}.")
                 continue
@@ -249,7 +254,7 @@ def split_long_audio_kaldifolder(
                 raise err
             except Exception as err:
                 # raise RuntimeError(f"Failed to align {id}") from err
-                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of alignment error {err} (not enough duration for all the tokens?).")
+                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of alignment error: {err}")
                 continue
 
             if can_reject_based_on_score:
@@ -258,14 +263,14 @@ def split_long_audio_kaldifolder(
                 if max(char_score, word_score) < 0.4:
 
                     is_last_segment = False
-                    if can_reject_only_first_and_last and not is_first_segment:
+                    if can_reject_only_first_and_last and not is_first_segment and not is_weird:
                         if next_path is None:
                             next_id = list(id2dur.keys())[i_dur+1]
                             path = wav2path[id2seg[id][0]]
                             next_path = wav2path[id2seg[next_id][0]]
 
                         is_last_segment = path != next_path
-                    if not can_reject_only_first_and_last or is_first_segment or is_last_segment:
+                    if not can_reject_only_first_and_last or is_weird or is_first_segment or is_last_segment:
                         print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                         continue
                     # else:

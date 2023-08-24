@@ -119,7 +119,7 @@ def backtrack(trellis, emission, tokens, blank_id=0):
             if j == 0:
                 break
     else:
-        raise RuntimeError("Failed to align (empty output?)")
+        raise RuntimeError("Failed to align (not enough tokens for the duration?)")
     return path[::-1]
 
 # Merge the labels
