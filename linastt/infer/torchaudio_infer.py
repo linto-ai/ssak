@@ -3,8 +3,12 @@ import torch
 import math
 import numpy as np
 
+from linastt.utils.env import auto_device # handles option --gpus
 
-def torchaudio_load_model(source, device="cpu", download_root="/opt"):
+def torchaudio_load_model(source, device=None, download_root="/opt"):
+
+    if device is None:
+        device = auto_device()
 
     bundle = torchaudio.pipelines.__dict__[source]
     model = bundle.get_model().to(device)
