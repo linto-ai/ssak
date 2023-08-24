@@ -26,11 +26,29 @@ import soxbindings as sox
 import numpy as np
 from tqdm import tqdm
 
+lang_spec_sub = {
+    "fr": [
+        # Add a space before double punctuation marks
+        (r"([" + re.escape('?!:;') + r"])", r" \1"),
+        # Remove space before simple punctuation marks
+        (r"\s+([" + re.escape(',.') + r"])", r"\1"),
+        # Add space after punctuation marks
+        (r"([" + re.escape('?!:;,') + r"]+)([^ " + re.escape('?!:;,') + r"\d])", r"\1 \2"),
+    ],
+}
 
-def custom_text_normalization(transcript, regex_rm = None):
+default_sub = [
+    # Remove space before punctuation marks
+    (r"\s+([" + re.escape('?!:;,.') + r"])", r"\1"),
+    # Add space after punctuation marks
+    (r"([" + re.escape('?!:;,') + r"]+)([^ " + re.escape('?!:;,') + r"\d])", r"\1 \2"),
+]
+
+def custom_text_normalization(transcript, regex_rm=None, lang="fr"):
     transcript = format_special_characters(transcript, remove_ligatures=False)
     transcript = remove_special_characters(transcript, replace_by=" ")
     transcript = remove_quotes(transcript)
+
     if regex_rm:
         if isinstance(regex_rm, str):
             regex_rm = [regex_rm]
@@ -38,6 +56,11 @@ def custom_text_normalization(transcript, regex_rm = None):
             transcript = re.sub(regex, "", transcript)
     else:
         transcript = remove_special_words(transcript)
+    
+    # Normalizations around punctuations
+    for elem, target in lang_spec_sub.get(lang, default_sub):
+        transcript = re.sub(elem, target, transcript)
+
     return collapse_whitespace(transcript)
 
 def labels_to_norm_args(labels):
@@ -182,7 +205,7 @@ def split_long_audio_kaldifolder(
 
             ###### special normalizations (1/2)
             transcript_orig = id2text[id]
-            transcript = custom_text_normalization(transcript_orig, regex_rm = regex_rm_part)
+            transcript = custom_text_normalization(transcript_orig, regex_rm=regex_rm_part, lang=lang)
             if not transcript:
                 print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of empty transcript after normalization.")
                 continue
@@ -273,8 +296,8 @@ def split_long_audio_kaldifolder(
                     if not can_reject_only_first_and_last or is_weird or is_first_segment or is_last_segment:
                         print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                         continue
-                    # else:
-                    #     print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
+                    else:
+                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
             
             has_shorten = True
             num_frames = emission.size(0)
