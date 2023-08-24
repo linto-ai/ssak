@@ -89,8 +89,25 @@ def split_long_audio_kaldifolder(
     MAX_LEN_PROCESSED = 0
     MAX_LEN_PROCESSED_ = 0
     assert dirout != dirin
+    
+    last_id = None
     if os.path.isdir(dirout):
-        shutil.rmtree(dirout)
+        for filename in ["utt2dur", "text", "utt2spk", "segments"]:
+            if not os.path.isfile(dirout+"/"+filename):
+                raise RuntimeError(f"Folder {dirout} already exists but does not contain file {filename}. Aborting (remove the folder to retry)")
+        print(f"WARNING: {dirout} already exists. Continuing with unprocessed.")
+        # Get the last line of the file
+        line = get_last_line(dirout+"/utt2dur")
+        if line:
+            # Get the id
+            last_id_complete = last_id = line.split()[0]
+            if re.match(r".+_cut\d+$", last_id_complete):
+                last_id = "_cut".join(last_id_complete.split("_cut")[:-1])
+            # Sound check: the id must have be written everywhere
+            for filename in ["text", "utt2spk", "segments"]:
+                line = get_last_line(dirout+"/"+filename)
+                assert line and line.split()[0] == last_id_complete, f"Last id {last_id_complete} in utt2dur does not match last id {line.split()[0]} in {filename}"
+
     os.makedirs(dirout, exist_ok=True)
 
     dbname = os.path.basename(dirin)
@@ -105,14 +122,21 @@ def split_long_audio_kaldifolder(
         id2text = dict(l.strip().split(" ", 1) for l in f.readlines() if len(l.split(" ", 1)) == 2)
 
     with(open(dirin+"/utt2spk")) as f:
-        id2spk = dict(l.strip().split() for l in f.readlines())
+        id2spk = dict(l.strip().split() for l in f)
 
     with(open(dirin+"/utt2dur")) as f:
         def parse_line(l):
             l = l.strip()
             id, dur = l.split(" ")
             return id, float(dur)
-        id2dur = dict(parse_line(l) for l in f.readlines())
+        id2dur = dict(parse_line(l) for l in f)
+
+    if last_id is not None:
+        index_last = list(id2dur.keys()).index(last_id)
+        id2dur = dict(zip(list(id2dur.keys())[index_last+1:], list(id2dur.values())[index_last+1:]))
+        if len(id2dur) == 0:
+            print(f"WARNING: {dirout} already exists and is complete. Aborting.")
+            return
 
     has_segments = os.path.isfile(dirin+"/segments")
     if has_segments:
@@ -121,7 +145,7 @@ def split_long_audio_kaldifolder(
                 l = l.strip()
                 id, wav_, start_, end_ = l.split(" ")
                 return id, (wav_, float(start_), float(end_))
-            id2seg = dict(parse_line(l) for l in f.readlines())
+            id2seg = dict(parse_line(l) for l in f)
     else:
         id2seg = dict((id, (id, 0, id2dur[id])) for id in id2dur)
 
@@ -132,10 +156,10 @@ def split_long_audio_kaldifolder(
 
     has_shorten = False
 
-    with open(dirout+"/text", 'w') as f_text, \
-         open(dirout+"/utt2spk", 'w') as f_utt2spk, \
-         open(dirout+"/utt2dur", 'w') as f_utt2dur, \
-         open(dirout+"/segments", 'w') as f_segments:
+    with open(dirout+"/text", 'a') as f_text, \
+         open(dirout+"/utt2spk", 'a') as f_utt2spk, \
+         open(dirout+"/utt2dur", 'a') as f_utt2dur, \
+         open(dirout+"/segments", 'a') as f_segments:
         
         def do_flush():
             for f in [f_text, f_utt2spk, f_utt2dur, f_segments]:
@@ -206,11 +230,15 @@ def split_long_audio_kaldifolder(
                 MAX_LEN_PROCESSED_ = max(MAX_LEN_PROCESSED_, audio.shape[0])
                 print(f"---------> {transcript}")
             tic = time.time()
-            labels, emission, trellis, segments, word_segments = compute_alignment(
-                audio, transcript, model,
-                first_as_garbage=bool(refine_timestamps),
-                plot=plot
-            )
+            try:
+                labels, emission, trellis, segments, word_segments = compute_alignment(
+                    audio, transcript, model,
+                    first_as_garbage=bool(refine_timestamps),
+                    plot=plot
+                )
+            except Exception as err:
+                print(f"WARNING: {id} failed to align with error: {err}")
+                raise err
             if can_reject_based_on_score:
                 char_score = np.mean([seg.score for seg in segments])
                 word_score = np.mean([seg.score for seg in word_segments])
@@ -319,6 +347,13 @@ def split_long_audio_kaldifolder(
 
     check_kaldi_dir(dirout)
 
+def get_last_line(filename):
+    last_line = None
+    with open(filename, 'r') as f:
+        for last_line in f:
+            pass
+    return last_line
+
 
 if __name__ == "__main__":
 
@@ -401,7 +436,6 @@ if __name__ == "__main__":
     dirin = args.dirin
     dirout = args.dirout
     assert dirin != dirout
-    assert not os.path.exists(dirout), "Output folder already exists. Please remove it first.\nrm -R {}".format(dirout)
     split_long_audio_kaldifolder(dirin, dirout,
         model = args.model,
         lang = args.language,
