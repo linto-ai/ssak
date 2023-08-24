@@ -161,6 +161,7 @@ if __name__ == "__main__":
                                     other_commands = {"n": "skip audio file"} if not audio_file else {},
                                 )
                             current_audio_file = path
+                            print("Playing audio file:", current_audio_file)
                             fid_csv_out = open(tmp_csv_out, 'w', encoding="utf8")
                             csvwriter = csv.writer(fid_csv_out)
                             csvwriter.writerow(header)
