@@ -285,7 +285,11 @@ def split_long_audio_kaldifolder(
                 new_start = max(0, start - refine_timestamps)
                 start = new_start
                 end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
-            audio = load_audio(path, start, end, sample_rate)
+            try:
+                audio = load_audio(path, start, end, sample_rate)
+            except RuntimeError as err:
+                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of audio loading error: {err}")
+                continue
             if verbose:
                 print(f"max processed = {MAX_LEN_PROCESSED} / {MAX_LEN_PROCESSED_}")
                 print(f"Splitting: {path} // {start}-{end} ({dur})")
