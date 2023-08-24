@@ -69,6 +69,7 @@ def split_long_audio_kaldifolder(
     special_duration_meaning_tonext = [0.001, 0.002],
     refine_timestamps = None,
     can_reject_based_on_score = False,
+    can_reject_only_first_and_last = True,
     lang="fr",
     regex_rm_part = None,
     regex_rm_full = None,
@@ -132,7 +133,10 @@ def split_long_audio_kaldifolder(
         id2dur = dict(parse_line(l) for l in f)
 
     if last_id is not None:
-        index_last = list(id2dur.keys()).index(last_id)
+        try:
+            index_last = list(id2dur.keys()).index(last_id)
+        except ValueError:
+            raise RuntimeError(f"Last processed id {last_id} not found in {dirin}/utt2dur")
         id2dur = dict(zip(list(id2dur.keys())[index_last+1:], list(id2dur.values())[index_last+1:]))
         if len(id2dur) == 0:
             print(f"WARNING: {dirout} already exists and is complete. Aborting.")
@@ -166,8 +170,16 @@ def split_long_audio_kaldifolder(
                 f.flush()
 
         idx_processed = 0
+        previous_path = None
         for i_dur, (id, dur) in enumerate(tqdm(id2dur.items())):
             if id not in id2text: continue # Removed because empty transcription
+
+            wavid, start, end = id2seg[id]
+            path = wav2path[wavid]
+
+            is_first_segment = previous_path != path
+            previous_path = path
+
             ###### special normalizations (1/2)
             transcript_orig = id2text[id]
             transcript = custom_text_normalization(transcript_orig, regex_rm = regex_rm_part)
@@ -184,6 +196,7 @@ def split_long_audio_kaldifolder(
                         break
                 if do_continue:
                     continue
+            next_path = None
             if has_segments and min([abs(dur - d) for d in special_duration_meaning_tonext]) < 0.0001:
                 next_id = list(id2dur.keys())[i_dur+1]
                 path = wav2path[id2seg[id][0]]
@@ -214,14 +227,10 @@ def split_long_audio_kaldifolder(
             all_words = all_words_no_isolated_punc
             ###### special normalizations that preserve word segmentations (2/2)
             transcript = [custom_word_normalization(w, lang=lang, **kwargs_word_norm) for w in all_words]
-            wavid, start, end = id2seg[id]
-            delta_start = 0
             if refine_timestamps:
                 new_start = max(0, start - refine_timestamps)
-                delta_start = new_start - start # negative
                 start = new_start
                 end = end + refine_timestamps # No need to clip, as load_audio will ignore too high values
-            path = wav2path[wavid]
             audio = load_audio(path, start, end, sample_rate)
             if verbose:
                 print(f"max processed = {MAX_LEN_PROCESSED} / {MAX_LEN_PROCESSED_}")
@@ -247,8 +256,20 @@ def split_long_audio_kaldifolder(
                 char_score = np.mean([seg.score for seg in segments])
                 word_score = np.mean([seg.score for seg in word_segments])
                 if max(char_score, word_score) < 0.4:
-                    print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
-                    continue
+
+                    is_last_segment = False
+                    if can_reject_only_first_and_last and not is_first_segment:
+                        if next_path is None:
+                            next_id = list(id2dur.keys())[i_dur+1]
+                            path = wav2path[id2seg[id][0]]
+                            next_path = wav2path[id2seg[next_id][0]]
+
+                        is_last_segment = path != next_path
+                    if not can_reject_only_first_and_last or is_first_segment or is_last_segment:
+                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
+                        continue
+                    # else:
+                    #     print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
             
             has_shorten = True
             num_frames = emission.size(0)
@@ -404,7 +425,8 @@ if __name__ == "__main__":
                         default = [
                             "\\[[^\\]]*\\]", # Brackets for special words (e.g. "[Music]")
                             "\\([^\\)]*\\)", # Parenthesis for background words (e.g. "(Music)")
-                            '"', " '[^']*'", # Quotes
+                            # '"', # Quotes
+                            # " '[^']*'", # Quotes???
                             ]
                         )
     parser.add_argument('--regex_rm_full', help="One or several regex to remove a full utterance.", type = str, nargs='*',
@@ -415,7 +437,7 @@ if __name__ == "__main__":
                             " *[Ss]ous-titres.+",
                             " *SOUS-TITRAGE.+",
                             " *[Ss]ous-titrage.+",
-                            " *[Mm]erci d'avoir regardé cette vidéo.*",
+                            # " *[Mm]erci d'avoir regardé cette vidéo.*",
                             # Only dots
                             " *\.+ *",
                         ]
