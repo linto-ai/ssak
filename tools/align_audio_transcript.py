@@ -34,6 +34,7 @@ lang_spec_sub = {
         (r"\s+([" + re.escape(',.') + r"])", r"\1"),
         # Add space after punctuation marks
         (r"([" + re.escape('?!:;,') + r"]+)([^ " + re.escape('?!:;,') + r"\d])", r"\1 \2"),
+        (r"([" + re.escape('.') + r"]+)([A-Z])", r"\1 \2"),
     ],
 }
 
@@ -42,6 +43,7 @@ default_sub = [
     (r"\s+([" + re.escape('?!:;,.') + r"])", r"\1"),
     # Add space after punctuation marks
     (r"([" + re.escape('?!:;,') + r"]+)([^ " + re.escape('?!:;,') + r"\d])", r"\1 \2"),
+    (r"([" + re.escape('.') + r"]+)([A-Z])", r"\1 \2"),
 ]
 
 def custom_text_normalization(transcript, regex_rm=None, lang="fr"):
@@ -89,13 +91,14 @@ def split_long_audio_kaldifolder(
     model,
     min_duration = 0,
     max_duration = 30,
-    special_duration_meaning_tonext = [0.001, 0.002],
     refine_timestamps = None,
-    can_reject_based_on_score = False,
-    can_reject_only_first_and_last = True,
-    lang="fr",
+    lang = "fr",
     regex_rm_part = None,
     regex_rm_full = None,
+    special_duration_meaning_tonext = [0.001, 0.002],
+    can_reject_based_on_score = False,
+    can_reject_only_first_and_last = True,
+    glue_starting_punctuation_to_previous = True,
     verbose = False,
     debug_folder = None, # "check_audio/split",
     plot = False,
@@ -109,6 +112,13 @@ def split_long_audio_kaldifolder(
         model (str): Acoustic model, or path to the acoustic model
         max_duration (float): Maximum duration of the output utterances (in seconds)
         refine_timestamps (float): A value (in seconds) to refine start/end timestamps with
+        lang (str): Language (for text normalizations: numbers, symbols, ...)
+        regex_rm_part (list of str): One or several regex to remove parts from the transcription.
+        regex_rm_full (list of str): One or several regex to remove a full utterance.
+        special_duration_meaning_tonext (list of float): A list of duration (in seconds) that means "up to the next segment" (e.g. [0.001, 0.002] for YouTube)
+        can_reject_based_on_score (bool): If True, can reject utterances based on their score
+        can_reject_only_first_and_last (bool): If True, can reject only the first and last utterances of an audio file
+        glue_starting_punctuation_to_previous (bool): If True, glue the starting punctuation to the previous word
     """
     MAX_LEN_PROCESSED = 0
     MAX_LEN_PROCESSED_ = 0
@@ -142,8 +152,24 @@ def split_long_audio_kaldifolder(
     kwargs_word_norm = labels_to_norm_args(labels)
 
     # Parse input folder
-    with(open(dirin+"/text")) as f:            
-        id2text = dict(l.strip().split(" ", 1) for l in f.readlines() if len(l.split(" ", 1)) == 2)
+    id2text = {}
+    with(open(dirin+"/text")) as f:
+        previous_id = None
+        for l in f:
+            id_text = l.strip().split(" ", 1)
+            if len(id_text) == 1: continue
+            id, text = id_text
+            text = text.strip()
+            if glue_starting_punctuation_to_previous \
+               and previous_id \
+               and text and text[0] in ".,:;?!" \
+               and (len(text) == 1 or text[1] in " ") \
+               and id2text[previous_id][-1] not in ".,:;?!":
+                id2text[previous_id] += text[0]
+                text = text[1:].strip()
+            if not text: continue
+            id2text[id] = text
+            previous_id = id
 
     with(open(dirin+"/utt2spk")) as f:
         id2spk = dict(l.strip().split() for l in f)
