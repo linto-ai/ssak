@@ -9,6 +9,8 @@ from linastt.utils.misc import commonprefix
 from linastt.utils.kaldi import parse_kaldi_wavscp
 from linastt.utils.audio import get_audio_duration
 
+UNK = "_"
+
 def get_utt2dur_duration(
     utt2dur_file,
     check_wav_duration=False,
@@ -45,8 +47,6 @@ def get_utt2dur_duration(
     except Exception as e:
         raise RuntimeError(f"Error while reading {utt2dur_file} (line: {line})") from e
 
-
-    UNK = "_"
     number_wav = UNK
     duration_wav = UNK
     wavscp = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "wav.scp")
@@ -64,6 +64,7 @@ def get_utt2dur_duration(
                     if os.path.isfile(path):
                         duration_wav += get_audio_duration(path)
                     else:
+                        print(f"WARNING: missing file {path}")
                         duration_wav = UNK
                         break
 
@@ -151,6 +152,8 @@ def accu_stats(stats, default="TOTAL"):
                 elif "max" in k:
                     res[k] = max(res[k], v)
                 else:
+                    if res[k] == UNK:
+                        res[k] = 0
                     res[k] += v
             else:
                 if res[k] != v:
