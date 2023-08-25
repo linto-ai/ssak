@@ -111,7 +111,7 @@ def translate_language(text, dest, src=None):
 
 HATE_SPEECH_MODELS_SRC = {
     # "fr" : "Hate-speech-CNERG/dehatebert-mono-french", # Bad
-    "fr": "Poulpidot/distilcamenbert-french-hate-speech", # Betters
+    "fr": "Poulpidot/distilcamenbert-french-hate-speech", # Better
 }
 HATE_SPEECH_MODELS = {}
 
