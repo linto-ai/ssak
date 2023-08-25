@@ -70,7 +70,7 @@ def generate_kaldi_data(
                             continue
                         start = round(float(start), 3)
                         end = round(start + float(duration), 3)
-                        duration = end - start
+                        duration = round(end - start, 3)
                         if duration == 0:
                             warnings.warn(f"Duration is 0 for {utt_id}", UserWarning)
                             continue
