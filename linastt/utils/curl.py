@@ -26,6 +26,8 @@ def format_option_for_curl(option, c, use_unicode=False, as_in_cmd=False, short=
     if isinstance(option, str) and os.path.isfile(option):
         if as_in_cmd:
             return format_option_for_curl(f"@{option}", c, use_unicode=use_unicode)
+        if use_unicode:
+            option = option.encode("utf8")
         return (c.FORM_FILE, option)
     if isinstance(option, str):
         if use_unicode:
