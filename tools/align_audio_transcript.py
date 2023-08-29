@@ -329,8 +329,8 @@ def split_long_audio_kaldifolder(
                     if not can_reject_only_first_and_last or is_weird or is_first_segment or is_last_segment:
                         print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                         continue
-                    else:
-                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
+                    # else:
+                    #     print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
             
             has_shorten = True
             num_frames = emission.size(0)
@@ -339,7 +339,7 @@ def split_long_audio_kaldifolder(
                 print(f"Alignment done in {time.time()-tic:.2f}s")
             global index, last_start, last_end, new_transcript
             def process():
-                global index, f_text, f_utt2spk, f_utt2dur, f_segments, start, end, last_start, last_end, new_transcript
+                global index, f_text, f_utt2spk, f_utt2dur, f_segments, last_start, last_end, new_transcript
                 new_id = f"{id}_cut{index:02}"
                 index += 1
                 new_start = start+last_start
@@ -355,7 +355,6 @@ def split_long_audio_kaldifolder(
                     f_text.write(f"{new_id} {new_transcript}\n")
                     f_utt2spk.write(f"{new_id} {id2spk[id]}\n")
                     f_utt2dur.write(f"{new_id} {new_end - new_start:.3f}\n")
-                    (wav, start, end) = id2seg[id]
                     f_segments.write(f"{new_id} {wavid} {new_start:.3f} {new_end:.3f}\n")
                     do_flush()
                     if debug_folder:
@@ -486,6 +485,7 @@ if __name__ == "__main__":
                         default = [
                             "\\[[^\\]]*\\]", # Brackets for special words (e.g. "[Music]")
                             "\\([^\\)]*\\)", # Parenthesis for background words (e.g. "(Music)")
+                            "<[^>]*>", # Parenthesis for background words (e.g. "<Music>")
                             # '"', # Quotes
                             # " '[^']*'", # Quotes???
                             ]
