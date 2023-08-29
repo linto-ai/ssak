@@ -166,7 +166,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Get duration of a dataset in kaldi format.")
     parser.add_argument("input", type=str, help="Path to utt2dur file or folder containing it.", nargs='+')
     parser.add_argument("--check-wav-duration", action='store_true', help="Check total duration of wav files as well (might be long to compute).")
-    parser.add_argument("--warn-if-longer-than", default=3600, type=float, help="Warn if duration is longer than this value (in seconds).")
+    parser.add_argument("--warn-if-longer-than", default=1800, type=float, help="Warn if duration is longer than this value (in seconds).")
     parser.add_argument("--warn-if-shorter-than", default=0.005, type=float, help="Warn if duration is shorter than this value (in seconds).")
     args = parser.parse_args()
 
