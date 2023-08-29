@@ -12,3 +12,4 @@ pytube
 moviepy
 selenium
 youtube_transcript_api
+webvtt-py
