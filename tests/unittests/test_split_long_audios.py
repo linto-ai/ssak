@@ -33,3 +33,17 @@ class TestSplitLongAudios(Test):
         ])
         self.assertNonRegression(output_folder, "align_audio_transcript/transformers")
         shutil.rmtree(output_folder)
+
+    def test_split_long_audios_torchaudio(self):
+
+        output_folder = self.get_temp_path("split_long_audio_torchaudio")
+        shutil.rmtree(output_folder, ignore_errors=True)
+        self.assertRun([
+            self.get_tool_path("align_audio_transcript.py"),
+            self.get_data_path("kaldi/small"),
+            output_folder,
+            "--model", "VOXPOPULI_ASR_BASE_10K_FR",
+            "--max_duration", "4",
+        ])
+        self.assertNonRegression(output_folder, "align_audio_transcript/torchaudio")
+        shutil.rmtree(output_folder)
