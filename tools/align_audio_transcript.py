@@ -317,12 +317,15 @@ def split_long_audio_kaldifolder(
 
                     is_last_segment = False
                     if can_reject_only_first_and_last and not is_first_segment and not is_weird:
-                        if next_path is None:
-                            next_id = list(id2dur.keys())[i_dur+1]
-                            path = wav2path[id2seg[id][0]]
-                            next_path = wav2path[id2seg[next_id][0]]
+                        try:
+                            if next_path is None:
+                                next_id = list(id2dur.keys())[i_dur+1]
+                                path = wav2path[id2seg[id][0]]
+                                next_path = wav2path[id2seg[next_id][0]]
 
-                        is_last_segment = path != next_path
+                            is_last_segment = path != next_path
+                        except IndexError:
+                            is_last_segment = True
                     if not can_reject_only_first_and_last or is_weird or is_first_segment or is_last_segment:
                         print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                         continue
