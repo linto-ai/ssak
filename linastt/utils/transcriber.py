@@ -6,18 +6,26 @@ import xmltodict
 from linastt.utils.text_basic import collapse_whitespace, transliterate
 
 
-def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
+def read_transcriber(
+    trs_file,
+    anonymization_level=0,
+    remove_extra_speech=True,
+    do_format_speaker_name=True,
+    capitalize=True,
+    ):
 
     basename=os.path.basename(trs_file.split('.')[0])
     basename=basename.lower()
 
     with open(trs_file, "r", encoding=file_encoding(trs_file)) as f:
         file = f.read()
-        file = file.replace("\n\n", "\n"+ HACK_EMPTY_LINES + "\n")
+        header, rest = file.split("<Trans", 1)
+        file = header.strip() + "\n<Trans" +rest.rstrip().replace("\n\n", "\n"+ HACK_EMPTY_LINES + "\n")
         file = file.splitlines()
     
     # Split lines according to hypothesis made in preformatXML...
     def split_line(line):
+        line = re.sub('(<Who nb=".*"/>[^<]+) *<Sync time="[0-9\.]+"/>', r'\1', line)
         # Split so that <*> gives raise to a new line
         return [l.strip() for l in re.sub('(</?[^>]*>)',r'\n\1\n',line).split("\n") if len(l.strip()) > 0]
     file = [item for sublist in list(map(split_line, file)) for item in sublist]
@@ -25,7 +33,9 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
     file = preformatXML(file, remove_extra_speech=remove_extra_speech)
 
     # For debug...
-    # with open("tmp_"+os.path.splitext(os.path.basename(trs_file))[0]+".xml", "w") as f:
+    # debug_file = "tmp_"+os.path.splitext(os.path.basename(trs_file))[0]+".xml"
+    # print("DEBUG FILE: ", debug_file)
+    # with open(debug_file, "w") as f:
     #     f.write(file)
 
     dict = xmltodict.parse(file)
@@ -37,7 +47,7 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
     speaker_name=[]
     speaker_scope=[]
     alldata=[]
-    
+
     if "Speakers" in dict["Trans"] and dict["Trans"]["Speakers"] is not None:
             speakers = dict["Trans"]["Speakers"]["Speaker"]
             if '@id' in dict["Trans"]["Speakers"]["Speaker"]:
@@ -45,7 +55,7 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
             for spk in speakers:
                 speaker_id.append(spk["@id"])
                 speaker_gender.append(spk["@type"].lower()) if '@type' in spk else speaker_gender.append("unknown")
-                speaker_name.append(format_speaker_name(spk["@name"])) if '@name' in spk else speaker_name.append("unknown")
+                speaker_name.append(format_speaker_name(spk["@name"], strong=do_format_speaker_name)) if '@name' in spk else speaker_name.append("unknown")
                 speaker_scope.append(spk["@scope"].lower()) if '@scope' in spk else speaker_scope.append("unknown")
                 # Fix LINAGORA dataset
                 firstname = speaker_name[-1].split("_")[0]
@@ -100,7 +110,7 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
                 turn_speaker_ids = ["-1"]
                 continue
 
-            turn_speaker_ids = turn_speaker_ids.split(' ')
+            turn_speaker_ids = split_given_list(speaker_id, turn_speaker_ids)
             nbr_spk = len(turn_speaker_ids)
             
             turn_fidelity = turns[j]["@fidelity"] if "@fidelity" in turns[j] else "" #(high|medium|low)
@@ -128,10 +138,21 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
 
                     # Hack to correctly recover speaker segmentation (2/2)
                     def split_text(text):
+                        if HACK_WHO in sync_texts:
+                            texts = re.split(HACK_WHO, text)
+                            if text.startswith(HACK_WHO):
+                                texts = texts[1:]
+                            yield texts
+                            yield [s for s in texts if s != ""]
+                            yield [s for s in texts if re.sub(r"{{[^}]*}}", "", s).strip() != ""]
+                            return 
+
                         for split_pattern in "\n{2,}", "\n{1,}":
                             texts = re.split(split_pattern, text)
                             yield texts
                             yield [s for s in texts if s != ""]
+                            yield [s for s in texts if re.sub(r"{{[^}]*}}", "", s).strip() != ""]
+                            yield [text]
                         if text != text.strip():
                             for s in split_text(text.strip()):
                                 yield s
@@ -141,18 +162,29 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
                     for sync_texts_ in split_text(sync_texts):
                         if len(sync_texts_) == nbr_spk:
                             found = True
-                            sync_texts = sync_texts_
                             break
                         elif len(sync_texts_) not in possible_lens:
                             possible_lens.append(len(sync_texts_))
                     if not found:
-                        #print("Number of speakers (%d: %s) does not match number of texts (%d: %s) -> %s -> %s" % (nbr_spk, to_str(' '.join(turn_speaker_ids)), len(sync_texts_), to_str(syncs[k]["#text"]), sync_texts, sync_texts_))
-                        #import pdb; pdb.set_trace()
-                        raise RuntimeError("Number of speakers (%d: %s) does not match number of texts (%d: %s) -> %s -> %s" % \
-                                            (nbr_spk, to_str(' '.join(turn_speaker_ids)), possible_lens, to_str(syncs[k]["#text"]), sync_texts, str(set(split_text(sync_texts)))))
+                        if 0 in possible_lens:
+                            print(f"WARNING: skipping empty text with incoherent number of speakers")
+                            continue
+                        POSSIBLE_LEN_FOR_TWO = [4, 6, 8]
+                        if nbr_spk == 2 and max([p in possible_lens for p in POSSIBLE_LEN_FOR_TWO]):
+                            for sync_texts_ in split_text(sync_texts):
+                                if len(sync_texts_) in POSSIBLE_LEN_FOR_TWO:
+                                    text1 = " ".join(sync_texts_[::2])
+                                    text2 = " ".join(sync_texts_[1::2])
+                                    sync_texts_ = [text1, text2]
+                                    break
+                        else:
+                            #print("Number of speakers (%d: %s) does not match number of texts (%d: %s) -> %s -> %s" % (nbr_spk, to_str(' '.join(turn_speaker_ids)), len(sync_texts_), to_str(syncs[k]["#text"]), sync_texts, sync_texts_))
+                            #import pdb; pdb.set_trace()
+                            raise RuntimeError("Number of speakers (%d: %s) does not match number of texts (%s: %s) -> %s -> %s" % \
+                                                (nbr_spk, to_str(' '.join(turn_speaker_ids)), possible_lens, to_str(syncs[k]["#text"]), sync_texts, str(list(split_text(sync_texts)))))
 
                     sync_texts = sync_texts_
-
+                
                 if len(data):
                     # Set end time of previous segments
                     iback = 1
@@ -165,7 +197,9 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
                     if l>0:
                         num_overlaps += 1
                 
-                    spk_name = speaker_name[speaker_id.index(turn_speaker_id)]
+                    idx = speaker_id.index(turn_speaker_id)
+                    turn_speaker_gender = speaker_gender[idx]
+                    spk_name = speaker_name[idx]
 
                     if anonymization_level >= 2:
                         spk_name = "spk"
@@ -180,10 +214,7 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
 
                     seg_id = '%s_Section%02d_Topic-%s_Turn-%03d_seg-%07d' % (seg_id,i+1,str(section_topic),j+1,k+num_overlaps)
 
-                    sync_text = correct_text(sync_text)
-
-                    idx = speaker_id.index(turn_speaker_id)
-                    turn_speaker_gender = speaker_gender[idx]
+                    sync_text = correct_text(sync_text, capitalize=capitalize)
 
                     # if turn_speaker_id not in speaker_id:
                     #     turn_speaker_gender = "m"
@@ -214,6 +245,24 @@ def read_transcriber(trs_file, anonymization_level=0, remove_extra_speech=True):
     return alldata
 
 
+def split_given_list(liste, elt):
+    if elt in liste:
+        return [elt]
+    res = []
+    liste = sorted(liste, key=lambda x: len(x), reverse=True)
+    while len(elt) > 0:
+        found = False
+        for e in liste:
+            assert len(e)
+            if elt.startswith(e) and (len(elt) == len(e) or (len(elt)>len(e) and elt[len(e)] == " ")):
+                res.append(e)
+                elt = elt[len(e):].strip()
+                found = True
+                break
+        if not found:
+            raise RuntimeError(f"Could not find {elt} in {liste}")
+    return res
+
 def file_encoding(filename):
     """ Guess the encoding of a file """
     # Note we could use "file" on linux OS
@@ -233,14 +282,17 @@ def to_str(s):
     return s
 
 
-def format_speaker_name(spk_name):
-    spk_name = spk_name.lower()
+def format_speaker_name(spk_name, strong=True):
+    # Fix LINAGORA
+    if spk_name.lower().startswith("locuteur non ident"):
+        spk_name = "unknown"
+    if strong:
+        spk_name = spk_name.lower()
     if "(" in spk_name and spk_name.endswith(")") and not spk_name.startswith("("):
         spk_name = spk_name.split("(")[0].strip()
-    spk_name = transliterate(spk_name).strip().replace(" ", "_").strip("_")
+    if strong:
+        spk_name = transliterate(spk_name).strip().replace(" ", "_").strip("_")
     # Fix LINAGORA typos
-    spk_name = spk_name.replace("locuteur_non_identifia", "unknown")
-    spk_name = spk_name.replace("locuteur_non_identifie", "unknown")
     spk_name = spk_name.replace("jean-pierre_lorra", "jean-pierre_lorre")
     return spk_name
 
@@ -308,7 +360,7 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     # ("æ","ae"),
                 ]]
 
-def correct_text(text):
+def correct_text(text, capitalize=True):
 
     # 1. Minimal character normalization
     for reg, replacement in _corrections_caracteres_speciaux_fr:
@@ -351,16 +403,18 @@ def correct_text(text):
     text = collapse_whitespace(text)
 
     # Capitalize first letter (note: capitalize() converts to lowercase all letters)
-    if len(text) and text[0].islower():
+    if capitalize and len(text) and text[0].islower():
         text = text[0].upper() + text[1:]
 
     return text
 
-HACK_EMPTY_LINES = "HACKEMPTYLINES"
+HACK_EMPTY_LINES = "__HACKEMPTYLINES__"
 HACK_EVENTS = "{{HACKEVENTS}}" # Important to keep {{}} here
+HACK_WHO = "__HACKWHO__"
 
 def preformatXML(file, remove_extra_speech):
     file = list(map(lambda s: s.strip(), file))
+    file = list(map(lambda s: re.sub('<Who nb=".*"/>', HACK_WHO, s), file))    
     file = list(map(lambda s: re.sub('<Sync(.*)/>',r'<Sync\1>',s), file))
     file = list(map(lambda s: re.sub('<Sync','</Sync><Sync',s), file))
     file = list(map(lambda s: re.sub('</Turn>','</Sync></Turn>',s), file))
