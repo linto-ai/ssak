@@ -10,6 +10,7 @@ import json
 import random
 
 from linastt.utils.misc import commonprefix
+from linastt.utils.audio import get_audio_total_duration
 
 CONVERT_ALL_WAV_TO_THE_SAME = False
 
@@ -74,14 +75,16 @@ def _extract_all(root, field):
 #     return s
 
 
-_durations = {}
-
+# TODO: use "from linastt.utils.audio import get_audio_duration" instead?
 def get_audio_duration(audio_file):
     if audio_file in _durations:
         return _durations[audio_file]
     return float(subprocess.check_output(['soxi', '-D' , audio_file]))
 
+# TODO: generalize and use "get_audio_total_duration" instead of "get_audio_durations"?
+_durations = {}
 def get_audio_durations(audio_files):
+    
     currdir = os.path.realpath(os.curdir)
 
     commondir = commonprefix(audio_files)
@@ -141,6 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_file_checks', help='To disable checking that input file exists', default=False, action="store_true")
     parser.add_argument('--ignore_existing', help='To ignore existing output file', default=False, action="store_true")
     parser.add_argument('--subsample_checks', help='To take only a subsample of audio to check formats', default=False, action="store_true")
+    parser.add_argument('--no_overlapping', default=False, action="store_true", help="To ensure there is no overlapping between segments")
     parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
     args = parser.parse_args()
 
@@ -321,23 +325,23 @@ if __name__ == "__main__":
         speakers.add(_spk)
         durations.append(_end - _start)
 
+    num_wavs = None
     if several_utt_per_wav:
         data = sorted(data, key= lambda x: x["wav"]) # Data must be sorted before groupby
         def get_iterator():
             return groupby(data, lambda x: x["wav"])
-        new_wavs = None
     else:
         def get_iterator():
             for d in data:
                 yield d["wav"], [d]
-        new_wavs = len(data)
+        num_wavs = len(data)
 
     now = datetime.now()
 
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         audio_files = []
         num_audio_files = 0
-        for _wav, utt in tqdm(get_iterator(), total=new_wavs):
+        for _wav, utt in tqdm(get_iterator(), total=num_wavs):
             if args.disable_file_checks or os.path.exists(_wav):
                 num_audio_files += 1
                 if num_audio_files > MAX: break
@@ -347,8 +351,15 @@ if __name__ == "__main__":
 
         sample = audio_files
         if args.subsample_checks:
-            assert total_duration is not None, "The total duration cannot be computed with option --subsample_checks and without precomputed duration info"
             if len(sample) > 1000:
+                # assert total_duration is not None, "The total duration cannot be computed with option --subsample_checks and without precomputed duration info"
+                if total_duration is None:
+                    wav_files = list(set([d["wav"] for d in data]))
+                    if num_wavs is None:
+                        num_wavs = len(wav_files)
+                    _, total_duration = get_audio_total_duration(wav_files, verbose=True)
+                    del wav_files
+                assert isinstance(total_duration, float), f"total_duration should be a float, not {type(total_duration)}"
                 sample = random.sample(audio_files, 1000)
         if len(" ".join(sample)) >= 2097152 - 5:
             while len(" ".join(sample)) >= 2097152 - 5:
@@ -378,7 +389,7 @@ if __name__ == "__main__":
 
     num_audio_files = 0
     total_duration_speech = 0
-    for _wav, utt in tqdm(get_iterator(), total=new_wavs):
+    for _wav, utt in tqdm(get_iterator(), total=num_wavs):
         num_audio_files += 1
         if num_audio_files > MAX: break
 
@@ -441,23 +452,42 @@ if __name__ == "__main__":
         # Accumulate transcriptions
         transcriptions = []
         transcriptions_raw = []
+        previous_start = 0
+        previous_end = 0
         for utterance in sorted(utt, key = lambda x:float(x['start'])):
             extra = {"speaker": utterance['speaker']}
             if utterance['gender']:
                 extra.update({"gender" : utterance['gender']})
+            start = int(utterance['start'] * 1000)
+            end = int(utterance['end'] * 1000)
+            if args.no_overlapping:
+                if start < previous_end:
+                    middle = (start + previous_end) / 2
+                    if end <= middle:
+                        print(f"WARNING: overlapping segment ignored (case 1): \"{utterance['text']}\" ({start/1000:.2f}->{end/1000:.2f} included in {previous_start/1000:.2f}->{previous_end/1000:.2f})")
+                        continue
+                    if middle <= previous_start:
+                        print(f"WARNING: overlapping segment ignored (case 2): \"{utterance['text']}\" ({start/1000:.2f}->{end/1000:.2f} included in {previous_start/1000:.2f}->{previous_end/1000:.2f})")
+                        continue
+                    start = middle
+                    transcriptions[-1]["timestamp_end_milliseconds"] = start
+                    if HAS_RAW:
+                        transcriptions_raw[-1]["timestamp_end_milliseconds"] = start
+            previous_end = end
+            previous_start = start
             transcriptions.append({
                 "date_created": time2str(now),
                 "transcript": utterance['text'], 
-                "timestamp_start_milliseconds": int(utterance['start'] * 1000),
-                "timestamp_end_milliseconds": int(utterance['end'] * 1000),
+                "timestamp_start_milliseconds": start,
+                "timestamp_end_milliseconds": end,
                 "extra": extra
             })
             if HAS_RAW:
                 transcriptions_raw.append({
                     "date_created": time2str(now),
                     "transcript": utterance['rawtext'], 
-                    "timestamp_start_milliseconds": int(utterance['start'] * 1000),
-                    "timestamp_end_milliseconds": int(utterance['end'] * 1000),
+                    "timestamp_start_milliseconds": start,
+                    "timestamp_end_milliseconds": end,
                     "extra": extra
                 })
             total_duration_speech += utterance['duration']

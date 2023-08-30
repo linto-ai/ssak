@@ -168,7 +168,7 @@ def object_to_dict(
 def walk_files(inputs, verbose=False, ignore_extensions=[], use_tqdm=True):
     if not isinstance(inputs, list):
         inputs = [inputs]
-    for file_or_folder in inputs:
+    for file_or_folder in tqdm(inputs) if (use_tqdm and len(inputs) > 100) else inputs:
         if not os.path.exists(file_or_folder):
             raise ValueError(f"{file_or_folder} does not exists")
         if os.path.isfile(file_or_folder):
