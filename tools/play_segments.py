@@ -17,6 +17,8 @@ def play_segments(
         other_commands = {},
         quit_command = {"q" : "quit"},
         ):
+    
+    assert audio_file and os.path.isfile(audio_file), f"Cannot find audio file {audio_file}"
 
     name = "word" if wordlevel else "segment"
 
@@ -25,7 +27,7 @@ def play_segments(
 
     if other_commands:
         for o in other_commands:
-            assert o not in list(quit_command.keys()) + ["s", "dbg"] or isinstance(o, float|int), f"Command {o} is already defined"
+            assert o not in list(quit_command.keys()) + ["s", "dbg"] or isinstance(o, (float,int)), f"Command {o} is already defined"
     additional_commands = dict(quit_command)
     additional_commands.update(other_commands)
     additional_commands.update({
@@ -74,7 +76,7 @@ def play_segments(
                 x = None
             previous_start = end
 
-            if x not in additional_commands.keys() and not isinstance(x, float|int):
+            if x not in additional_commands.keys() and not isinstance(x, (float,int)):
                 # Regular play
                 if wordlevel:
                     print(f"== segment {i+1}/{len(transcript['segments'])}, {name} {iw+1}/{len(segment['words'])}")
@@ -90,7 +92,7 @@ def play_segments(
                 break
             elif x == "dbg":
                 import pdb; pdb.set_trace()
-            elif isinstance(x, float|int):
+            elif isinstance(x, (float,int)):
                 min_sec = x
                 if min_sec < start:
                     # Rewind
@@ -126,7 +128,7 @@ if __name__ == "__main__":
         # We will filter corresponding to the wav file (or not  )
         
         _, tmp_csv_in = kaldi_folder_to_dataset(transcripts, return_format="csv")
-        current_audio_file = None
+        current_audio_file = audio_file if audio_file else None
         tmp_csv_out = tempfile.mktemp(suffix='.csv')
         fid_csv_out = None
         csvwriter = None

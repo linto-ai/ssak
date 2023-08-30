@@ -46,7 +46,7 @@ class AudioPlayer:
         return (data, pyaudio.paContinue)
 
     def _open(self, wav):
-        assert os.path.isfile(wav), "File not found: {}".format(wav)
+        assert wav and os.path.isfile(wav), "File not found: {}".format(wav)
 
         try:
             self.wf = wave.open(wav, 'rb')
