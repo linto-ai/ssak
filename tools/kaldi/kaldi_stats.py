@@ -152,8 +152,9 @@ def accu_stats(stats, default="TOTAL"):
                 elif "max" in k:
                     res[k] = max(res[k], v)
                 else:
-                    if res[k] == UNK:
+                    if res[k] in ("TOTAL", UNK):
                         res[k] = 0
+                    assert not isinstance(res[k], str), f"Cannot sum {res[k]} and {v}"
                     res[k] += v
             else:
                 if res[k] != v:
