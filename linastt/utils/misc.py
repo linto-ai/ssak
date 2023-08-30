@@ -6,6 +6,8 @@ import pickle
 import shutil
 import types
 import datetime
+from tqdm import tqdm
+import subprocess
 
 def flatten(l):
     """
@@ -162,3 +164,37 @@ def object_to_dict(
                     params.pop(attr)
         # classname = str(type(x)).split("'")[1]
     return params # | {"_class": classname}
+
+def walk_files(inputs, verbose=False, ignore_extensions=[], use_tqdm=True):
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+    for file_or_folder in inputs:
+        if not os.path.exists(file_or_folder):
+            raise ValueError(f"{file_or_folder} does not exists")
+        if os.path.isfile(file_or_folder):
+            yield file_or_folder
+        else:
+            if verbose:
+                print("Scanning", os.path.abspath(file_or_folder), "...")
+            for root, dirs, files in os.walk(file_or_folder):
+                for f in tqdm(files) if use_tqdm else files:
+                    if any(f.endswith(ext) for ext in ignore_extensions):
+                        continue
+                    yield os.path.join(root, f)
+
+def run_command(command, check=True):
+    if isinstance(command, str):
+        command = command.split()
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=check  # Raises a CalledProcessError if the command fails (non-zero return code)
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        # The command failed, you can handle the error here if needed.
+        # The error message and return code are available in e.stdout and e.returncode respectively.
+        raise RuntimeError(f"Command execution failed with return code {e.returncode}: {e.stdout.strip()}")

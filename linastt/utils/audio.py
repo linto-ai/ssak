@@ -13,7 +13,11 @@ import torchaudio
 import numpy as np
 import torch
 
-from linastt.utils.misc import suppress_stderr
+from linastt.utils.misc import (
+    suppress_stderr,
+    run_command,
+    walk_files,
+)
 
 def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True, return_format = 'array', verbose = False):
     """ 
@@ -159,9 +163,53 @@ def save_audio(path, audio, sample_rate = 16_000):
         audio = audio.transpose()
     sox.write(path, audio, sample_rate)
 
-def get_audio_duration(path):
+def get_audio_duration(path, verbose=False):
     """ 
     Return the duration of an audio file in seconds.
     """
-    info = sox.get_info(path)[0]
-    return info.length / info.rate
+    if os.path.isfile(path):
+        info = sox.get_info(path)[0]
+        return info.length / info.rate
+    return get_audio_total_duration(path, verbose=verbose)[1]
+
+def get_max_args():
+    return int(run_command("getconf ARG_MAX"))
+    
+def get_audio_total_duration(files, max_args=1000, verbose=False):
+    if max_args is None:
+        max_args = get_max_args()
+    assert max_args > 0
+    total_duration = 0.0
+    total_number = 0
+    to_process = []
+    for f in walk_files(files, ignore_extensions=[".json", ".csv", ".txt"], verbose=verbose, use_tqdm=verbose):
+        to_process.append(f)
+        if len(to_process) == max_args:
+            nb, duration = _sox_duration(to_process)
+            total_duration += duration
+            total_number+= nb
+            to_process = []
+    if len(to_process):
+        nb, duration = _sox_duration(to_process)
+        total_duration += duration
+        total_number+= nb
+    return total_number, total_duration
+
+def _sox_duration(files):
+    stdout = run_command(["soxi"] + files, False)
+    last_break = stdout.rfind("\n")
+    last_line = stdout[last_break:] if last_break >= 0 else ""
+    if "Total Duration" in last_line:
+        fields = last_line.split()
+        duration = time2second(fields[-1])
+        nb = int(fields[3])
+        return nb, duration
+    for line in stdout.split("\n"):
+        if line.startswith("Duration"):
+            return 1, time2second(line.split()[2])
+    return 0, 0.0
+
+def time2second(duration_str):
+    h, m, s = map(float, duration_str.split(":"))
+    seconds = h * 3600 + m * 60 + s
+    return seconds
