@@ -106,6 +106,8 @@ def kaldi_split(
                 split_max_duration = (splits_ratio[isplit]/remaining_ratio) * remaining_duration
             wav2split[wav] = isplit
 
+    isplit = max(wav2split.values())
+
     splits = range(isplit+1)
 
     # Create the splits
@@ -123,6 +125,7 @@ def kaldi_split(
             "segments": open(output_folder + "/segments", 'a') if has_segments else None,
             "spk2gender": open(output_folder + "/spk2gender", 'a') if has_genders else None,
         }
+    
     split2info = [create_split(i) for i in splits]
 
     # Helper to write the information in the right folder
