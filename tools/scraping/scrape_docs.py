@@ -28,7 +28,7 @@ EXTENSIONS = {
     ".ods": DocType.ODT,
 }
 
-def doc2text(filename):
+def doc2text(filename, simple_pdf_split=False):
     doctype = EXTENSIONS.get(os.path.splitext(filename)[1].lower())
     if doctype == DocType.DOCX:
 
@@ -73,11 +73,11 @@ def doc2text(filename):
         doc = fitz.open(filename)
         pages = list(doc)
         pages = [page.get_text(sort=True) for page in pages]
-        pages = ["\n".join(extract_paragraph_in_pdf(page)) for page in pages]
+        pages = ["\n".join(extract_paragraph_in_pdf(page, simple_pdf_split=simple_pdf_split)) for page in pages]
         # reader = PdfReader(filename)
         # pages = [page.extract_text() for page in reader.pages]
         page = "\n".join(pages)
-        lines = extract_paragraph_in_pdf(page)
+        lines = extract_paragraph_in_pdf(page, simple_pdf_split=simple_pdf_split)
 
     elif doctype == DocType.XLS:
 
@@ -107,7 +107,7 @@ def doc2text(filename):
 
 pdf_headers = []
 pdf_footers = []
-def extract_paragraph_in_pdf(page):
+def extract_paragraph_in_pdf(page, simple_pdf_split=False):
     # Remove possible header
     global pdf_headers
     for header in pdf_headers:
@@ -121,8 +121,13 @@ def extract_paragraph_in_pdf(page):
         page = re.sub(rf"\s*{re.escape(footer)}\s*$","", page)
     pdf_footers.append(page.split("\n")[-1].strip())
     # Split into probable paragraphs
-    lines = re.split(r'([\.?!»"])\s*\n', page)
-    lines = ["".join([a,b]) for a,b in zip(lines[::2],lines[1::2]+[""])]
+    if simple_pdf_split:
+        # lines = re.split(r"\n", page)
+        lines = re.split(r'([\.?!»",:;A-Z])\s*\n', page)
+        lines = ["".join([a,b]) for a,b in zip(lines[::2],lines[1::2]+[""])]
+    else:
+        lines = re.split(r'([\.?!»"])\s*\n', page)
+        lines = ["".join([a,b]) for a,b in zip(lines[::2],lines[1::2]+[""])]
     # Remove double spaces
     lines = [re.sub(r"\s+"," ", line) for line in lines]
     # Remove repeated dots
@@ -135,24 +140,29 @@ if __name__ == "__main__":
     import os
     import argparse
 
-    parser = argparse.ArgumentParser(description='Scrape documents in a folder (docx and odt files).')
-    parser.add_argument('input', type=str, help='Input folder.')
-    parser.add_argument('output', type=str, help='Output folder.')
-    parser.add_argument('output_formatted', type=str, help='Output folder for formatted text (assuming French language).', nargs="?", default = None)
+    parser = argparse.ArgumentParser(description='Scrape documents in a folder (docx, odt, pdf... files).')
+    parser.add_argument('input', type=str, help='Input folder (or file).')
+    parser.add_argument('output', type=str, help='Output folder (or file).')
+    parser.add_argument('output_formatted', type=str, help='Output folder (or file) for formatted text (assuming French language).', nargs="?", default = None)
+    parser.add_argument('--simple_pdf_split', default=False, action='store_true', help='Split paragraphs only at the end of sentences (not at each line break).')
     args = parser.parse_args()
 
     dir_in = args.input
     dir_out1 = args.output
     dir_out2 = args.output_formatted
 
-    assert os.path.isdir(dir_in), f"Input folder {dir_in} does not exist."
+    assert os.path.exists(dir_in), f"Input file or folder {dir_in} does not exist."
 
     if dir_out2:
         from linastt.utils.text import format_text_latin
-        os.makedirs(dir_out2, exist_ok = True)
-    os.makedirs(dir_out1, exist_ok = True)
+        if os.path.isdir(dir_in):
+            os.makedirs(dir_out2, exist_ok = True)
+    if os.path.isdir(dir_in):
+        os.makedirs(dir_out1, exist_ok = True)
 
-    for root, dirs, files in os.walk(dir_in):
+    failures = {}
+
+    for root, dirs, files in os.walk(dir_in) if os.path.isdir(dir_in) else [("", [], [dir_in])]:
 
         for file in files:
 
@@ -166,13 +176,27 @@ if __name__ == "__main__":
                 b+= "_"+e[1:]
             filenametxt = b.replace(" ","_") + ".txt"
 
-            print("Processing", filename, "->", os.path.join(dir_out1, filenametxt))
+            output_file = os.path.join(dir_out1, filenametxt) if os.path.isdir(dir_in) else dir_out1
+
+            print("Processing", filename, "->", output_file)
             
-            text = doc2text(filename)
-            with open(os.path.join(dir_out1, filenametxt), "w") as f:
+            try:
+                text = doc2text(filename,
+                    simple_pdf_split=args.simple_pdf_split,
+                )
+            except Exception as e:
+                print(e)
+                failures[filename] = e
+                continue
+            with open(output_file, "w") as f:
                 f.write(text)
             
             if dir_out2:
+                output_file = os.path.join(dir_out2, filenametxt) if os.path.isdir(dir_in) else dir_out2
                 text = format_text_latin(text)
-                with open(os.path.join(dir_out2, filenametxt), "w") as f:
+                with open(output_file, "w") as f:
                     f.write(text)
+
+    if failures:
+        print("Got problem converting those files:")
+        print(" ".join(failures.keys()))
