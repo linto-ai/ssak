@@ -40,6 +40,7 @@ def format_special_characters(text, remove_ligatures=False, format_whitespace=Tr
         ("ô","ô"),
         ("û","û"),
         ("î","î"),
+        ("\x92","'"),
 
         ('…','...'),
         (r"[«“][^\S\r\n]*", '"'),
