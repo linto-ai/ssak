@@ -6,7 +6,7 @@ google-ngram-downloader
 openpyxl
 # proxy_randomizer
 pycurl
-pymupdf
+pymupdf # fitz
 python-slugify
 pytube
 moviepy
