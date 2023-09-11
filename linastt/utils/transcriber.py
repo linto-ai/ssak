@@ -5,6 +5,7 @@ import xmltodict
 
 from linastt.utils.text_basic import collapse_whitespace, transliterate
 
+import random
 
 def read_transcriber(
     trs_file,
@@ -12,6 +13,8 @@ def read_transcriber(
     remove_extra_speech=True,
     do_format_speaker_name=True,
     capitalize=True,
+    replacements=None,
+    verbose=True,
     ):
 
     basename=os.path.basename(trs_file.split('.')[0])
@@ -55,7 +58,19 @@ def read_transcriber(
             for spk in speakers:
                 speaker_id.append(spk["@id"])
                 speaker_gender.append(spk["@type"].lower()) if '@type' in spk else speaker_gender.append("unknown")
-                speaker_name.append(format_speaker_name(spk["@name"], strong=do_format_speaker_name)) if '@name' in spk else speaker_name.append("unknown")
+                spkname = spk["@name"] if '@name' in spk else ""
+                if not spkname and "@id" in spk:
+                    spkname = spk["@id"]
+                if not spkname:
+                    print(f"WARNING: missing speaker name")
+                    spkname = "unknown"
+                else:
+                    spkname = format_speaker_name(spkname, strong=do_format_speaker_name)
+                # Replace question marks by random numbers
+                spkname = re.sub(r"\?", lambda x: "-"+str(random.randint(0,90)), spkname)
+                if spkname.lower() not in ["topito"]: # LINAGORA labeling errors
+                    assert spkname not in speaker_name, f"Speaker name {spkname} already exists"
+                speaker_name.append(spkname)
                 speaker_scope.append(spk["@scope"].lower()) if '@scope' in spk else speaker_scope.append("unknown")
                 # Fix LINAGORA dataset
                 firstname = speaker_name[-1].split("_")[0]
@@ -166,7 +181,7 @@ def read_transcriber(
                         elif len(sync_texts_) not in possible_lens:
                             possible_lens.append(len(sync_texts_))
                     if not found:
-                        if 0 in possible_lens:
+                        if 0 in possible_lens and verbose:
                             print(f"WARNING: skipping empty text with incoherent number of speakers")
                             continue
                         POSSIBLE_LEN_FOR_TWO = [4, 6, 8]
@@ -178,10 +193,17 @@ def read_transcriber(
                                     sync_texts_ = [text1, text2]
                                     break
                         else:
+                            if verbose:
+                                print(f"WARNING: Inconsistent number of speakers ({nbr_spk}) and texts ({possible_lens})")
+                            for sync_texts_ in split_text(sync_texts):
+                                break
+                            if nbr_spk == 1:
+                                sync_texts_[0] = " ".join(sync_texts_)
+                            
                             #print("Number of speakers (%d: %s) does not match number of texts (%d: %s) -> %s -> %s" % (nbr_spk, to_str(' '.join(turn_speaker_ids)), len(sync_texts_), to_str(syncs[k]["#text"]), sync_texts, sync_texts_))
                             #import pdb; pdb.set_trace()
-                            raise RuntimeError("Number of speakers (%d: %s) does not match number of texts (%s: %s) -> %s -> %s" % \
-                                                (nbr_spk, to_str(' '.join(turn_speaker_ids)), possible_lens, to_str(syncs[k]["#text"]), sync_texts, str(list(split_text(sync_texts)))))
+                            # raise RuntimeError("Number of speakers (%d: %s) does not match number of texts (%s: %s) -> %s -> %s" % \
+                            #                     (nbr_spk, to_str(' '.join(turn_speaker_ids)), possible_lens, to_str(syncs[k]["#text"]), sync_texts, str(list(split_text(sync_texts)))))
 
                     sync_texts = sync_texts_
                 
@@ -213,6 +235,10 @@ def read_transcriber(
                         seg_id = spkr_id + "_" + str(basename)
 
                     seg_id = '%s_Section%02d_Topic-%s_Turn-%03d_seg-%07d' % (seg_id,i+1,str(section_topic),j+1,k+num_overlaps)
+
+                    if replacements:
+                        for pattern, replacement in replacements.items():
+                            sync_text = re.sub(r"\b" + pattern + r"\b", replacement, sync_text)
 
                     sync_text = correct_text(sync_text, capitalize=capitalize)
 
@@ -269,8 +295,27 @@ def file_encoding(filename):
     import magic
     blob = open(filename, 'rb').read()
     m = magic.Magic(mime_encoding=True)
-    return m.from_buffer(blob)
+    encoding = m.from_buffer(blob)
+    if encoding in ["unknown-8bit"]:
+        return xml_encoding(filename)
+    return encoding
 
+
+def xml_encoding(infile):
+    with open(infile, 'rb') as f:
+        for header in f:
+            break
+    header = header.decode("utf-8")
+    res = "unknown"
+    if 'encoding="' in header:
+        res = header.split("encoding=\"")[1].split("\"")[0]
+    elif "encoding='" in header:
+        res = header.split("encoding='")[1].split("'")[0]
+    elif "'-//W3C//DTD XHTML 1.0 Strict//EN'" in header:
+        res = "iso-8859-1"
+    else:
+        res = "utf-8"
+    return res
 
 def to_str(s):
     # deprecated
@@ -286,6 +331,8 @@ def format_speaker_name(spk_name, strong=True):
     # Fix LINAGORA
     if spk_name.lower().startswith("locuteur non ident"):
         spk_name = "unknown"
+    if (spk_name.lower().startswith("patrick paysant (") or spk_name.lower().startswith("topito (")) and spk_name.lower().endswith(")"):
+        spk_name = spk_name.split("(")[-1].rstrip(")")
     if strong:
         spk_name = spk_name.lower()
     if "(" in spk_name and spk_name.endswith(")") and not spk_name.startswith("("):
