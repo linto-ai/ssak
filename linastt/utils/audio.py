@@ -19,6 +19,8 @@ from linastt.utils.misc import (
     walk_files,
 )
 
+AUDIO_EXTENSIONS = [".wav", ".mp3", ".flac", ".opus"]
+
 def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True, return_format = 'array', verbose = False):
     """ 
     Load an audio file and return the data.
@@ -172,6 +174,14 @@ def get_audio_duration(path, verbose=False):
         return info.length / info.rate
     return get_audio_total_duration(path, verbose=verbose)[1]
 
+def get_audio_num_channels(path, verbose=False):
+    """ 
+    Return the number of channels in an audio file
+    """
+    assert os.path.isfile(path), f"File not found: {path}"
+    info = sox.get_info(path)[0]
+    return info.channels
+
 def get_max_args():
     return int(run_command("getconf ARG_MAX"))
     
@@ -195,10 +205,19 @@ def get_audio_total_duration(files, max_args=1000, verbose=False):
         total_number+= nb
     return total_number, total_duration
 
-def _sox_duration(files):
+def _sox_duration(files, check_duration=True):
+    # TODO: use soxi -D
     stdout = run_command(["soxi"] + files, False)
     last_break = stdout.rfind("\n")
     last_line = stdout[last_break:] if last_break >= 0 else ""
+    if check_duration:
+        for line in stdout.split("\n"):
+            if line.startswith("Input File"):
+                current_file = line.split(":")[1].strip().strip("'")
+            if line.startswith("Duration"):
+                duration = line.split()[2]
+                if duration == "00:01:33.24":
+                    print("Warning: ", current_file)
     if "Total Duration" in last_line:
         fields = last_line.split()
         duration = time2second(fields[-1])
@@ -206,10 +225,39 @@ def _sox_duration(files):
         return nb, duration
     for line in stdout.split("\n"):
         if line.startswith("Duration"):
-            return 1, time2second(line.split()[2])
+            duration = line.split()[2]
+            return 1, time2second(duration)
     return 0, 0.0
 
 def time2second(duration_str):
     h, m, s = map(float, duration_str.split(":"))
     seconds = h * 3600 + m * 60 + s
     return seconds
+
+def mix_audios(files_in, file_out, method="stereo", ignore_existing=True):
+    """
+    Mix multiple audio files into a single file.
+
+    Parameters
+    ----------
+    files_in: list of str
+        list of input files
+    file_out: str
+        output file
+    method: str
+        'stereo': mix mono files in stereo
+    ignore_existing: bool
+        if True, do not overwrite the output file when it exists
+    """ 
+    assert file_out not in files_in, f"Output file must not be included in input files"
+    if ignore_existing and os.path.isfile(file_out):
+        return
+    for file in files_in:
+        assert os.path.isfile(file), f"File not found: {file}"
+        assert get_audio_num_channels(file) == 1, f"File {file} is not mono"
+    if method == "stereo":
+        ins = " -c 1 ".join(files_in)
+        cmd = f"sox -M -c 1 {ins} {file_out}"
+    else:
+        raise NotImplementedError(f"Method {method} not implemented")
+    run_command(cmd)
