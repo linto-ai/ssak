@@ -150,9 +150,9 @@ if __name__ == "__main__":
                         path = row[ipath]
                         if audio_file and os.path.basename(path) != os.path.basename(audio_file):
                             continue
-                        if (csvwriter is None) if audio_file else path != current_audio_file:
+                        if (csvwriter is None) if audio_file else (path != current_audio_file):
                             x = None
-                            if csvwriter is not None:
+                            if csvwriter is not None and current_audio_file:
                                 if fid_csv_out: fid_csv_out.close()
                                 fid_csv_out = None
                                 transcript = to_linstt_transcription(tmp_csv_out, warn_if_missing_words = args.words)
