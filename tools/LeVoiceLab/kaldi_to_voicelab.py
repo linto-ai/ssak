@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import sys
 import os, shutil
 from tqdm import tqdm
@@ -129,16 +132,17 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Convert kaldi-formatted dataset into the format for LeVoiceLab", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('dir_in', help='input folder', type=str)
     parser.add_argument('dir_out', help='output folder', type=str)
     parser.add_argument('--raw', help='input folder for raw transcription (same as input folder if not specified)', type=str)
-    parser.add_argument('--max', help='Maximum number of audio files', default=10000000000000000000000000000000, type=int)
+    parser.add_argument('--max', help='Maximum number of audio files', default=1e10, type=int)
     parser.add_argument('--license', help='License', default="", type=str)
     parser.add_argument('--description', help='Description', default="", type=str)
     parser.add_argument('--private', help='Whether the db is private', default=False, action="store_true")
     parser.add_argument('--name', help='Corpus name', default=None, type=str)
     parser.add_argument('--ext', help='Audio extension (.wav, .mp3 ...)', default=".wav", type=str)
+    parser.add_argument('--languages', help="Languages spoken in the dataset", default=["fr"], nargs="+")
     parser.add_argument('--version', help='Format version', choices=["0.0.1", "0.0.2"], default="0.0.1", type=str)
     parser.add_argument('--disable_kaldi_checks', help='To disable checking that all ids have all info in the input kaldi files', default=False, action="store_true")
     parser.add_argument('--disable_file_checks', help='To disable checking that input file exists', default=False, action="store_true")
@@ -147,6 +151,10 @@ if __name__ == "__main__":
     parser.add_argument('--no_overlapping', default=False, action="store_true", help="To ensure there is no overlapping between segments")
     parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
     args = parser.parse_args()
+
+    if not args.license and args.private:
+        args.license = "Private"
+    assert args.license, "Please specify a license with --license"
 
     # params used from data processing
     folder = args.dir_in #"/home/jlouradour/projects/VoiceLabData/data_kaldi/TCOF"
@@ -270,6 +278,13 @@ if __name__ == "__main__":
         for line in tqdm(lines):
             line = line.strip().split()
             gender[line[0]] = line[1]
+
+    extra_data = {}
+    if os.path.exists(os.path.join(folder, "extra.csv")):
+        with open(os.path.join(folder, "extra.csv")) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                extra_data[row["utt_id"]] = row
 
 
     output_folder_annots = output_folder + ("/annotation_processed" if HAS_RAW else "/annotation")
@@ -455,7 +470,10 @@ if __name__ == "__main__":
         previous_start = 0
         previous_end = 0
         for utterance in sorted(utt, key = lambda x:float(x['start'])):
-            extra = {"speaker": utterance['speaker']}
+            if args.version >= "0.0.2":
+                extra = {}
+            else:
+                extra = {"speaker": utterance['speaker']}
             if utterance['gender']:
                 extra.update({"gender" : utterance['gender']})
             start = int(utterance['start'] * 1000)
@@ -475,21 +493,28 @@ if __name__ == "__main__":
                         transcriptions_raw[-1]["timestamp_end_milliseconds"] = start
             previous_end = end
             previous_start = start
+            other = {}
+            if utterance['id'] in extra_data:
+                extra_this = extra_data[utterance['id']]
+                for f in "channel", :
+                    if f in extra_this:
+                        other[f] = int(extra_this[f])
             transcriptions.append({
                 "date_created": time2str(now),
                 "transcript": utterance['text'], 
                 "timestamp_start_milliseconds": start,
                 "timestamp_end_milliseconds": end,
+                } | (
+                {
+                    "speaker": utterance['speaker'],
+                } if args.version >= "0.0.2" else {}
+                ) | other | {
                 "extra": extra
             })
             if HAS_RAW:
-                transcriptions_raw.append({
-                    "date_created": time2str(now),
-                    "transcript": utterance['rawtext'], 
-                    "timestamp_start_milliseconds": start,
-                    "timestamp_end_milliseconds": end,
-                    "extra": extra
-                })
+                t_raw = transcriptions[-1].copy()
+                t_raw["transcript"] = utterance['rawtext']
+                transcriptions_raw.append(t_raw)
             total_duration_speech += utterance['duration']
 
         transcript_base = {
@@ -568,36 +593,42 @@ if __name__ == "__main__":
                 "num_audio_files": num_audio_files,
                 "augmented_speech_duration_seconds": 0,
                 "synthetic_speech_duration_seconds": 0,
+            } | (
+            {
+                "languages": args.languages,
+            } if args.version >= "0.0.2" else {}
+            ) | {
                 "extra": extra,
             }
             json_dump(metadata, f)
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
+        metadata = {
+            "date_created": time2str(now),
+            "annotation_date_from": time2str(min_date_annot),
+            "annotation_date_to": time2str(max_date_annot),
+            # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
+            "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
+        } | (
+        {
+            "annotation_type": "transcription",
+            "speaker_information": "uid",
+        } if args.version >= "0.0.2" else {}
+        ) | {
+            "contact": {
+                "organization": "LINAGORA",
+                "name": "Jean-Pierre LORRE",
+                "email": "jplorre@linagora.com",
+                "uri": "https://labs.linagora.com/"
+            },
+            "extra": {
+                "word_alignement": False,
+                "utt_alignement": True,
+                "avg_utt_alignement_duration_second" : sum(durations)/len(durations),
+            }
+        }
         with open(os.path.join(output_folder_annots, "meta.json"), "w") as f:
-            json_dump({
-                "date_created": time2str(now),
-                "annotation_date_from": time2str(min_date_annot),
-                "annotation_date_to": time2str(max_date_annot),
-                # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
-                "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
-            } | (
-            {
-                "annotation_type": "transcription",
-                "contains_speaker_information": False,
-            } if args.version >= "0.0.2" else {}
-            ) | {
-                "contact": {
-                    "organization": "LINAGORA",
-                    "name": "Jean-Pierre LORRE",
-                    "email": "jplorre@linagora.com",
-                    "uri": "https://labs.linagora.com/"
-                },
-                "extra": {
-                    "word_alignement": False,
-                    "utt_alignement": True,
-                    "avg_utt_alignement_duration_second" : sum(durations)/len(durations),
-                }
-            }, f)
+            json_dump(metadata, f)
 
     if HAS_RAW:
         shutil.copy(os.path.join(output_folder_annots, "meta.json"), os.path.join(output_folder_annots_raw, "meta.json"))
