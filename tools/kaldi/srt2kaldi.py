@@ -7,9 +7,10 @@ from linastt.utils.audio import mix_audios, AUDIO_EXTENSIONS
 
 import os
 import csv
-import random
 import re
 from tqdm import tqdm
+from slugify import slugify
+from datetime import datetime
 
 def get_channel_funcgen(prefix="Speaker "):
     def get_channel(speaker):
@@ -54,7 +55,7 @@ def read_srt(filename, split_channel = split_channel_funcgen()):
                         end = parse_timestamp(end)
                     elif n == 2:
                         channel, text = split_channel(line)
-                        text = text
+                        text = format_special_characters(text)
                     else:
                         assert n == 3
                         assert line == ""
@@ -145,7 +146,7 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                     else:
                         spk_metadata[spk][k] = v
 
-    database_name = os.path.basename(output_folder)
+    database_name = slugify(os.path.basename(output_folder))
 
     if new_audio_folder is None:
         new_audio_folder = os.path.join(output_folder, "audio")
@@ -159,6 +160,7 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                 continue
             trs_file = os.path.join(root, filename)
             basename, audios = find_audio_files(audio_files, filename)
+            audios = sorted(audios)
             transcriptions_and_audio[basename] = (trs_file, audios)
     
     speakers_to_genders = {}
@@ -171,10 +173,14 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
         open(output_folder + '/wav.scp', 'w', encoding=encoding) as wavscp_file, \
         open(output_folder + '/utt2spk', 'w', encoding=encoding) as utt2spk_file, \
         open(output_folder + '/utt2dur', 'w', encoding=encoding) as utt2dur_file, \
-        open(output_folder + '/extra.csv', 'w', encoding=encoding) as extra_info_file:
+        open(output_folder + '/extra_utt.csv', 'w', encoding=encoding) as extra_utt_file, \
+        open(output_folder + '/extra_wav.csv', 'w', encoding=encoding) as extra_wav_file:
 
-        extra_info = csv.writer(extra_info_file)
-        extra_info.writerow(["utt_id", "channel"])
+        extra_utt = csv.writer(extra_utt_file)
+        extra_utt.writerow(["id", "channel"])
+
+        extra_wav = csv.writer(extra_wav_file)
+        extra_wav.writerow(["id", "date"])
 
         for basename in tqdm(sorted(transcriptions_and_audio.keys())):
             trs_file, audio_files = transcriptions_and_audio[basename]
@@ -193,7 +199,9 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
             
             wav_id = f"{database_name}_{basename}"
             wavscp_file.write(f"{wav_id} sox {os.path.realpath(audio_file)} -t wav -r 16k -b 16 -c 1 - |\n")
-            
+
+            extra_wav.writerow([wav_id, datetime.fromtimestamp(max([os.path.getmtime(f) for f in audio_files])).isoformat(timespec="seconds")+"+00:00"])
+
             for iturn, turn in enumerate(turns):
                 channel = turn["channel"]
                 text = turn["text"]
@@ -218,16 +226,19 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                 segments_file.write(f"{utt_id} {wav_id} {start:.3f} {end:.3f}\n")
                 utt2spk_file.write(f"{utt_id} {spk_id}\n")
                 utt2dur_file.write(f"{utt_id} {duration}\n")
-                extra_info.writerow([utt_id, channel])
+                extra_utt.writerow([utt_id, channel])
 
     with open(output_folder + '/spk2gender', 'w') as spk2gender_file:
         for speaker, gender in speakers_to_genders.items():
             spk2gender_file.write(f"{speaker} {gender}\n")
 
     if speakers_to_metadata:
-        import json
-        with open(output_folder + '/spk2metadata.json', 'w') as spk2metadata_file:
-            json.dump(speakers_to_metadata, spk2metadata_file, indent=2)
+        with open(output_folder + '/extra_spk.csv', 'w', encoding=encoding) as extra_speaker_file:
+            extra_spk = csv.writer(extra_speaker_file)
+            keys = list(list(speakers_to_metadata.values())[0].keys())
+            extra_spk.writerow(["id"] + keys)
+            for speaker, metadata in speakers_to_metadata.items():
+                extra_spk.writerow([speaker] + [metadata[k] for k in keys])
 
     return check_kaldi_dir(output_folder, language=language)
 
