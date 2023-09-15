@@ -542,7 +542,7 @@ if __name__ == "__main__":
                 transcriptions_raw.append(t_raw)
             total_duration_speech += utterance['duration']
 
-        transcript_base = {
+        transcript_base = ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
             "format_specification_uri" : f"http://levoicelab.org/schemas/{args.version}/annotation-single.schema.transcription.json",
         }
         if not os.path.isfile(os.path.join(output_folder_annots, out_name+".annotations.json")):
@@ -556,7 +556,7 @@ if __name__ == "__main__":
         if not os.path.isfile(os.path.join(output_folder, out_name+".meta.json")):
             duration = get_audio_duration(_out_wav)
             with open(os.path.join(output_folder, out_name+".meta.json"), "w") as f:
-                json_dump({
+                json_dump(( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
                     "format_specification_uri" : f"http://levoicelab.org/schemas/{args.version}/audio-format.schema.json",
                     "duration_milliseconds": int(duration * 1000),
                     "is_natural": True, 
@@ -596,6 +596,7 @@ if __name__ == "__main__":
                 "date_created": time2str(now),
                 "collection_date_from": time2str(min_date),
                 "collection_date_to": time2str(max_date),
+                } | ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
                 # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
                 "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/main-db.schema.json",
                 "num_channels": channels,
@@ -628,12 +629,12 @@ if __name__ == "__main__":
             json_dump(metadata, f)
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
-        metadata = {
+        metadata = ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
+            "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
+            # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
             "date_created": time2str(now),
             "annotation_date_from": time2str(min_date_annot),
             "annotation_date_to": time2str(max_date_annot),
-            # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
-            "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
         } | (
         {
             "annotation_type": "transcription",
