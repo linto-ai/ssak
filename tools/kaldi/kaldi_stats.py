@@ -7,9 +7,10 @@ import warnings
 
 from linastt.utils.misc import commonprefix
 from linastt.utils.kaldi import parse_kaldi_wavscp
-from linastt.utils.audio import get_audio_duration
 
 UNK = "_"
+
+ALL_WAVS = set()
 
 def get_utt2dur_duration(
     utt2dur_file,
@@ -52,10 +53,16 @@ def get_utt2dur_duration(
     wavscp = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "wav.scp")
     segments = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "segments")
     if os.path.isfile(wavscp):
+        wav = parse_kaldi_wavscp(wavscp)
         with open(wavscp, 'r') as f:
-            number_wav = len([l for l in f.readlines() if l.strip()])
+            number_wav = len(wav.values())
+            if number_wav != len(set(wav.values())):
+                warnings.warn(f"Duplicate entries in {wavscp}")
+            global ALL_WAVS
+            ALL_WAVS = ALL_WAVS.union(set([os.path.splitext(os.path.basename(path))[0] for path in wav.values()]))
         if check_wav_duration:
-            wav = parse_kaldi_wavscp(wavscp)
+            from linastt.utils.audio import get_audio_duration
+            
             if not os.path.isfile(segments):
                 duration_wav = total_duration
             else:
@@ -138,6 +145,9 @@ def print_stats(stats):
         print(fstring.format(**dict((k, "-"*max_len[k]) for k in keys)))
         s = {k: to_string(v, use_common_root=False) for k, v in total_stats.items()}
         print(fstring.format(**s))
+
+    if len(ALL_WAVS):
+        print(f"Found {len(ALL_WAVS)} different wav files")
 
 def accu_stats(stats, default="TOTAL"):
     assert len(stats) > 0, "No stats to print."
