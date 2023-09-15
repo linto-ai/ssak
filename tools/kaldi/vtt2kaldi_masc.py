@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import random
-from linastt.utils.kaldi import check_kaldi_dir
-from linastt.utils.text import format_special_characters
-
 
 import os
 import csv
@@ -29,7 +26,8 @@ def time_to_seconds(time_str):
     return total_seconds
 
 
-def vtt2kaldi(transcription_folder, audio_folder, output_folder, extension=['wav','mp3','ogg','flac'], meta_data_folder=None, ignore_missing_gender=False):
+def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folder=None, ignore_missing_gender=False):
+    extension=['wav','mp3','ogg','flac']
     dataset_splits = ['clean_dev', 'clean_test', 'clean_train', 'noisy_dev', 'noisy_test', 'noisy_train']
     
     for folder in [audio_folder,transcription_folder]:
@@ -66,7 +64,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, extension=['wav
                         for row in csv_reader:
                             if row['dialect'] == dialect:
                                 wav_id = row["video_id"]
-                                audio_path = os.path.join(audio_folder, f"{wav_id}.wav")
+                                audio_path = os.path.realpath(os.path.join(audio_folder, f"{wav_id}.wav"))
                                 wav_scp_f.write(f"{wav_id} sox {audio_path}  -t wav -r 16k -b 16 -c 1 - |\n")
                             
                                 transcription_file = None
@@ -88,7 +86,6 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, extension=['wav
                                     duration = end - start
 
                                     text = caption.text
-                                    text = format_special_characters(text)
 
                                     if text and duration > 0:
                                         text_f.write(f"{utt_id} {text}\n")
@@ -124,9 +121,9 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, extension=['wav
                     if ex not in extension:
                         warnings.warn(f"Ignoring {audio_file} because it is not in the expected format (no extension of those {extension}).", UserWarning)
                         continue
-                    
-                    audio_path = os.path.join(audio_folder, audio_file)
+                   
                     wav_id = os.path.splitext(audio_file)[0]
+                    audio_path = os.path.realpath(os.path.join(audio_folder, audio_file))
 
                     transcription_file = None
                     for filename in os.listdir(transcription_folder):
@@ -140,14 +137,13 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, extension=['wav
                     wav_scp_f.write(f"{wav_id} sox {audio_path}  -t wav -r 16k -b 16 -c 1 - |\n")
                     for _id, caption in enumerate(webvtt.read(transcription_folder + f'/{transcription_file}')):
                         
-                        utt_id = f"MASC_{wav_id}-seg{_id:04d}"
+                        utt_id = f"{wav_id}-seg{_id:04d}"
                         
-                        start = float(caption.start.strip().split(':')[-1])
-                        end = float(caption.end.strip().split(':')[-1])
-                        duration = end - start
+                        start = time_to_seconds(caption.start)
+                        end = time_to_seconds(caption.end)
+                        duration = round(end - start ,3)
 
                         text = caption.text
-                        text = format_special_characters(text)
                         if text and duration > 0:
                             text_f.write(f"{utt_id} {text}\n")
                             segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")

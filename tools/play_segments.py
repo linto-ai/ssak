@@ -79,10 +79,10 @@ def play_segments(
             if x not in additional_commands.keys() and not isinstance(x, (float,int)):
                 # Regular play
                 if wordlevel:
-                    print(f"== segment {i+1}/{len(transcript['segments'])}, {name} {iw+1}/{len(segment['words'])}")
+                    print(f"== segment {i+1}/{len(transcript['segments'])}, {name} {iw+1}/{len(segment['words'])} : {start}-{end}")
                 else:
-                    print(f"== segment {i+1}/{len(transcript['segments'])}")
-                print(f'{txt} : {start}-{end}')
+                    print(f"== segment {i+1}/{len(transcript['segments'])} : {start}-{end}")
+                print(txt)
                 
                 x = play_audiofile(audio_file, start, end, additional_commands = additional_commands)
 
