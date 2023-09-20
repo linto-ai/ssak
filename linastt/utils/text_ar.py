@@ -81,7 +81,7 @@ def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
 
 
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=False, bw=False):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
     input_line = line
     try:
         line = remove_url(line)

@@ -105,6 +105,8 @@ def compute_metrics(pred):
             print(f"WARNING: empty string in prediction: {label_str[i]}")
         # Discard empty strings
         normed_label_str, normed_pred_str = zip(*[(l,p) for l,p in zip(normed_label_str, normed_pred_str) if l])
+        normed_label_str = list(normed_label_str)
+        normed_pred_str = list(normed_pred_str)
         if not len(normed_label_str):
             raise RuntimeError("All labels are empty strings (afer normalization)")
     
