@@ -8,6 +8,7 @@ from linastt.utils.env import * # handle option --gpus (and set environment vari
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
+from linastt.utils.misc import remove_commonprefix
 
 import jiwer
 import logging
@@ -93,10 +94,21 @@ def compute_metrics(pred):
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-    pred_str = [format_text(pred, language) for pred in pred_str]
-    label_str = [format_text(label, language) for label in label_str]
+    normed_pred_str = [format_text(pred, language) for pred in pred_str]
+    normed_label_str = [format_text(label, language) for label in label_str]
+
+    if "" in normed_label_str:
+        if "" in label_str:
+            print(f"WARNING: empty string in prediction")
+        else:
+            i = normed_label_str.index("")
+            print(f"WARNING: empty string in prediction: {label_str[i]}")
+        # Discard empty strings
+        normed_label_str, normed_pred_str = zip(*[(l,p) for l,p in zip(normed_label_str, normed_pred_str) if l])
+        if not len(normed_label_str):
+            raise RuntimeError("All labels are empty strings (afer normalization)")
     
-    wer = 100 * jiwer.wer(label_str, pred_str)
+    wer = 100 * jiwer.wer(normed_label_str, normed_pred_str)
     return {"wer": wer}
 
 class SavePeftModelCallback(TrainerCallback):
@@ -118,18 +130,56 @@ class SavePeftModelCallback(TrainerCallback):
         return control
 
 
-def args_to_str(args, ignore = ["data_augment_rir", "data_augment_noise", "train", "valid","output_dir", "overwrite_output_dir"]):
+def args_to_str(args, ignore = [
+        # Taken into account somewhere else
+        "train",
+        "valid",
+        # Too much...
+        "data_augment_rir",
+        "data_augment_noise",
+        # Should not have an influence on the result
+        "output_dir",
+        "overwrite_output_dir",
+        "disable_first_eval",
+        "gpus",
+        "online", "offline", "offline_dev",
+        ]):
     if not isinstance(args, dict):
         args = args.__dict__
 
     s = "_".join(("{}-{}".format("".join([a[0] for a in k.replace("-","_").split("_")]),
             {True: 1, False: 0}.get(v, str(v).replace("/","_"))
-        )) for k,v in args.items()
+        )) for k,v in sorted(args.items())
         if k not in ignore
     )
     while "__" in s:
         s = s.replace("__","_")
     return s
+
+def dataset_pseudos(trainset, validset):
+    train_folders = sorted(trainset.split(","))
+    valid_folders = sorted(validset.split(","))
+    all_folders = train_folders + valid_folders
+    all_folders = remove_commonprefix(all_folders, "/")
+    train_folders = all_folders[:len(train_folders)]
+    valid_folders = all_folders[len(train_folders):]
+    def base_folder(f):
+        f = f.split("/")[0].split("\\")[0]
+        if len(f.split("-")) > 1:
+            f = "".join([s[0] for s in f.split("-")])
+        return f
+    train_base_folders = set(base_folder(f) for f in train_folders)
+    valid_base_folders = set(base_folder(f) for f in valid_folders)
+    train_folders = sorted(list(set([
+        base_folder(f.replace("/","_")) if base_folder(f) in valid_base_folders else base_folder(f)
+        for f in train_folders
+    ])))
+    valid_folders = sorted(list(set([
+        base_folder(f.replace("/","_")) if base_folder(f) in train_base_folders else base_folder(f)
+        for f in valid_folders
+    ])))
+    return "t-"+"-".join(train_folders), "v-"+"-".join(valid_folders)
+    
 
 # Main()
 if __name__ == "__main__":
@@ -140,15 +190,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
     parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
-    parser.add_argument('--max_duration', help="maximum signal length", default=30, type=int)
-    parser.add_argument('--min_duration', help="minimum signal length", default=1, type=int)
+    parser.add_argument('--max_duration', help="maximum signal length for training data", default=30, type=int)
+    parser.add_argument('--min_duration', help="minimum signal length for training data", default=0.1, type=int)
     parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
     parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
     parser.add_argument('--lang', help='Language to tune',default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
-    parser.add_argument('--online', help="load and process audio files on the fly", default=False, action="store_true")
+    parser.add_argument('--offline', help="do not load and process training audio files on the fly (precompute all MFCC)", default=False, action="store_true")
+    parser.add_argument('--offline_dev', help="do not load and process validation audio files on the fly (precompute all MFCC)", default=False, action="store_true")
     # Data augmentation
     parser.add_argument('--data_augmentation', help='To use data augmentation on audio', default=False, action = "store_true")
     parser.add_argument('--text_augmentation', help='To use data augmentation on text', default=False, action = "store_true")
@@ -205,16 +256,16 @@ if __name__ == "__main__":
     use_gpu = len(gpus) > 0
     USE_MIXED_PRECISION = False # use_gpu
     USE_MIXED_PRECISION_CPU = False # Too many problems
-    args.online = (args.online or args.data_augmentation or args.text_augmentation)
-    online_dev = False
+    args.online = (not args.offline or args.data_augmentation or args.text_augmentation)
+    online_dev = not args.offline_dev
     
     base_model = args.base_model
     task = args.task
     data_augmentation = args.data_augmentation
 
-    prefix = f'{args.output_dir}/t-{os.path.basename(args.train.rstrip("/"))}_v-{os.path.basename(args.valid.rstrip("/"))}_'
-    output_folder = f"{prefix}{args_to_str(args)}"
-    output_untrained_folder = f"{prefix}{args_to_str({'base_model': args.base_model})}"
+    train_pseudo, valid_pseudo = dataset_pseudos(args.train, args.valid)
+    output_folder = f"{args.output_dir}/{train_pseudo}_{valid_pseudo}_{args_to_str(args)}"
+    output_untrained_folder = f"{args.output_dir}/{valid_pseudo}_{args_to_str({'base_model': args.base_model})}"
     
     # Detecting last checkpoint.
     resume_from_checkpoint = None
@@ -269,8 +320,8 @@ if __name__ == "__main__":
         online = online_dev,
         max_data = (2 * args.batch_size) if args.debug else None,
         choose_data_with_max_duration = args.debug,
-        min_duration = args.min_duration,
-        max_duration = args.max_duration,
+        # min_duration = args.min_duration,
+        # max_duration = args.max_duration,
         max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
