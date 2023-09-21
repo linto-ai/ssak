@@ -89,7 +89,7 @@ def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 
             assert i in indices, "Got index %d but only %d GPUs available" % (i, indices)
         indices = index
     for igpu in indices:
-        handle = pynvml.nvmlDeviceGetHandleByIndex(igpu)
+        handle = _get_gpu_handle(igpu)
         info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         gpuname = pynvml.nvmlDeviceGetName(handle)
         # use = pynvml.nvmlDeviceGetUtilizationRates(handle) # This info does not seem to be reliable
@@ -107,13 +107,20 @@ def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 
     return summemused
 
 def gpu_total_memory(index = 0):
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(index)
+    handle = _get_gpu_handle(index)
     info = pynvml.nvmlDeviceGetMemoryInfo(handle)
     return info.total // 1024**2
 
 def gpu_free_memory(index = 0):
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(index)
+    handle = _get_gpu_handle(index)
     info = pynvml.nvmlDeviceGetMemoryInfo(handle)
     return info.free // 1024**2
+
+def _get_gpu_handle(index = 0):
+    if not has_gpu():
+        raise RuntimeError(f"No GPU available")
+    pynvml.nvmlInit()
+    try:
+        return pynvml.nvmlDeviceGetHandleByIndex(index) 
+    except:
+        raise RuntimeError(f"Could not access GPU at index {index}")
