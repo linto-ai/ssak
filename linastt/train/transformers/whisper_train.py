@@ -14,8 +14,6 @@ import jiwer
 import logging
 import json
 
-from datasets import DatasetDict, Dataset, concatenate_datasets
-
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR , get_last_checkpoint
 
 import transformers
@@ -39,20 +37,6 @@ from typing import Any, Dict, List, Union
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
 logger = logging.getLogger(__name__)
-
-def move_model_to_device(model, device):
-    if not isinstance(device, torch.device):
-        raise ValueError("device must be of type torch.device.")
-
-    # # unwrap model
-    # # if isinstance(model, torch.nn.DataParallel):
-    # model = (
-    #     model.module if hasattr(model, "module") else model
-    # )  # Take care of distributed/parallel training
-
-    # move to device
-    return model.to(device)
-
 
 # data Collator
 @dataclass
@@ -306,7 +290,7 @@ if __name__ == "__main__":
     
     data_train = args.train
     data_val = args.valid
-    trainsetmeta, trainset = kaldi_folder_to_dataset(
+    trainsetmeta, train_dataset = kaldi_folder_to_dataset(
         data_train,
         shuffle = True,
         online = args.online,
@@ -317,7 +301,7 @@ if __name__ == "__main__":
         max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
-    testsetmeta, testset = kaldi_folder_to_dataset(
+    testsetmeta, eval_dataset = kaldi_folder_to_dataset(
         data_val,
         shuffle = False,
         online = online_dev,
@@ -328,7 +312,7 @@ if __name__ == "__main__":
         max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
-    trainset = trainset.shuffle(seed = SEED)
+    train_dataset = train_dataset.shuffle(seed = SEED)
 
     trainset_len = trainsetmeta["samples"]
     testset_len = testsetmeta["samples"]
@@ -409,15 +393,10 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError(f"Text augmentation is not implemented for language {language}")
         
-    trainset = process_dataset(processor, trainset, data_augmenter = data_augmenter, text_augmenter = text_augmenter, batch_size = BATCH_SIZE, logstream = readme)
-    testset = process_dataset(processor, testset, batch_size = BATCH_SIZE_EVAL, logstream = readme)
+    train_dataset = process_dataset(processor, train_dataset, data_augmenter = data_augmenter, text_augmenter = text_augmenter, batch_size = BATCH_SIZE, logstream = readme)
+    eval_dataset = process_dataset(processor, eval_dataset, batch_size = BATCH_SIZE_EVAL, logstream = readme)
     if readme is not None:
         readme.flush()
-
-    dataset = DatasetDict({'train': trainset, 'val': testset})
-    # Check if the dataset is empty
-    if len(dataset) == 0:
-        raise RuntimeError("Empty dataset.")
           
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
         
@@ -464,10 +443,10 @@ if __name__ == "__main__":
        
     gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
     gpu_usage("START", stream = gpu_log)
-    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
+    
     if use_gpu:
         # Set the device to run on (GPU if available, otherwise CPU)
-        model = move_model_to_device(model, device) # torch.device(type='cuda', index=gpus[0]).
+        model = model.to(torch.device("cuda"))
         mem = gpu_usage("Model loaded", stream = gpu_log)
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
@@ -511,8 +490,8 @@ if __name__ == "__main__":
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["val"],
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
         compute_metrics = compute_metrics, 
