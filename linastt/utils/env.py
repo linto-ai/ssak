@@ -15,9 +15,9 @@ def _set_visible_gpus(s):
     os.environ["CUDA_VISIBLE_DEVICES"] = s
 
 for i, arg in enumerate(sys.argv[1:]):
-    if arg == "--gpus":
+    if arg in ["--gpus", "--gpu"]:
         _set_visible_gpus(sys.argv[i+2])
-    elif arg.startswith("--gpus="):
+    elif arg.startswith("--gpus=") or arg.startswith("--gpu="):
         _set_visible_gpus(arg.split("=")[-1])
 
 # So that index of GPU is the same everywhere
