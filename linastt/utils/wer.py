@@ -27,6 +27,7 @@ def compute_wer(refs, preds,
                 use_ids=False,
                 normalization=None,
                 character_level=False,
+                use_percents=False,
                 debug=False,
                 ):
     """
@@ -121,11 +122,13 @@ def compute_wer(refs, preds,
     hits_score -= hits_bias
     count = hits_score + del_score + sub_score
 
+    scale = 100 if use_percents else 1
+
     if count == 0: # This can happen if all references are empty
         return {
-            'wer': 1 if ins_score else 0,
+            'wer': scale if ins_score else 0,
             'del': 0,
-            'ins': 1 if ins_score else 0,
+            'ins': scale if ins_score else 0,
             'sub': 0,
             'count': 0,
         }
@@ -134,10 +137,10 @@ def compute_wer(refs, preds,
     # wer_score = measures['wer']
 
     return {
-        'wer': wer_score,
-        'del': (float(del_score) / count),
-        'ins': (float(ins_score) / count),
-        'sub': (float(sub_score) / count),
+        'wer': wer_score * scale,
+        'del': (float(del_score) * scale/ count),
+        'ins': (float(ins_score) * scale/ count),
+        'sub': (float(sub_score) * scale/ count),
         'count': count,
     }
 
