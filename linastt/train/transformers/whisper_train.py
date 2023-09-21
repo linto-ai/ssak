@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # hyparams :
     parser.add_argument('--batch_size', help='Batch size', default=8, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size for validation (by default same as for training)', default=None, type=int)
-    parser.add_argument('--learning_rate', help='Learning rate', default=1e-03, type=float)
+    parser.add_argument('--learning_rate', help='Learning rate', default=1e-05, type=float)
     parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps', default=16, type=int)
     parser.add_argument('--num_epochs', help='Num of Epochs', default=3, type=int)
     parser.add_argument('--weight_decay', help='weight decay', default=0.01, type=float)
