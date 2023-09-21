@@ -111,12 +111,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('train', help="A kaldi folder, or a file containing a list of kaldi folders, with training data")
     parser.add_argument('valid', help="A kaldi folder, or a file containing a list of kaldi folders, with validation data")
-    parser.add_argument('--max_duration', help="maximum signal length for training data", default=30, type=int)
-    parser.add_argument('--min_duration', help="minimum signal length for training data", default=0.1, type=int)
-    parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
-    parser.add_argument('--base_model', help='Whisper model to tune',default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
-    parser.add_argument('--lang', help='Language to tune',default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
-    parser.add_argument('--task', help='Task to tune',default="transcribe", type=str)
+    parser.add_argument('--base_model', help='Whisper model to tune', default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
+    parser.add_argument('--lang', help='Language to tune', default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
+    parser.add_argument('--task', help='Task to tune', default="transcribe", type=str)
     parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--offline', help="do not load and process training audio files on the fly (precompute all MFCC)", default=False, action="store_true")
@@ -133,37 +130,39 @@ if __name__ == "__main__":
     # hyparams :
     parser.add_argument('--batch_size', help='Batch size', default=8, type=int)
     parser.add_argument('--batch_size_eval', help='Batch size for validation (by default same as for training)', default=None, type=int)
-    parser.add_argument('--learning_rate', help='Learning rate',default=1e-03, type=float)
-    parser.add_argument('--seed', help='seed',default=42, type=int)
-    parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps',default=16, type=int)
-    parser.add_argument('--num_epochs', help='Num of Epochs',default=3, type=int)
-    parser.add_argument('--eval_steps', help="Validation and checkpoint model every n steps (advised: 400)", default=None, type=int)
-    parser.add_argument('--max_text_length', help='text max length of each sentence in label',default=448, type=int)
-    parser.add_argument('--weight_decay', help='weight decay',default=0.01, type=float)
-    parser.add_argument('--overwrite_output_dir', help='overwrite outpu dir',default=False, action = "store_true")
-    parser.add_argument('--disable_first_eval', help="to disable the evaluation of the init model", default=False, action="store_true")
-    # parser.add_argument('--warmup_steps', help='warmup steps',default=500, type=int)
-    parser.add_argument('--output_dir', help='Output trained model', default="./Model")
+    parser.add_argument('--learning_rate', help='Learning rate', default=1e-03, type=float)
+    parser.add_argument('--gradient_accumulation_steps', help='Gradient accumulation steps', default=16, type=int)
+    parser.add_argument('--num_epochs', help='Num of Epochs', default=3, type=int)
+    parser.add_argument('--weight_decay', help='weight decay', default=0.01, type=float)
+    parser.add_argument('--warmup_steps', help='warmup steps (by default 1%% of total number of steps)', default=None, type=int)
+    parser.add_argument('--seed', help='seed', default=42, type=int)
+
+    parser.add_argument('--max_duration', help="maximum signal length for training data", default=30, type=int)
+    parser.add_argument('--min_duration', help="minimum signal length for training data", default=0.1, type=int)
+    parser.add_argument('--max_text_length', help='maximum number of tokens for each target string', default=448, type=int)
+
+    parser.add_argument('--eval_steps', help="Validation and checkpoint model every n steps (advised: 400, default: full epoch)", default=None, type=int)
+    parser.add_argument('--overwrite_output_dir', help='overwrite output folder', default=False, action = "store_true")
+    parser.add_argument('--disable_first_eval', help="to disable the evaluation of the initial model", default=False, action="store_true")
+    parser.add_argument('-o', '--output_dir', help='Parent folder for the output folder', default=".")
+    parser.add_argument('--debug', help="to perform small experiment, check if things are running", default=False, action="store_true")
+
     args = parser.parse_args()
     
-
     if not args.batch_size_eval:
         args.batch_size_eval = args.batch_size
     
     # HyperParams 
-    SAMPLE_RATE = 16000
     BATCH_SIZE = args.batch_size
     BATCH_SIZE_EVAL = args.batch_size_eval
     WEIGHT_DECAY= args.weight_decay
     GRADIENT_ACCUMULATION_STEPS=args.gradient_accumulation_steps
     LR = args.learning_rate
     NUM_EPOCH = args.num_epochs
-    AUDIO_MAX_LENGTH = 480000
     MAX_TEXT_LENGTH = args.max_text_length
     PEFT = args.use_peft
     SEED = args.seed
-    warmup_ratio = 0.1
-    # warmup_steps = args.warmup_steps
+    WARMUP_STEPS = args.warmup_steps
     
     USE_MIXED_PRECISION = False # use_gpu()
     USE_MIXED_PRECISION_CPU = False # Too many problems
@@ -187,6 +186,7 @@ if __name__ == "__main__":
         "disable_first_eval",
         "gpus",
         "batch_size_eval",
+        "eval_steps",
         "online", "offline", "offline_dev",
     ])
     train_pseudo, valid_pseudo = dataset_pseudos(args.train, args.valid)
@@ -227,10 +227,8 @@ if __name__ == "__main__":
 
     tokenizer_func = lambda x: processor.tokenizer(x).input_ids
     
-    data_train = args.train
-    data_val = args.valid
     trainsetmeta, train_dataset = kaldi_folder_to_dataset(
-        data_train,
+        args.train,
         shuffle = True,
         online = args.online,
         max_data = (2 * args.batch_size) if args.debug else None,
@@ -241,7 +239,7 @@ if __name__ == "__main__":
         logstream = readme,
     )
     testsetmeta, eval_dataset = kaldi_folder_to_dataset(
-        data_val,
+        args.valid,
         shuffle = False,
         online = online_dev,
         max_data = (2 * args.batch_size) if args.debug else None,
@@ -261,7 +259,8 @@ if __name__ == "__main__":
         eval_steps = args.eval_steps
     else:
         eval_steps = round(max_steps / NUM_EPOCH)
-    warmup_steps = round(max_steps * warmup_ratio)
+    if WARMUP_STEPS is None:
+        WARMUP_STEPS = round(max_steps * 0.01)
 
     trainsetmeta = ", ".join("{} {}".format(v,k) for k,v in trainsetmeta.items())
     testsetmeta = ", ".join("{} {}".format(v,k) for k,v in testsetmeta.items())
@@ -407,10 +406,10 @@ if __name__ == "__main__":
         per_device_eval_batch_size=BATCH_SIZE_EVAL,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=LR,
-        optim="adamw_torch",
+        optim="adamw_torch", # good?
         weight_decay=WEIGHT_DECAY,
-        warmup_steps=warmup_steps,
-        lr_scheduler_type="linear",
+        warmup_steps=WARMUP_STEPS,
+        lr_scheduler_type="linear", # good?
         predict_with_generate=True,
         fp16 = use_gpu(),
         generation_max_length=MAX_TEXT_LENGTH,
