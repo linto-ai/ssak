@@ -11,8 +11,8 @@ from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, to
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
 from linastt.utils.misc import remove_commonprefix
+from linastt.utils.wer import compute_wer
 
-import jiwer
 import logging
 import json
 
@@ -69,7 +69,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 # WER Computer    
-def compute_metrics(pred):
+def compute_metrics(pred, language):
     pred_ids = pred.predictions
     label_ids = pred.label_ids
 
@@ -80,24 +80,7 @@ def compute_metrics(pred):
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
     label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-    normed_pred_str = [format_text(pred, language) for pred in pred_str]
-    normed_label_str = [format_text(label, language) for label in label_str]
-
-    if "" in normed_label_str:
-        if "" in label_str:
-            print(f"WARNING: empty string in prediction")
-        else:
-            i = normed_label_str.index("")
-            print(f"WARNING: empty string in prediction: {label_str[i]}")
-        # Discard empty strings
-        normed_label_str, normed_pred_str = zip(*[(l,p) for l,p in zip(normed_label_str, normed_pred_str) if l])
-        normed_label_str = list(normed_label_str)
-        normed_pred_str = list(normed_pred_str)
-        if not len(normed_label_str):
-            raise RuntimeError("All labels are empty strings (afer normalization)")
-    
-    wer = 100 * jiwer.wer(normed_label_str, normed_pred_str)
-    return {"wer": wer}
+    return compute_wer(label_str, pred_str, normalization=language, use_percents=True)
 
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
@@ -484,7 +467,7 @@ if __name__ == "__main__":
         eval_dataset=eval_dataset,
         data_collator=data_collator,
         tokenizer=processor.feature_extractor,
-        compute_metrics = compute_metrics, 
+        compute_metrics = lambda x: compute_metrics(x, language),
         callbacks=[transformers.EarlyStoppingCallback(early_stopping_patience= 15)] + ([SavePeftModelCallback] if PEFT else []),
     )
     model.config.use_cache = False 
