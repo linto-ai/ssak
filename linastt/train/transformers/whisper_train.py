@@ -249,7 +249,6 @@ if __name__ == "__main__":
         max_text_length = (tokenizer_func, MAX_TEXT_LENGTH),
         logstream = readme,
     )
-    train_dataset = train_dataset.shuffle(seed = SEED)
 
     trainset_len = trainsetmeta["samples"]
     testset_len = testsetmeta["samples"]
