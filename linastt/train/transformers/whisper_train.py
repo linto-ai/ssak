@@ -144,6 +144,7 @@ def args_to_str(args, ignore = [
         "overwrite_output_dir",
         "disable_first_eval",
         "gpus",
+        "batch_size_eval",
         "online", "offline", "offline_dev",
         ]):
     if not isinstance(args, dict):
@@ -523,6 +524,7 @@ if __name__ == "__main__":
     if not args.disable_first_eval:
         init_results = output_folder + "/init_eval.json"
         if not os.path.isfile(init_results):
+            print(f"Evaluating model in folder: {output_untrained_folder}")
             init_results0 = output_untrained_folder + "/init_eval.json"
             if not os.path.exists(init_results0):
                 print("Evaluating initial model", init_results0)
@@ -537,6 +539,7 @@ if __name__ == "__main__":
 
     # training
     tic()
+    print(f"Training model in folder: {output_folder}")
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     toc("Training", stream = readme)
     
