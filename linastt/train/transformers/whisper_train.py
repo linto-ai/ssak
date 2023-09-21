@@ -400,7 +400,7 @@ if __name__ == "__main__":
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
             load_in_8bit=True,
-            device_map="auto", 
+            device_map="auto" if use_gpu() else None, 
             quantization_config=quantization_config
             ) 
         
