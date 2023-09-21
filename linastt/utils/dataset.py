@@ -42,6 +42,7 @@ def kaldi_folder_to_dataset(
     verbose = True,
     logstream = None,
     do_cache = True,
+    seed = 69,
     ):
     """
     Take a kaldi folder and returns a tuple (metadata dict, dataset)
@@ -86,6 +87,8 @@ def kaldi_folder_to_dataset(
         Stream to print some logs to
     do_cache : bool
         Internal. Do not use
+    seed : int
+        Seed for random shuffling
     
     Returns
     -------
@@ -144,7 +147,7 @@ def kaldi_folder_to_dataset(
 
         dataset = datasets.concatenate_datasets([d[1] for d in ds])
         if do_cache:
-            dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = use_csv)
+            dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, verbose=verbose, logstream=logstream, return_csv=use_csv)
 
         meta = {
             "samples": sum([d[0]["samples"] for d in ds]),
@@ -235,9 +238,9 @@ def kaldi_folder_to_dataset(
             print(f"WARNING: filtered out {num_annots - len(annots)}/{num_annots} utterances with text longer than {max_text_length}.")
 
     if not choose_data_with_max_duration and max_data and max_data < len(uttids):
-        random.seed(69)
+        random.seed(seed)
         random.shuffle(uttids)
-        random.seed(69)
+        random.seed(seed)
         random.shuffle(annots)
         uttids = uttids[:max_data]
         annots = annots[:max_data]
@@ -387,7 +390,7 @@ def kaldi_folder_to_dataset(
     )
 
     if do_cache:
-        dataset = make_cachable(dataset, online = online, shuffle = shuffle, verbose = verbose, logstream = logstream, return_csv = use_csv)
+        dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, verbose=verbose, logstream=logstream, return_csv=use_csv)
 
     meta = {
         "samples": len(uttids),
@@ -413,7 +416,7 @@ def kaldi_folder_to_dataset(
 
     return meta, dataset
 
-def make_cachable(dataset, online = False, shuffle = False, return_csv = False, verbose = True, logstream = None):
+def make_cachable(dataset, online=False, shuffle=False, seed=69, return_csv=False, verbose=True, logstream=None):
     # - cachable
     # - online streaming
     if len(set(dataset["ID"])) < len(dataset["ID"]):
@@ -430,7 +433,7 @@ def make_cachable(dataset, online = False, shuffle = False, return_csv = False, 
     if shuffle:
         if verbose:
             print("Shuffling dataset")
-        dataset = dataset.shuffle(69)
+        dataset = dataset.shuffle(seed)
     cache_file_dir = os.path.join(datasets.config.HF_DATASETS_CACHE, "mydataset", dataset._fingerprint)
     if not os.path.isdir(cache_file_dir):
         os.makedirs(cache_file_dir)
