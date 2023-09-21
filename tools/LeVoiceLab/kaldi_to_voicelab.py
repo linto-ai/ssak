@@ -524,8 +524,9 @@ if __name__ == "__main__":
                     assert f in extra_this, f"Missing field {f} in extra_utt.csv"
                     if f in extra_this:
                         other[f] = int(extra_this[f])
-            transcriptions.append({
-                "date_created": time2str(now),
+            transcriptions.append(({
+                "date_created": time2str(now) # Overkill, in first version
+            } if args.version == "0.0.1" else {}) | {
                 "transcript": utterance['text'], 
                 "timestamp_start_milliseconds": start,
                 "timestamp_end_milliseconds": end,
