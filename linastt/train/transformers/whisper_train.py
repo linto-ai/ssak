@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import datetime
 import shutil
+
+from linastt.utils.env import use_gpu # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.text import format_text
-from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
@@ -230,18 +232,8 @@ if __name__ == "__main__":
     SEED = args.seed
     warmup_ratio = 0.1
     # warmup_steps = args.warmup_steps
-    if not args.gpus:
-        args.gpus = ",".join([str(i) for i in range(get_num_gpus())])
-
-    # GPU with the most of memory first
-    gpus = list(reversed(sorted(
-        [int(i) for i in args.gpus.split(",") if i and int(i) >= 0],
-        key = gpu_free_memory
-    )))
-    print("Using gpus:", gpus)
     
-    use_gpu = len(gpus) > 0
-    USE_MIXED_PRECISION = False # use_gpu
+    USE_MIXED_PRECISION = False # use_gpu()
     USE_MIXED_PRECISION_CPU = False # Too many problems
     args.online = (not args.offline or args.data_augmentation or args.text_augmentation)
     online_dev = not args.offline_dev
@@ -324,8 +316,6 @@ if __name__ == "__main__":
         eval_steps = round(max_steps / NUM_EPOCH)
     warmup_steps = round(max_steps * warmup_ratio)
 
-    num_devices = len(gpus) or 1
-    
     trainsetmeta = ", ".join("{} {}".format(v,k) for k,v in trainsetmeta.items())
     testsetmeta = ", ".join("{} {}".format(v,k) for k,v in testsetmeta.items())
     print("Training set:", trainsetmeta)
@@ -441,10 +431,10 @@ if __name__ == "__main__":
     model.config.suppress_tokens = []
     model.train(True)
        
-    gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
+    gpu_log = open(os.path.join(output_folder, "gpu_log.txt"), "a") if use_gpu() else None
     gpu_usage("START", stream = gpu_log)
     
-    if use_gpu:
+    if use_gpu():
         # Set the device to run on (GPU if available, otherwise CPU)
         model = model.to(torch.device("cuda"))
         mem = gpu_usage("Model loaded", stream = gpu_log)
@@ -475,14 +465,14 @@ if __name__ == "__main__":
         warmup_steps=warmup_steps,
         lr_scheduler_type="linear",
         predict_with_generate=True,
-        fp16 = use_gpu,
+        fp16 = use_gpu(),
         generation_max_length=MAX_TEXT_LENGTH,
         logging_dir=f'{output_folder}/logs',
         remove_unused_columns=not PEFT,
         resume_from_checkpoint=resume_from_checkpoint,
         data_seed=SEED,
         seed=SEED,
-        no_cuda = not use_gpu,
+        no_cuda = not use_gpu(),
         overwrite_output_dir=args.overwrite_output_dir,
         dataloader_num_workers=4,
     )

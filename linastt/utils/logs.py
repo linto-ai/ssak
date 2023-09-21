@@ -1,4 +1,7 @@
-from .env import * # make sure GPU related env vars are set before importing torch
+import os
+
+# So that index of GPU is the same everywhere
+os.environ["CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
 
 import time
 import logging
@@ -48,9 +51,13 @@ def toc(name = "", stream = None, log_mem_usage = False, total=False):
     return t
 
 def get_num_gpus():
-    if not torch.cuda.is_available():
+    try:
+        pynvml.nvmlInit() # Can throw pynvml.NVMLError_DriverNotLoaded if driver problem
+    except pynvml.NVMLError_DriverNotLoaded:
+        import torch
+        if torch.cuda.is_available():
+            raise RuntimeError("CUDA is available but pynvml.NVMLError_DriverNotLoaded. This is probably because you are using a conda environment. Try to install nvidia-smi in the conda environment.")
         return 0
-    pynvml.nvmlInit() # Can throw pynvml.NVMLError_DriverNotLoaded if driver problem
     return pynvml.nvmlDeviceGetCount()
     
 def has_gpu():
