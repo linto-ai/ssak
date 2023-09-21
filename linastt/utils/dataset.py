@@ -5,7 +5,7 @@ import logging
 import random
 import math
 from linastt.utils.logs import logger
-from linastt.utils.misc import commonprefix
+from linastt.utils.misc import commonprefix, get_cache_dir
 from linastt.utils.kaldi import parse_kaldi_wavscp
 
 from .audio import load_audio, array_to_bytes
@@ -27,6 +27,7 @@ from envsubst import envsubst
 def kaldi_folder_to_dataset(
     kaldi_path,
     online = False,
+    n_shards = 1, 
     shuffle = False,
     max_data = None,
     min_duration = None,
@@ -55,7 +56,10 @@ def kaldi_folder_to_dataset(
         Path to kaldi folder, or list of paths to kaldi folders
     online : bool
         If True, audio files will be loaded and processed on-the-fly (out of core).
-        If False, audio files will be loaded and processed at first, and *cached* (typically in ~/.cache/huggingface/datasets/mydataset).
+        If False, audio files will be loaded and processed at first, and *cached* (typically in ~/.cache/linacache).
+    n_shards : int
+        Number of shards to use for caching. If > 1, the dataset will be split in n_shards parts, and each part will be cached separately.
+        This is useful when using dataloader_num_workers > 1 in transformers
     shuffle : bool
         If True, the dataset will be shuffled.
     max_data : int
@@ -147,7 +151,7 @@ def kaldi_folder_to_dataset(
 
         dataset = datasets.concatenate_datasets([d[1] for d in ds])
         if do_cache:
-            dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, verbose=verbose, logstream=logstream, return_csv=use_csv)
+            dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, n_shards=n_shards, verbose=verbose, logstream=logstream, return_csv=use_csv)
 
         meta = {
             "samples": sum([d[0]["samples"] for d in ds]),
@@ -390,7 +394,7 @@ def kaldi_folder_to_dataset(
     )
 
     if do_cache:
-        dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, verbose=verbose, logstream=logstream, return_csv=use_csv)
+        dataset = make_cachable(dataset, online=online, shuffle=shuffle, seed=seed, n_shards=n_shards, verbose=verbose, logstream=logstream, return_csv=use_csv)
 
     meta = {
         "samples": len(uttids),
@@ -416,9 +420,9 @@ def kaldi_folder_to_dataset(
 
     return meta, dataset
 
-def make_cachable(dataset, online=False, shuffle=False, seed=69, return_csv=False, verbose=True, logstream=None):
-    # - cachable
-    # - online streaming
+def make_cachable(dataset, online=False, shuffle=False, seed=69, n_shards=1, return_csv=False, verbose=True, logstream=None):
+    assert n_shards >= 1, "n_shards must be >= 1"
+    # Make sure that all IDs are unique
     if len(set(dataset["ID"])) < len(dataset["ID"]):
         all_ids = []
         def make_id_unique(d):
@@ -434,20 +438,32 @@ def make_cachable(dataset, online=False, shuffle=False, seed=69, return_csv=Fals
         if verbose:
             print("Shuffling dataset")
         dataset = dataset.shuffle(seed)
-    cache_file_dir = os.path.join(datasets.config.HF_DATASETS_CACHE, "mydataset", dataset._fingerprint)
+    cache_file_dir = os.path.join(get_cache_dir("linacache"), dataset._fingerprint)
     if not os.path.isdir(cache_file_dir):
         os.makedirs(cache_file_dir)
-    cache_filename = os.path.join(cache_file_dir, "orig.csv")
+    if n_shards > 1:
+        cache_filenames = [os.path.join(cache_file_dir, f"shard{n_shards}-{i+1}.csv") for i in range(n_shards)]
+    else:
+        cache_filenames = [os.path.join(cache_file_dir, f"full.csv")]
+    assert len(cache_filenames)
+    cache_file_regex = cache_filenames[0][:-5] + "*.csv"
     if verbose:
-        print("Caching CSV dataset in ", cache_filename)
+        print("Caching CSV dataset in ", cache_file_regex)
     if logstream:
-        logstream.write("- We cached CSV in %s\n" % cache_filename)
-    if not os.path.isfile(cache_filename):
-        dataset.to_csv(cache_filename)
+        logstream.write("- CSV cached in %s\n" % cache_file_regex)
+    if len(cache_filenames) == 1:
+        dataset.to_csv(cache_filenames[0])
+    else:
+        for i, filename in enumerate(cache_filenames):
+            if not os.path.isfile(filename):
+                dataset.shard(n_shards, i).to_csv(filename)
     if return_csv:
-        return cache_filename
+        if n_shards > 1:
+            raise NotImplementedError("return_csv not implemented with n_shards > 1")
+        return cache_filenames[0]
     # Use this to pass "origin_metadata = None" so that the caching mechanism will be OK
-    data_files = datasets.data_files.DataFilesDict({"train":datasets.data_files.DataFilesList([pathlib.PosixPath(cache_filename)], origin_metadata = None)})
+    data_files = datasets.data_files.DataFilesDict({"train":datasets.data_files.DataFilesList(
+        [pathlib.PosixPath(filename) for filename in cache_filenames], origin_metadata = None)})
     res = datasets.load_dataset("csv", data_files= data_files,
         streaming = online,
         split= dataset.split, # TODO WTF This fails if split is not "train"...
@@ -512,7 +528,7 @@ def process_dataset(processor, dataset,
     force_cache = force_cache and not is_iterable
     if force_cache:
         datasets.enable_caching()
-        cache_file_dir = os.path.join(datasets.config.HF_DATASETS_CACHE, "mydataset", dataset._fingerprint)
+        cache_file_dir = os.path.join(get_cache_dir("linacache"), dataset._fingerprint)
         if not os.path.isdir(cache_file_dir):
             os.makedirs(cache_file_dir)
     if is_iterable:

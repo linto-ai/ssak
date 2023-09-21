@@ -583,7 +583,7 @@ if __name__ == "__main__":
     tokenizer_dir = hparams["save_folder"]
     if "token_type" in hparams:
         # "Train" the tokenizer
-        cdir = get_cache_dir("huggingface/datasets/mydataset/" + hashmd5(hparams["train"]))
+        cdir = get_cache_dir("linacache/" + hashmd5(hparams["train"]))
         txt_corpus = cdir + "/text.txt"
         if not os.path.isfile(txt_corpus):
             os.makedirs(cdir, exist_ok=True)

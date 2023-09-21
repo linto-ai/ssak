@@ -168,6 +168,7 @@ if __name__ == "__main__":
     USE_MIXED_PRECISION_CPU = False # Too many problems
     args.online = (not args.offline or args.data_augmentation or args.text_augmentation)
     online_dev = not args.offline_dev
+    dataloader_num_workers = 2
     
     base_model = args.base_model
     task = args.task
@@ -231,6 +232,7 @@ if __name__ == "__main__":
         args.train,
         shuffle = True,
         online = args.online,
+        n_shards = dataloader_num_workers,
         max_data = (2 * args.batch_size) if args.debug else None,
         choose_data_with_max_duration = args.debug,
         min_duration = args.min_duration,
@@ -419,7 +421,7 @@ if __name__ == "__main__":
         seed=SEED,
         no_cuda = not use_gpu(),
         overwrite_output_dir=args.overwrite_output_dir,
-        dataloader_num_workers=4,
+        dataloader_num_workers=dataloader_num_workers,
     )
 
     trainer = Seq2SeqTrainer(
