@@ -50,7 +50,12 @@ def toc(name = "", stream = None, log_mem_usage = False, total=False):
         log_gpu_gpu_mempeak(name)
     return t
 
+NUM_GPU_CACHED = None
+
 def get_num_gpus():
+    global NUM_GPU_CACHED
+    if NUM_GPU_CACHED is not None:
+        return NUM_GPU_CACHED
     try:
         pynvml.nvmlInit() # Can throw pynvml.NVMLError_DriverNotLoaded if driver problem
     except pynvml.NVMLError_DriverNotLoaded:
@@ -58,7 +63,8 @@ def get_num_gpus():
         if torch.cuda.is_available():
             raise RuntimeError("CUDA is available but pynvml.NVMLError_DriverNotLoaded. This is probably because you are using a conda environment. Try to install nvidia-smi in the conda environment.")
         return 0
-    return pynvml.nvmlDeviceGetCount()
+    NUM_GPU_CACHED = pynvml.nvmlDeviceGetCount()
+    return NUM_GPU_CACHED
     
 def has_gpu():
     return get_num_gpus() > 0

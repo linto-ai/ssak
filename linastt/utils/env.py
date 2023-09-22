@@ -3,6 +3,7 @@ import sys
 from .misc import get_cache_dir
 
 DISABLE_GPU = False
+REQUIRED_GPU = []
 
 # So that index of GPU is the same everywhere
 os.environ["CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
@@ -11,7 +12,7 @@ os.environ["CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128" 
 
 def _set_visible_gpus(s):
-    global DISABLE_GPU
+    global DISABLE_GPU, REQUIRED_GPU
     if isinstance(s, str):
         if s == "auto":
             # Choose the GPU with the most free memory
@@ -21,7 +22,9 @@ def _set_visible_gpus(s):
             s = str(gpus[0]) if len(gpus) else ""
         return _set_visible_gpus(s.split(",") if s else [])
     if isinstance(s, list):
-        s = ','.join([str(int(si)) for si in s])
+        s = [int(si) for si in s]
+        REQUIRED_GPU = list(range(len(s)))
+        s = ','.join([str(si) for si in s])
     if not s:
         DISABLE_GPU = True
     os.environ["CUDA_VISIBLE_DEVICES"] = s
@@ -62,8 +65,16 @@ def auto_device():
     return torch.device('cuda:0') if (torch.cuda.is_available() and not DISABLE_GPU) else torch.device("cpu")
 
 def use_gpu():
-    return torch.cuda.is_available() and not DISABLE_GPU
+    if DISABLE_GPU or not torch.cuda.is_available():
+        assert REQUIRED_GPU == [], f"GPU required but not available (required GPU: {REQUIRED_GPU})"
+        return []
+    from linastt.utils.logs import get_num_gpus
+    num_gpus = get_num_gpus()
+    assert num_gpus-1 >= max(REQUIRED_GPU), f"More GPU required than available (required GPU: {REQUIRED_GPU}, available GPU: {list(range(num_gpus))})"
+    return REQUIRED_GPU
 
-if not use_gpu():
+if use_gpu():
+    pass
+else:
     # Use maximum number of threads
     torch.set_num_threads(multiprocessing.cpu_count())
