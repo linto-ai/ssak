@@ -24,17 +24,26 @@ def get_log_history(path):
 def get_log_history_huggingface(path):
     log_history = {}
 
+    key_loss_valid = None
+    key_loss_train = None
+
     initpath = os.path.join(os.path.dirname(os.path.dirname(path)), "init_eval.json")
     if os.path.isfile(initpath):
         with open(initpath) as f:
             d = json.load(f)
         key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
         key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_wer"
+        key_del = "del/valid" if "del/valid" in d else "eval_del"
+        key_ins = "ins/valid" if "ins/valid" in d else "eval_ins"
+        key_sub = "sub/valid" if "sub/valid" in d else "eval_sub"
         log_history["step"] = [0]
         log_history["loss/train"] = [None]
         log_history["loss/valid"] = [d[key_loss_valid]]
         log_history["WER/valid"] = [d[key_wer_valid]]
         log_history["lr_model"] = [None]
+        log_history["del/valid"] = [d.get(key_del)]
+        log_history["ins/valid"] = [d.get(key_ins)]
+        log_history["sub/valid"] = [d.get(key_sub)]
 
     with open(path, 'r') as f:
         data = json.load(f)
@@ -43,17 +52,33 @@ def get_log_history_huggingface(path):
         steps = log_history.get("step",[])
         if len(steps) == 0 or step > steps[-1]:
             log_history["step"] = steps + [step]
-        key_loss_train = "loss/train" if "loss/train" in d else "loss"
-        key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
-        key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_wer"
+
+        if key_loss_train is None:
+            key_loss_train = "loss/train" if "loss/train" in d else "loss"
+        if key_loss_valid is None:
+            key_loss_valid = "loss/valid" if "loss/valid" in d else "eval_loss"
+            key_wer_valid = "WER/valid" if "WER/valid" in d else "eval_wer"
+            key_del = "del/valid" if "del/valid" in d else "eval_del"
+            key_ins = "ins/valid" if "ins/valid" in d else "eval_ins"
+            key_sub = "sub/valid" if "sub/valid" in d else "eval_sub"
+
         if key_loss_train in d:
             log_history["loss/train"] = log_history.get("loss/train", []) + [d[key_loss_train]]
         if key_loss_valid in d:
             log_history["loss/valid"] = log_history.get("loss/valid", []) + [d[key_loss_valid]]
         if key_wer_valid in d:
             log_history["WER/valid"] = log_history.get("WER/valid", []) + [d[key_wer_valid]]
+
+        if key_del in d:
+            log_history["del/valid"] = log_history.get("del/valid", []) + [d[key_del]]
+        if key_ins in d:
+            log_history["ins/valid"] = log_history.get("ins/valid", []) + [d[key_ins]]
+        if key_sub in d:
+            log_history["sub/valid"] = log_history.get("sub/valid", []) + [d[key_sub]]
+
         if "lr_model" in d:
             log_history["lr_model"] = log_history.get("lr_model", []) + [d["lr_model"]]
+
     return log_history
 
 def get_log_history_speechbrain(path, only_finished_epochs = False, batch_size = None):
@@ -160,6 +185,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('dirs', help='Directories to plot.', type=str, nargs='+')
     parser.add_argument('--use-time', help='Whether to use training time as abscisses (training audio data duration otherwise)', default = False, action='store_true')
+    parser.add_argument('--details', help="Also plot Del/Subs/Ins rates", default = False, action='store_true')
     args = parser.parse_args()
 
     x_to_legend = {
@@ -218,6 +244,8 @@ if __name__ == "__main__":
         return linestyles[j % len(linestyles)]
 
     nplots = 2 + boole(PLOT_LEARNING_RATE) + boole(PLOT_TRAINING_TIME) + boole(PLOT_VALIDATION_TIME)
+    if args.details:
+        nplots += 3
 
 
     xmin = min([min(get_x(data)) for data in datas.values()])
@@ -243,6 +271,7 @@ if __name__ == "__main__":
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("loss")
+
     plt.subplot(nplots, 1, 2)
     for i, (dir, data) in enumerate(datas.items()):
         plt.axvline(get_x(data)[argbest[i]], color = get_color(i), linestyle = ":")
@@ -253,7 +282,23 @@ if __name__ == "__main__":
     plt.xlim(xmin, xmax)
     plt.legend()
     plt.ylabel("WER")
+
     iplot = 2
+
+    if args.details:
+        for what in "sub", "del", "ins":
+            iplot += 1
+            plt.subplot(nplots, 1, iplot)
+            for i, (dir, data) in enumerate(datas.items()):
+                d = data.get(what+"/valid", [None])
+                if not max([x is not None for x in d]):
+                    continue
+                plt.plot(get_x(data), d, get_color(i), linewidth=3, linestyle=get_linestyle(i), label=what if len(dirs) == 1 else None)
+                plt.plot(get_x(data), d, get_color(i)+"+", linewidth=3, linestyle=get_linestyle(i))
+            plt.xlim(xmin, xmax)
+            plt.legend()
+            plt.ylabel(what)
+
     if PLOT_LEARNING_RATE:
         iplot += 1
         plt.subplot(nplots, 1, iplot)
@@ -262,6 +307,7 @@ if __name__ == "__main__":
         #plt.ylabel("Learning Rate")
         plt.xlim(xmin, xmax)
         plt.legend()
+
     if PLOT_TRAINING_TIME:
         iplot += 1
         plt.subplot(nplots, 1, iplot)
@@ -270,6 +316,7 @@ if __name__ == "__main__":
         #plt.ylabel("Training Time")
         plt.xlim(xmin, xmax)
         plt.legend()
+
     if PLOT_VALIDATION_TIME:
         iplot += 1
         plt.subplot(nplots, 1, iplot)
