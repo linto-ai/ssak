@@ -558,7 +558,7 @@ def process_dataset(processor, dataset,
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
                 "input_values" : data_augmenter(load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate)),
-                "labels": text_augmenter(remove_special_words(row["text"]))
+                "labels": text_augmenter(row["text"])
             },
             remove_columns = column_names,
             **map_kwargs
@@ -567,7 +567,7 @@ def process_dataset(processor, dataset,
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
                 "input_values" : load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate),
-                "labels": remove_special_words(row["text"])
+                "labels": row["text"]
             },
             remove_columns = column_names,
             **map_kwargs
