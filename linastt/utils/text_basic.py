@@ -58,13 +58,13 @@ def format_special_characters(text, remove_ligatures=False, format_whitespace=Tr
         text = re.sub(before, after, text)
 
     if remove_ligatures:
-        text = re.sub(r"œ", "oe", text)
-        text = re.sub(r"æ", "ae", text)
-        text = re.sub(r"ﬁ", "fi", text)
-        text = re.sub(r"ﬂ", "fl", text)
+        text = re.sub("œ", "oe", text)
+        text = re.sub("æ", "ae", text)
+        text = re.sub("ﬁ", "fi", text)
+        text = re.sub("ﬂ", "fl", text)
         text = re.sub("ĳ", "ij", text)
-        text = re.sub(r"Œ", "Oe", text)
-        text = re.sub(r"Æ", "Ae", text)
+        text = re.sub("Œ", "Oe", text)
+        text = re.sub("Æ", "Ae", text)
 
     text = re.sub(' - | -$|^- ', ' ', text)
     # text = re.sub('--+',' ', text)
