@@ -10,6 +10,7 @@ from linastt.utils.text_utils import (
     transliterate,
     undigit,
     numbers_and_symbols_to_letters,
+    remove_punctuations,
     _currencies,
     
 )
@@ -211,7 +212,7 @@ def format_text_latin(text,
                         text = re.sub(r"\b"+word+r"\b", re.sub("-", " ", word), text)
 
         if not keep_punc:
-            text = re.sub(r',|;|:|\!|\?|/|\.',' ',text)
+            text = remove_punctuations(text, " ")
 
         if lower_case:
             text = text.lower()

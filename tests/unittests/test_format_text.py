@@ -236,7 +236,26 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            'في اللغة الإنجليزية ، يمكن للمرء أن يقول Hello world !'
+            sentence # 'في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!'
+        )
+
+        sentence = "؟Jérôme。"
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False),
+            ""
+        )
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
+            "؟"
+        )
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
+            sentence
+        )
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
+            "Jérôme"
         )
 
     def test_format_digits(self):

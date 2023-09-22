@@ -15,15 +15,13 @@ def regex_escape(text):
 _punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
 _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 
-# Should we precompute?
-# _punctuation_strong = str.maketrans('', '', _punctuation_strong)
-# _punctuation = str.maketrans('', '', _punctuation)
+_punctuation_strong_regex = r"["+regex_escape(_punctuation_strong)+"]"
+_punctuation_regex = r"["+regex_escape(_punctuation)+"]"
 
-
-def remove_punctuations(text, strong = False):
+def remove_punctuations(text, replace_by="", strong = False):
     if strong:
-        return text.translate(str.maketrans('', '', _punctuation_strong))
-    return text.translate(str.maketrans('', '', _punctuation))
+        return re.sub(_punctuation_strong_regex, replace_by, text)
+    return re.sub(_punctuation_regex, replace_by, text)
 
 _non_printable_pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]' # r'[\x00-\x1F\x7F-\x9F]'
 

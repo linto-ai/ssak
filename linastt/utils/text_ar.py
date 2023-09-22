@@ -1,5 +1,13 @@
 import re
-from linastt.utils.text_utils import cardinal_numbers_to_letters, regex_escape, symbols_to_letters, normalize_arabic_currencies
+from linastt.utils.text_utils import (
+    cardinal_numbers_to_letters,
+    regex_escape,
+    symbols_to_letters,
+    normalize_arabic_currencies,
+    remove_special_characters,
+    collapse_whitespace,
+    remove_punctuations,
+)
 from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
@@ -90,13 +98,18 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
         line = digit2word(line)
         line = remove_arabic_diacritics(line)
         line = normalize_punct(line)
-        line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars) 
+        if not keep_latin_chars:
+            line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
+        else:
+            line = remove_special_characters(line)
+            if not keep_punc:
+                line = remove_punctuations(line, " ")
         if bw:
             line = bw_transliterate(line)    
     except Exception as err:
         print(f"Error when processing line: \"{input_line}\"")
         raise err
-    return line.strip()
+    return collapse_whitespace(line)
    
 if __name__ == '__main__':
 
