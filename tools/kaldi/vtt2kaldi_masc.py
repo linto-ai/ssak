@@ -85,7 +85,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                                     end = time_to_seconds(caption.end)
                                     duration = end - start
 
-                                    text = caption.text
+                                    text = caption.text.replace("\n"," ")
 
                                     if text and duration > 0:
                                         text_f.write(f"{utt_id} {text}\n")
@@ -143,7 +143,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                         end = time_to_seconds(caption.end)
                         duration = round(end - start ,3)
 
-                        text = caption.text
+                        text = caption.text.replace("\n"," ")
                         if text and duration > 0:
                             text_f.write(f"{utt_id} {text}\n")
                             segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")
