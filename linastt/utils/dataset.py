@@ -496,6 +496,7 @@ def process_dataset(processor, dataset,
     batch_size = 32, num_proc = 1,
     data_augmenter = None,
     text_augmenter = None,
+    text_processor = remove_special_words,
     verbose = True, force_cache = True, logstream = None):
     """
     Process a dataset with a HuggingFace processor.
@@ -508,8 +509,9 @@ def process_dataset(processor, dataset,
         Dataset to process
     batch_size : int (default: 32)
         Batch size to use
-    data_augmenter: function to augment audio
-    text_augmenter: function to augment text
+    text_processor: function to normalize the text (input: string / output: string), applied *after* text augmentation if any
+    data_augmenter: function to augment audio (input: raw audio signal / output: raw audio signal)
+    text_augmenter: function to augment text (input: string / output: string)
     num_proc : int (default: 1)
         Number of processes to use (not: may be disabled in online mode).
         WARNING: using more than 1 process may lead to hang
@@ -550,6 +552,8 @@ def process_dataset(processor, dataset,
     if verbose and hasattr(dataset, "_fingerprint"):
         print("Loading audios", dataset._fingerprint)
 
+    if text_processor is None:
+        text_processor = lambda x: x
     if data_augmenter or text_augmenter:
         if not data_augmenter:
             data_augmenter = lambda x: x
@@ -558,7 +562,7 @@ def process_dataset(processor, dataset,
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
                 "input_values" : data_augmenter(load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate)),
-                "labels": text_augmenter(row["text"])
+                "labels": text_processor(text_augmenter(row["text"]))
             },
             remove_columns = column_names,
             **map_kwargs
@@ -567,7 +571,7 @@ def process_dataset(processor, dataset,
         processed = dataset.map(
             lambda row: {"input_values":np.array([1.], dtype=np.float32), "labels":"e"} if (hasattr(transformers.trainer, "SKIPPING") and transformers.trainer.SKIPPING) else {
                 "input_values" : load_audio(row["path"], start = row["start"] if has_segment else None, end = row["end"] if has_segment else None, sample_rate = sample_rate),
-                "labels": row["text"]
+                "labels": text_processor(row["text"])
             },
             remove_columns = column_names,
             **map_kwargs

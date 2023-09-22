@@ -6,7 +6,12 @@ import datetime
 import shutil
 
 from linastt.utils.env import use_gpu # handle option --gpus (and set environment variables at the beginning)
-from linastt.utils.text import format_text
+from linastt.utils.text import (
+    format_text,
+    format_special_characters,
+    remove_special_words,
+    remove_special_characters,
+)
 from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
@@ -299,15 +304,13 @@ if __name__ == "__main__":
                 normalize_arabic_currencies, \
                 digit2word, \
                 remove_arabic_diacritics, \
-                normalize_punct, \
-                get_arabic_only
+                normalize_punct
             from linastt.utils.text_utils import remove_punctuations
             def text_augmenter(text):
                 input_tokens_before = tokenizer_func(text)
                 
                 assert len(input_tokens_before) <= MAX_TEXT_LENGTH, "Input text length exceeds MAX_TEXT_LENGTH."
     
-                text = remove_arabic_diacritics(text)
                 if random.random() < 0.5:
                     text = symbols_to_letters(text, language, lower_case=False)
                     text = normalize_arabic_currencies(text)
@@ -330,8 +333,34 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError(f"Text augmentation is not implemented for language {language}")
         
-    train_dataset = process_dataset(processor, train_dataset, data_augmenter = data_augmenter, text_augmenter = text_augmenter, batch_size = BATCH_SIZE, logstream = readme)
-    eval_dataset = process_dataset(processor, eval_dataset, batch_size = BATCH_SIZE_EVAL, logstream = readme)
+
+    # Minimal text normalization for Whisper
+    def text_processor_base(text):
+        text = format_special_characters(text)
+        text = remove_special_words(text)
+        text = remove_special_characters(text)
+        return text
+    if language == "ar":
+        # In Arabic, we are not interested in producing diacritics
+        from linastt.utils.text_ar import remove_arabic_diacritics
+        def text_processor(text):
+            text = text_processor_base(text)
+            return remove_arabic_diacritics(text)
+    else:
+        text_processor = text_processor_base
+        
+    train_dataset = process_dataset(processor, train_dataset,
+        batch_size = BATCH_SIZE,
+        text_processor = text_processor,
+        data_augmenter = data_augmenter,
+        text_augmenter = text_augmenter,
+        logstream = readme
+    )
+    eval_dataset = process_dataset(processor, eval_dataset,
+        batch_size = BATCH_SIZE_EVAL,
+        text_processor = text_processor,
+        logstream = readme
+    )
     if readme is not None:
         readme.flush()
           
