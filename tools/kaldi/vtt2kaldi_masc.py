@@ -7,6 +7,8 @@ import os
 import csv
 import webvtt
 
+from linastt.utils.kaldi import check_kaldi_dir
+from linastt.utils.text_utils import format_special_characters
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
 
@@ -86,7 +88,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                                     duration = end - start
 
                                     text = caption.text.replace("\n"," ")
-
+                                    text = format_special_characters(text.strip())
                                     if text and duration > 0:
                                         text_f.write(f"{utt_id} {text}\n")
                                         segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")
@@ -143,7 +145,9 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                         end = time_to_seconds(caption.end)
                         duration = round(end - start ,3)
 
-                        text = caption.text.replace("\n"," ")
+                        text = caption.text.replace("\n"," ").replace('&lrm;','')
+                        text = format_special_characters(text)
+                            
                         if text and duration > 0:
                             text_f.write(f"{utt_id} {text}\n")
                             segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")
