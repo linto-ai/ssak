@@ -119,7 +119,7 @@ if __name__ == "__main__":
     parser.add_argument('--base_model', help='Whisper model to tune', default="openai/whisper-small", type=str) #  MohammedNasri/whisper-small-AR
     parser.add_argument('--lang', help='Language to tune', default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune', default="transcribe", type=str)
-    parser.add_argument('--use_peft', help='To use PEFT method', default=False, action = "store_true")
+    parser.add_argument('--peft', help='To use PEFT method', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--offline', help="do not load and process training audio files on the fly (precompute all MFCC)", default=False, action="store_true")
     parser.add_argument('--offline_dev', help="do not load and process validation audio files on the fly (precompute all MFCC)", default=False, action="store_true")
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     LR = args.learning_rate
     NUM_EPOCH = args.num_epochs
     MAX_TEXT_LENGTH = args.max_text_length
-    PEFT = args.use_peft
+    PEFT = args.peft
     SEED = args.seed
     WARMUP_STEPS = args.warmup_steps
     
@@ -179,6 +179,10 @@ if __name__ == "__main__":
     task = args.task
     data_augmentation = args.data_augmentation
 
+    num_devices = max(1, get_num_gpus())
+    assert BATCH_SIZE % num_devices == 0, f"batch_size {BATCH_SIZE} must be a multiple of the number of devices {num_devices}"
+    assert BATCH_SIZE_EVAL % num_devices == 0, f"batch_size_eval {BATCH_SIZE_EVAL} must be a multiple of the number of devices {num_devices}"
+
     args_str = args_to_str(args, ignore = [
         # Taken into account somewhere else
         "train",
@@ -186,6 +190,7 @@ if __name__ == "__main__":
         # Too much...
         "data_augment_rir",
         "data_augment_noise",
+        "task",
         # Should not have an influence on the result
         "output_dir",
         "overwrite_output_dir",
@@ -232,7 +237,7 @@ if __name__ == "__main__":
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
 
     tokenizer_func = lambda x: processor.tokenizer(x).input_ids
-    
+
     trainsetmeta, train_dataset = kaldi_folder_to_dataset(
         args.train,
         shuffle = True,
@@ -348,7 +353,7 @@ if __name__ == "__main__":
             return remove_arabic_diacritics(text)
     else:
         text_processor = text_processor_base
-        
+
     train_dataset = process_dataset(processor, train_dataset,
         batch_size = BATCH_SIZE,
         text_processor = text_processor,
@@ -392,8 +397,9 @@ if __name__ == "__main__":
 
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
-    else :
-        model = WhisperForConditionalGeneration.from_pretrained(base_model)
+    else:
+        # TODO: make it work with load_in_8bit=True?
+        model = WhisperForConditionalGeneration.from_pretrained(base_model, load_in_8bit=False, device_map="auto")
         model.gradient_checkpointing_enable()
     
     # Note: we do not train language identification, but rather focus on the target language
@@ -411,8 +417,6 @@ if __name__ == "__main__":
     gpu_usage("START", stream = gpu_log)
     
     if use_gpu():
-        # Set the device to run on (GPU if available, otherwise CPU)
-        model = model.to(torch.device("cuda"))
         mem = gpu_usage("Model loaded", stream = gpu_log)
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
@@ -432,8 +436,8 @@ if __name__ == "__main__":
         greater_is_better=False,
         load_best_model_at_end=True,
         num_train_epochs=NUM_EPOCH,
-        per_device_train_batch_size=BATCH_SIZE,
-        per_device_eval_batch_size=BATCH_SIZE_EVAL,
+        per_device_train_batch_size=BATCH_SIZE//num_devices,
+        per_device_eval_batch_size=BATCH_SIZE_EVAL//num_devices,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         learning_rate=LR,
         optim="adamw_torch", # good?
