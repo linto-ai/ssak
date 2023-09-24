@@ -293,7 +293,7 @@ if __name__ == "__main__":
                 d = data.get(what+"/valid", [None])
                 if not max([x is not None for x in d]):
                     continue
-                plt.plot(get_x(data), d, get_color(i), linewidth=3, linestyle=get_linestyle(i), label=what if len(dirs) == 1 else None)
+                plt.plot(get_x(data), d, get_color(i), linewidth=3, linestyle=get_linestyle(i), label=dir if len(dirs) > 1 else None)
                 plt.plot(get_x(data), d, get_color(i)+"+", linewidth=3, linestyle=get_linestyle(i))
             plt.xlim(xmin, xmax)
             plt.legend()
