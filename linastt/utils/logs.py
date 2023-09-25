@@ -114,7 +114,7 @@ def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 
             if verbose:
                 logger.info(s)
             if stream is not None:
-                stream.write(f"{time.time()} {s}")
+                stream.write(f"{time.time()} {s}\n")
                 stream.flush()
                 
     return summemused
