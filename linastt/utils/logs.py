@@ -28,7 +28,7 @@ def tic(name = ""):
     """
     global TIC, GPUMEMPEAK
     TIC[name] = time.time()
-    GPUMEMPEAK[name] = gpu_usage(name, verbose = False)
+    GPUMEMPEAK[name] = gpu_usage(name, verbose = False, ignore_errors=True)
 
 def toc(name = "", stream = None, log_mem_usage = False, total=False):
     """ end clock and print time elapsed since the last tic 
@@ -46,13 +46,13 @@ def toc(name = "", stream = None, log_mem_usage = False, total=False):
     if stream:        
         print(s, file = stream)
     if log_mem_usage:
-        gpu_usage(name)
+        gpu_usage(name, ignore_errors=True)
         log_gpu_gpu_mempeak(name)
     return t
 
 NUM_GPU_CACHED = None
 
-def get_num_gpus():
+def get_num_gpus(ignore_errors = False):
     global NUM_GPU_CACHED
     if NUM_GPU_CACHED is not None:
         return NUM_GPU_CACHED
@@ -63,6 +63,10 @@ def get_num_gpus():
         if torch.cuda.is_available():
             raise RuntimeError("CUDA is available but pynvml.NVMLError_DriverNotLoaded. This is probably because you are using a conda environment. Try to install nvidia-smi in the conda environment.")
         return 0
+    except Exception as unexpected_error:
+        if ignore_errors:
+            return 0
+        raise unexpected_error
     NUM_GPU_CACHED = pynvml.nvmlDeviceGetCount()
     return NUM_GPU_CACHED
     
@@ -80,7 +84,7 @@ def log_gpu_gpu_mempeak(name = ""):
     if has_gpu():
         logger.info(f"GPU MEMORY PEAK {name}: {gpu_mempeak(name)} MB")
 
-def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 10):
+def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 10, ignore_errors=False):
     """
     Args:
         name: name of the clock
@@ -91,7 +95,7 @@ def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 
     if verbose is None:
         verbose = (stream == None)
     summemused = 0
-    indices = range(get_num_gpus())
+    indices = range(get_num_gpus(ignore_errors=ignore_errors))
     if index is None:
         pass
     elif isinstance(index, int):
