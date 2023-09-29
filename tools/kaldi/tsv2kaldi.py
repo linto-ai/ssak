@@ -7,8 +7,17 @@ from linastt.utils.text_utils import format_special_characters
 import os
 import csv
 import random
+import re
 
-def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existence_file_check=10):
+def convert_integers_for_safe_kaldi(s):
+    return re.sub(r"(\d+)", _add_zeros, s)
+
+def _add_zeros(match):
+    content = int(match.group(1))
+    return f"{content:07d}"
+
+
+def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existence_file_check=100000):
     """
     Yields examples as dictionaries
     {
@@ -36,9 +45,9 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
         column_names = next(reader)
         
         aliases = {
-            "path": ["filename", "audio_filepath", "filepath", "file_id", "UTTRANS_ID"],
+            "path": ["filename", "audio_filepath", "filepath", "file_id", "UTTRANS_ID", "wav"],
             "accents": ["accent"],
-            "text": ["sentence", "raw_transcription", "transcription", "TRANSCRIPTION"],
+            "text": ["sentence", "raw_transcription", "transcription", "TRANSCRIPTION", "wrd"],
             "client_id": ["id", "worker_id", "SPEAKER_ID"],
         }
 
@@ -68,16 +77,25 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
             if len(field_values) < len(column_names):
                 field_values += (len(column_names) - len(column_names)) * [None]
 
-            # set an id if not present
-            if must_create_client_id:
-                field_values.append(os.path.splitext(field_values[path_idx])[0].replace("/","--"))
+            filename_relative = field_values[path_idx]
+            filename_absolute = os.path.join(path_to_clips, field_values[path_idx])
+            if not os.path.isfile(filename_absolute):
+                filename_relative = os.path.basename(field_values[path_idx])
+                filename_absolute = os.path.join(path_to_clips, filename_relative)
+                if not os.path.isfile(filename_absolute):
+                    filename_absolute = filename_absolute.replace(":", "_") # HACK for TunSwitch
 
-            # set absolute path for mp3 audio file
-            field_values[path_idx] = os.path.join(path_to_clips, field_values[path_idx])
 
             if checked_files < max_existence_file_check:
-                assert os.path.isfile(field_values[path_idx]), f"Audio file {field_values[path_idx]} does not exist."
+                assert os.path.isfile(filename_absolute), f"Audio file {field_values[path_idx]} does not exist."
                 checked_files += 1
+
+            # set an id if not present
+            if must_create_client_id:
+                field_values.append(convert_integers_for_safe_kaldi(os.path.splitext(filename_relative)[0].replace("/","--")))
+
+            # set absolute path for mp3 audio file
+            field_values[path_idx] = filename_absolute
 
             yield {key: value for key, value in zip(column_names, field_values)}
 
