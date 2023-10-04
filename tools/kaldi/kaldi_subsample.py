@@ -15,7 +15,8 @@ def kaldi_subsample(
     maximum,
     min_duration=None,
     max_duration=None,
-    regex=None,
+    regex_id=None,
+    regex_exclude_text=None,
     random_seed=None,
     throw_if_output_exists=True,
     ):
@@ -23,8 +24,10 @@ def kaldi_subsample(
     if isinstance(input_folders, str):
         input_folders = [input_folders]
 
-    if regex and isinstance(regex, str):
-        regex = [regex]
+    if regex_id and isinstance(regex_id, str):
+        regex_id = [regex_id]
+    if regex_exclude_text and isinstance(regex_exclude_text, str):
+        regex_exclude_text = [regex_exclude_text]
 
     has_segments = None
     has_genders = None
@@ -105,9 +108,15 @@ def kaldi_subsample(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
+                        try:
+                            text = line.split(" ", 1)[1]
+                        except IndexError:
+                            text = ""
                         if utt_to_filter_out and id in utt_to_filter_out:
                             continue
-                        if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
+                        if regex_id and not max(bool(re.match(reg + r"$", id)) for reg in regex_id):
+                            continue
+                        if regex_exclude_text and min(bool(re.match(reg+ r"$", text)) for reg in regex_exclude_text):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
@@ -119,9 +128,15 @@ def kaldi_subsample(
                         if maximum and num_dones == maximum:
                             break
                         id = _get_first_field(line)
+                        try:
+                            text = line.split(" ", 1)[1]
+                        except IndexError:
+                            text = ""
                         if utt_to_filter_out and id in utt_to_filter_out:
                             continue
-                        if regex and not max(bool(re.search(reg + r"$", id)) for reg in regex):
+                        if regex_id and not max(bool(re.match(reg + r"$", id)) for reg in regex_id):
+                            continue
+                        if regex_exclude_text and min(bool(re.match(reg + r"$", text)) for reg in regex_exclude_text):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
@@ -201,7 +216,8 @@ if __name__ == '__main__':
     parser.add_argument("input_folder", type=str, help="Input folder(s) with kaldi files", nargs='+')
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument("--maximum", type=int, help="Maximum number of lines to keep (if --random_seed is not specified, the first utterances will be taken)", default=None)
-    parser.add_argument("--regex", default=[], type=str, help="One or several regular expressions to select an id", nargs='*')
+    parser.add_argument("--regex_id", default=[], type=str, help="One or several regular expressions to select an id", nargs='*')
+    parser.add_argument("--regex_exclude_text", default=[], type=str, help="One or several regular expressions to exclude a text", nargs='*')
     parser.add_argument("--min_duration", default=None, type=float, help="Minimum duration for a utterance")
     parser.add_argument("--max_duration", default=None, type=float, help="Maximum duration for a utterance")
     parser.add_argument("--random_seed", default=None, type=int, help="Random seed to shuffle randomly the utterances")
@@ -211,7 +227,8 @@ if __name__ == '__main__':
         args.input_folder, args.output_folder,
         maximum=args.maximum,
         random_seed=args.random_seed,
-        regex=args.regex,
+        regex_id=args.regex_id,
+        regex_exclude_text=args.regex_exclude_text,
         min_duration=args.min_duration,
         max_duration=args.max_duration,
     )

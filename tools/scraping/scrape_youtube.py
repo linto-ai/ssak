@@ -6,6 +6,7 @@ import os
 import urllib.parse
 import requests
 import traceback
+from tqdm import tqdm
 
 from selenium import webdriver
 import time
@@ -287,7 +288,7 @@ def scrape_transcriptions(
         video_ids = get_new_ids(video_ids, path, if_lang, ignore_discarded=not skip_if_discarded)
     print(f"Got {len(video_ids)} new video ids / {n}")
 
-    for vid in video_ids:
+    for vid in tqdm(video_ids):
 
         has_been_register_as_failed = False
         num_proxies_tried = 0
