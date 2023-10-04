@@ -159,7 +159,7 @@ def search_videos_ids(search_query, open_browser=False, use_global_driver=True):
                             apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
     try:
         # Navigate to YouTube and search for videos with subtitles
-        DRIVER.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query))
+        DRIVER.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query) + '&sp=EgIQAQ%253D%253D')
 
         # Scroll down the page to load more videos
         SCROLL_PAUSE_TIME = 2
