@@ -33,7 +33,7 @@ def play_segments(
     additional_commands.update({
         "dbg": "debug",
         20.05: "seek (forward or rewind) to 20.05 sec",
-        "p":"to go to the previous audio"
+        "p": "go to previous audio file",
     })
     if wordlevel:
         additional_commands.update({
@@ -91,9 +91,9 @@ def play_segments(
                 print(txt)
                 
                 x = play_audiofile(audio_file, start, end, additional_commands = additional_commands)
+
             if x == "p":
                 if previous_wav and previous_transcript:
-                    print('Back to the Previous audio file. \n')
                     return play_segments(
                         previous_wav, previous_transcript,
                         min_sec=min_sec,
@@ -115,13 +115,14 @@ def play_segments(
                 min_sec = x
                 if min_sec < start:
                     # Rewind
-                    return play_segments(audio_file, transcript,
-                                         min_sec=min_sec,
-                                         wordlevel=wordlevel,
-                                         play_silences=play_silences,
-                                         other_commands=other_commands,
-                                         quit_command=quit_command,
-                                         )
+                    return play_segments(
+                        audio_file, transcript,
+                        min_sec=min_sec,
+                        wordlevel=wordlevel,
+                        play_silences=play_silences,
+                        other_commands=other_commands,
+                        quit_command=quit_command,
+                    )
             elif x in other_commands.keys():
                 return x
 
