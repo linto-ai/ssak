@@ -125,7 +125,7 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
                 field_values.append(convert_integers_for_safe_kaldi(os.path.splitext(filename_relative)[0].replace("/","--")))
 
             # set absolute path for mp3 audio file
-            field_values[path_idx] = filename_absolute
+            field_values[path_idx] = os.path.realpath(filename_absolute)
 
             yield {key: value for key, value in zip(column_names, field_values)}
 
