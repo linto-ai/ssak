@@ -33,16 +33,18 @@ def find_audio_path(name, path):
     for root, dirs, files in os.walk(path):
         if name in files:
             found_files.append(os.path.join(root, name))
+    if len(found_files) == 0:
+        raise FileNotFoundError(f"No audio file found for {name}")
     if len(found_files) > 1:
         print(f"{len(found_files)} audio files found for {name}. Checking if they are identical...")
         hash_files = [md5_file(file) for file in found_files]
         unique_hashes = set(hash_files)
         if len(unique_hashes) > 1:
-            non_matching_files = [file for file, hash_val in zip(found_files, hash_files) if hash_files.count(hash_val) > 1]
-            raise ValueError(f"Multiple audio files found for {name}, and some of them are not identical: {non_matching_files}")
+            found_files_str = '\n'.join(found_files)
+            raise RuntimeError(f"Multiple audio files found for {name}, and some of them are not identical:\n{found_files_str}")
     return found_files[0]
 
-def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existence_file_check=100000):
+def generate_examples(filepath, path_to_clips, ignore_missing_gender, ignore_missing_files=False):
     """
     Yields examples as dictionaries
     {
@@ -54,8 +56,9 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
     filepath: path to the TSV or CSV file
     path_to_clips: path to the folder containing the audio files
-    max_existence_file_check: maximum number of files to check if they exist (the first ones)
     """
+
+    has_warning_on_unexisting_file_given = False
 
     # data_fields =     ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accents", "locale", "segment"]
     # data_fields_old = ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accent", "locale", "segment"]
@@ -95,7 +98,6 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
         path_idx = column_names.index("path")
 
-        checked_files = 0
         for field_values in reader:
 
             # if data is incomplete, fill with empty values
@@ -105,20 +107,25 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
             filename_relative = field_values[path_idx]
             filename_absolute = os.path.join(path_to_clips, field_values[path_idx])
             if not os.path.isfile(filename_absolute):
+                filename_relative = os.path.basename(field_values[path_idx].replace('\\','/'))
+                filename_absolute = os.path.join(path_to_clips, filename_relative)
+            if not os.path.isfile(filename_absolute):
+                filename_relative2 = filename_relative.replace(":","_") # Hack for TunSwitchTO (1/2)
+                filename_absolute = os.path.join(path_to_clips, filename_relative2)
+            if not os.path.isfile(filename_absolute):
+                if not has_warning_on_unexisting_file_given:
+                    print(f"WARNING: Audio file not found: {filename_relative}. Searching in sub-folders (this might take a while)")
+                    has_warning_on_unexisting_file_given = True
                 try:
-                    filename_relative = os.path.basename(field_values[path_idx].replace('\\','/'))
-                    filename_relative = filename_relative.replace(":","_")
                     filename_absolute = find_audio_path(filename_relative, path_to_clips)
-                    checked_files += 1
-                except ValueError as err:
-                    raise err
-                    # print(f"{err}")
-                    # continue
-
-
-            if checked_files < max_existence_file_check:
-                assert os.path.isfile(filename_absolute), f"Audio file {field_values[path_idx]} does not exist."
-                checked_files += 1
+                except FileNotFoundError:
+                    try:
+                        filename_absolute = find_audio_path(filename_relative2, path_to_clips)
+                    except FileNotFoundError as err:
+                        if ignore_missing_files:
+                            print(err)
+                            continue
+                        raise err
 
             # set an id if not present
             if must_create_client_id:
