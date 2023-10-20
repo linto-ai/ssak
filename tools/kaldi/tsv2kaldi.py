@@ -34,6 +34,7 @@ def find_audio_path(name, path):
         if name in files:
             found_files.append(os.path.join(root, name))
     if len(found_files) > 1:
+        print(f"{len(found_files)} audio files found for {name}. Checking if they are identical...")
         hash_files = [md5_file(file) for file in found_files]
         unique_hashes = set(hash_files)
         if len(unique_hashes) > 1:
@@ -109,9 +110,10 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
                     filename_relative = filename_relative.replace(":","_")
                     filename_absolute = find_audio_path(filename_relative, path_to_clips)
                     checked_files += 1
-                except:
-                    print(f"No audio file found for {filename_relative}.")
-                    continue
+                except ValueError as err:
+                    raise err
+                    # print(f"{err}")
+                    # continue
 
 
             if checked_files < max_existence_file_check:
