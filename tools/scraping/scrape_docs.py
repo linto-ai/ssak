@@ -123,7 +123,7 @@ def extract_paragraph_in_pdf(page, simple_pdf_split=False):
     # Split into probable paragraphs
     if simple_pdf_split:
         # lines = re.split(r"\n", page)
-        lines = re.split(r'([\.?!»",:;A-Z])\s*\n', page)
+        lines = re.split(r'([\.?!»"\'\)\]\},:;A-ZÀÁÂÄÇÉÈÊËÍÌÎÏÑÓÒÔÖÚÙÛÜ])\s*\n', page)
         lines = ["".join([a,b]) for a,b in zip(lines[::2],lines[1::2]+[""])]
     else:
         lines = re.split(r'([\.?!»"])\s*\n', page)
