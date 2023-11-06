@@ -52,7 +52,7 @@ def generate_kaldi_data(
                         
             audio_file = f"{audio_name}.{extension}"
             audio_path = os.path.realpath(os.path.join(audio_folder, audio_file))
-            _, audio_duration = get_audio_duration(audio_path)    
+            audio_duration = get_audio_duration(audio_path)    
             assert os.path.isfile(audio_path), f"Missing audio file: {audio_path}"
 
             transcription_path = os.path.join(transcription_folder, transcription_file)
