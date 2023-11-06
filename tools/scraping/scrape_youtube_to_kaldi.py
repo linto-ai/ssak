@@ -15,7 +15,7 @@ def generate_kaldi_data(
     transcription_folder,
     output_folder,
     extension='mp3',
-    audio_tag=None,
+    audio_suffix=None,
     ):
     
     for folder in [audio_folder,transcription_folder]:
@@ -47,8 +47,8 @@ def generate_kaldi_data(
                 continue
 
             audio_name = os.path.splitext(transcription_file)[0]
-            if audio_tag:
-                audio_name = f'{audio_name}{audio_tag}'   
+            if audio_suffix:
+                audio_name = f'{audio_name}{audio_suffix}'   
                         
             audio_file = f"{audio_name}.{extension}"
             audio_path = os.path.realpath(os.path.join(audio_folder, audio_file))
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     parser.add_argument('transcription', help="Path to folder contain the transcription",  type=str)
     parser.add_argument('output', help="Path to kaldi data folder", type=str)
     parser.add_argument('--extension', help="The file extension should be one of: [.mp3, .wav, .ogg]",  type=str, default='mp3')
-    parser.add_argument('--audio_tag', help="Specify whether there are audio files with tags different from their corresponding transcription files", default=None, type=str)
+    parser.add_argument('--audio_suffix', help="Specify whether there are audio files with tags different from their corresponding transcription files", default=None, type=str)
     args = parser.parse_args()
 
     generate_kaldi_data(
@@ -113,5 +113,5 @@ if __name__ == "__main__":
         args.transcription,
         args.output,
         extension=args.extension,
-        audio_tag=args.audio_tag,
+        audio_suffix=args.audio_suffix,
     )
