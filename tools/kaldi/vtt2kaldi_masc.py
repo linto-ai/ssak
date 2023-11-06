@@ -19,10 +19,10 @@ def time_to_seconds(time_str):
     seconds, milliseconds = seconds_milliseconds.split('.')
     
     # Convert components to integers
-    hours = float(hours)
-    minutes = float(minutes)
-    seconds = float(seconds)
-    milliseconds = float(milliseconds)
+    hours = int(hours)
+    minutes = int(minutes)
+    seconds = int(seconds)
+    milliseconds = int(milliseconds)
     
     # Calculate total time in seconds
     total_seconds = (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000)
