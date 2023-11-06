@@ -137,7 +137,7 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, ignore_mis
             yield {key: value for key, value in zip(column_names, field_values)}
 
 
-def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None):
+def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None, prefix=None):
     
     rows = generate_examples(input_file, audio_folder, ignore_missing_gender)
 
@@ -160,6 +160,8 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
 
             file_id = os.path.splitext(os.path.basename(row['path']))[0]
             spk_id = row['client_id']
+            if prefix:
+                spk_id = prefix + spk_id
             utt_id = spk_id
             if True: # file_id not in utt_id:
                 utt_id += '_'+ file_id
@@ -200,6 +202,7 @@ if __name__ == '__main__':
     parser.add_argument("input_file", type=str, help="Input TSV or CSV file")
     parser.add_argument("audio_folder", type=str, help="Input folder with audio files inside")
     parser.add_argument("output_folder", type=str, help="Output folder")
+    parser.add_argument('--prefix', default=None, type=str, help='A prefix for all ids (ex: MyDatasetName_)')
     parser.add_argument('--language', default=None, type=str, help='Main language (only for checking the charset and giving warnings)')
     parser.add_argument('--ignore_missing_gender', type=bool, default=False, help="True if there's no gender column")
     args = parser.parse_args()
@@ -212,4 +215,4 @@ if __name__ == '__main__':
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
     assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender)
+    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender, prefix=args.prefix)
