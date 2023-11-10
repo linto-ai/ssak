@@ -87,6 +87,14 @@ def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
 
     return re.sub(r"[^"+what_to_keep+"]+", " ", text)
 
+_regex_not_arabic_neither_punctuation = r"(?!["+_regex_arabic_chars+"])\w"
+_regex_arabic = r"["+_regex_arabic_chars+"]"
+
+def unglue_arabic_and_latin_chars(line):
+    line = re.sub(r"("+_regex_arabic+")("+_regex_not_arabic_neither_punctuation+")", r"\1 \2", line)
+    line = re.sub(r"("+_regex_not_arabic_neither_punctuation+")("+_regex_arabic+")", r"\1 \2", line)
+    line = re.sub(" {2,}", " ", line)
+    return line
 
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
@@ -101,6 +109,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
         else:
+            line = unglue_arabic_and_latin_chars(line)
             line = remove_special_characters(line)
             if not keep_punc:
                 line = remove_punctuations(line, " ")

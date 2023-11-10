@@ -9,6 +9,7 @@ import webvtt
 
 from linastt.utils.kaldi import check_kaldi_dir
 from linastt.utils.text_utils import format_special_characters
+from linastt.utils.audio import get_audio_total_duration
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
 
@@ -66,7 +67,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                         for row in csv_reader:
                             if row['dialect'] == dialect:
                                 wav_id = row["video_id"]
-                                audio_path = os.path.realpath(os.path.join(audio_folder, f"{wav_id}.wav"))
+                                audio_path = os.path.realpath(os.path.join(audio_folder, f"{wav_id}.{extension}"))
                                 wav_scp_f.write(f"{wav_id} sox {audio_path}  -t wav -r 16k -b 16 -c 1 - |\n")
                             
                                 transcription_file = None
@@ -85,7 +86,7 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                                     
                                     start = time_to_seconds(caption.start)
                                     end = time_to_seconds(caption.end)
-                                    duration = end - start
+                                    duration = round(float(end - start), 3)
 
                                     text = caption.text.replace("\n"," ")
                                     text = format_special_characters(text.strip())
@@ -123,16 +124,19 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                     if ex not in extension:
                         warnings.warn(f"Ignoring {audio_file} because it is not in the expected format (no extension of those {extension}).", UserWarning)
                         continue
-                   
+                    
                     wav_id = os.path.splitext(audio_file)[0]
+                    original_wav_id = os.path.splitext(audio_file)[0][:11]
                     audio_path = os.path.realpath(os.path.join(audio_folder, audio_file))
-
+                    _, audio_duration = get_audio_total_duration(audio_path)
+                    
                     transcription_file = None
                     for filename in os.listdir(transcription_folder):
-                        if filename.startswith(wav_id) and filename.endswith(".vtt"):
+                        if filename.startswith(original_wav_id) and filename.endswith(".vtt"):
                             transcription_file = filename
                             break  
-                        
+                    
+                    
                     if transcription_file is None:
                         warnings.warn(f"No matching VTT file found for {wav_id}.")
                         continue    
@@ -143,30 +147,35 @@ def vtt2kaldi(transcription_folder, audio_folder, output_folder, meta_data_folde
                         
                         start = time_to_seconds(caption.start)
                         end = time_to_seconds(caption.end)
-                        duration = round(end - start ,3)
-
+                        duration = round(float(end - start), 3)
+                        
                         text = caption.text.replace("\n"," ").replace('&lrm;','')
                         text = format_special_characters(text)
-                            
-                        if text and duration > 0:
-                            text_f.write(f"{utt_id} {text}\n")
-                            segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")
-                            utt2dur_f.write(f"{utt_id} {duration}\n")
-                            utt2spk_f.write(f"{utt_id} {utt_id}\n")
-                            spk2utt_f.write(f"{utt_id} {utt_id}\n")
-                            gender = random.choice(['m', 'f'])
-                            if not ignore_missing_gender:
-                                spk2gender_f.write(f"{utt_id} {gender}\n")
+                        
+                        if audio_duration > start:
+                            if text and duration > 0:
+                                text_f.write(f"{utt_id} {text}\n")
+                                segments_f.write(f"{utt_id} {wav_id} {start:.2f} {end:.2f}\n")
+                                utt2dur_f.write(f"{utt_id} {duration}\n")
+                                utt2spk_f.write(f"{utt_id} {utt_id}\n")
+                                spk2utt_f.write(f"{utt_id} {utt_id}\n")
+                                gender = random.choice(['m', 'f'])
+                                if not ignore_missing_gender:
+                                    spk2gender_f.write(f"{utt_id} {gender}\n")
+                                else:
+                                    os.remove(output_folder + '/spk2gender')
                             else:
-                                os.remove(output_folder + '/spk2gender')
-                        else:
-                            if not text:
-                                warning_message = f"No text found for {utt_id}."
-                            elif duration <= 0:
-                                warning_message = f"Non-positive duration found for {utt_id}."
-                            warnings.warn(f"{warning_message} Please check your data.", UserWarning)
-                            continue
-                            
+                                if not text:
+                                    warning_message = f"No text found for {utt_id}."
+                                elif duration <= 0:
+                                    warning_message = f"Non-positive duration found for {utt_id}."
+                                warnings.warn(f"{warning_message} Please check your data.", UserWarning)
+                                continue
+                        else:  
+                            warnings.warn(f"{utt_id} there is audio duration:{audio_duration} less than segment start duration {start} Please check your data.", UserWarning)
+                            continue 
+    check_kaldi_dir(output_folder)                    
+
 if __name__ == '__main__':
     
     import argparse

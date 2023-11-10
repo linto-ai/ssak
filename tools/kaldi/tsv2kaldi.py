@@ -8,6 +8,7 @@ import os
 import csv
 import random
 import re
+import hashlib
 
 def convert_integers_for_safe_kaldi(s):
     return re.sub(r"(\d+)", _add_zeros, s)
@@ -16,8 +17,34 @@ def _add_zeros(match):
     content = int(match.group(1))
     return f"{content:07d}"
 
+def md5_file(file_path, block_size=2**20):
+    """Calculate the MD5 hash of file."""
+    with open(file_path, "rb") as bf:
+        md5 = hashlib.md5()
+        while True:
+            data = bf.read(block_size)
+            if not data:
+                break
+            md5.update(data)
+    return md5.digest()
 
-def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existence_file_check=100000):
+def find_audio_path(name, path):
+    found_files = []
+    for root, dirs, files in os.walk(path):
+        if name in files:
+            found_files.append(os.path.join(root, name))
+    if len(found_files) == 0:
+        raise FileNotFoundError(f"No audio file found for {name}")
+    if len(found_files) > 1:
+        print(f"{len(found_files)} audio files found for {name}. Checking if they are identical...")
+        hash_files = [md5_file(file) for file in found_files]
+        unique_hashes = set(hash_files)
+        if len(unique_hashes) > 1:
+            found_files_str = '\n'.join(found_files)
+            raise RuntimeError(f"Multiple audio files found for {name}, and some of them are not identical:\n{found_files_str}")
+    return found_files[0]
+
+def generate_examples(filepath, path_to_clips, ignore_missing_gender, ignore_missing_files=False):
     """
     Yields examples as dictionaries
     {
@@ -29,8 +56,9 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
     filepath: path to the TSV or CSV file
     path_to_clips: path to the folder containing the audio files
-    max_existence_file_check: maximum number of files to check if they exist (the first ones)
     """
+
+    has_warning_on_unexisting_file_given = False
 
     # data_fields =     ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accents", "locale", "segment"]
     # data_fields_old = ["client_id", "path", "sentence", "up_votes", "down_votes", "age", "gender", "accent", "locale", "segment"]
@@ -70,7 +98,6 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
 
         path_idx = column_names.index("path")
 
-        checked_files = 0
         for field_values in reader:
 
             # if data is incomplete, fill with empty values
@@ -80,27 +107,37 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, max_existe
             filename_relative = field_values[path_idx]
             filename_absolute = os.path.join(path_to_clips, field_values[path_idx])
             if not os.path.isfile(filename_absolute):
-                filename_relative = os.path.basename(field_values[path_idx])
+                filename_relative = os.path.basename(field_values[path_idx].replace('\\','/'))
                 filename_absolute = os.path.join(path_to_clips, filename_relative)
-                if not os.path.isfile(filename_absolute):
-                    filename_absolute = filename_absolute.replace(":", "_") # HACK for TunSwitch
-
-
-            if checked_files < max_existence_file_check:
-                assert os.path.isfile(filename_absolute), f"Audio file {field_values[path_idx]} does not exist."
-                checked_files += 1
+            if not os.path.isfile(filename_absolute):
+                filename_relative2 = filename_relative.replace(":","_") # Hack for TunSwitchTO (1/2)
+                filename_absolute = os.path.join(path_to_clips, filename_relative2)
+            if not os.path.isfile(filename_absolute):
+                if not has_warning_on_unexisting_file_given:
+                    print(f"WARNING: Audio file not found: {filename_relative}. Searching in sub-folders (this might take a while)")
+                    has_warning_on_unexisting_file_given = True
+                try:
+                    filename_absolute = find_audio_path(filename_relative, path_to_clips)
+                except FileNotFoundError:
+                    try:
+                        filename_absolute = find_audio_path(filename_relative2, path_to_clips)
+                    except FileNotFoundError as err:
+                        if ignore_missing_files:
+                            print(err)
+                            continue
+                        raise err
 
             # set an id if not present
             if must_create_client_id:
                 field_values.append(convert_integers_for_safe_kaldi(os.path.splitext(filename_relative)[0].replace("/","--")))
 
             # set absolute path for mp3 audio file
-            field_values[path_idx] = filename_absolute
+            field_values[path_idx] = os.path.realpath(filename_absolute)
 
             yield {key: value for key, value in zip(column_names, field_values)}
 
 
-def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None):
+def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None, prefix=None):
     
     rows = generate_examples(input_file, audio_folder, ignore_missing_gender)
 
@@ -123,6 +160,8 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
 
             file_id = os.path.splitext(os.path.basename(row['path']))[0]
             spk_id = row['client_id']
+            if prefix:
+                spk_id = prefix + spk_id
             utt_id = spk_id
             if True: # file_id not in utt_id:
                 utt_id += '_'+ file_id
@@ -163,6 +202,7 @@ if __name__ == '__main__':
     parser.add_argument("input_file", type=str, help="Input TSV or CSV file")
     parser.add_argument("audio_folder", type=str, help="Input folder with audio files inside")
     parser.add_argument("output_folder", type=str, help="Output folder")
+    parser.add_argument('--prefix', default=None, type=str, help='A prefix for all ids (ex: MyDatasetName_)')
     parser.add_argument('--language', default=None, type=str, help='Main language (only for checking the charset and giving warnings)')
     parser.add_argument('--ignore_missing_gender', type=bool, default=False, help="True if there's no gender column")
     args = parser.parse_args()
@@ -175,4 +215,4 @@ if __name__ == '__main__':
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
     assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender)
+    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender, prefix=args.prefix)

@@ -7,13 +7,15 @@ import warnings
 
 from linastt.utils.kaldi import check_kaldi_dir
 from linastt.utils.text_utils import format_special_characters
+from linastt.utils.audio import get_audio_duration
 
 
 def generate_kaldi_data(
     audio_folder,
     transcription_folder,
     output_folder,
-    extension='mp3'
+    extension='mp3',
+    audio_suffix=None,
     ):
     
     for folder in [audio_folder,transcription_folder]:
@@ -44,10 +46,13 @@ def generate_kaldi_data(
                 print(f"Skipping {transcription_file}")
                 continue
 
-            audio_name = os.path.splitext(transcription_file)[0]            
+            audio_name = os.path.splitext(transcription_file)[0]
+            if audio_suffix:
+                audio_name = f'{audio_name}{audio_suffix}'   
+                        
             audio_file = f"{audio_name}.{extension}"
-            audio_path = os.path.join(audio_folder, audio_file)
-
+            audio_path = os.path.realpath(os.path.join(audio_folder, audio_file))
+            audio_duration = get_audio_duration(audio_path)    
             assert os.path.isfile(audio_path), f"Missing audio file: {audio_path}"
 
             transcription_path = os.path.join(transcription_folder, transcription_file)
@@ -71,6 +76,11 @@ def generate_kaldi_data(
                         start = round(float(start), 3)
                         end = round(start + float(duration), 3)
                         duration = round(end - start, 3)
+                        
+                        if audio_duration < start:
+                            warnings.warn(f"{utt_id} there is audio duration:{audio_duration} less than segment start duration {start} Please check your data.", UserWarning)
+                            continue 
+                        
                         if duration == 0:
                             warnings.warn(f"Duration is 0 for {utt_id}", UserWarning)
                             continue
@@ -95,6 +105,7 @@ if __name__ == "__main__":
     parser.add_argument('transcription', help="Path to folder contain the transcription",  type=str)
     parser.add_argument('output', help="Path to kaldi data folder", type=str)
     parser.add_argument('--extension', help="The file extension should be one of: [.mp3, .wav, .ogg]",  type=str, default='mp3')
+    parser.add_argument('--audio_suffix', help="Specify whether there are audio files with tags different from their corresponding transcription files", default=None, type=str)
     args = parser.parse_args()
 
     generate_kaldi_data(
@@ -102,4 +113,5 @@ if __name__ == "__main__":
         args.transcription,
         args.output,
         extension=args.extension,
+        audio_suffix=args.audio_suffix,
     )
