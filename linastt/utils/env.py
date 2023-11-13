@@ -14,12 +14,14 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 def _set_visible_gpus(s):
     global DISABLE_GPU, REQUIRED_GPU
     if isinstance(s, str):
-        if s == "auto":
+        if s.lower() == "auto":
             # Choose the GPU with the most free memory
             from linastt.utils.logs import get_num_gpus, gpu_free_memory
             # GPUs sorted by decreasing free memory
             gpus = list(reversed(sorted(range(get_num_gpus()), key = gpu_free_memory)))
             s = str(gpus[0]) if len(gpus) else ""
+        if s.lower() == "none":
+            s = ""
         return _set_visible_gpus(s.split(",") if s else [])
     if isinstance(s, list):
         s = [int(si) for si in s]
@@ -29,11 +31,17 @@ def _set_visible_gpus(s):
         DISABLE_GPU = True
     os.environ["CUDA_VISIBLE_DEVICES"] = s
 
+has_set_gpu = False
 for i, arg in enumerate(sys.argv[1:]):
+    arg = arg.lower()
     if arg in ["--gpus", "--gpu"]:
         _set_visible_gpus(sys.argv[i+2])
+        has_set_gpu = True
     elif arg.startswith("--gpus=") or arg.startswith("--gpu="):
         _set_visible_gpus(arg.split("=")[-1])
+        has_set_gpu = True
+if not has_set_gpu:
+    _set_visible_gpus("auto")
 
 # To address the following error when importing librosa
 #   RuntimeError: cannot cache function '__shear_dense': no locator available for file '/usr/local/lib/python3.9/site-packages/librosa/util/utils.py'
@@ -70,7 +78,8 @@ def use_gpu():
         return []
     from linastt.utils.logs import get_num_gpus
     num_gpus = get_num_gpus()
-    assert num_gpus-1 >= max(REQUIRED_GPU), f"More GPU required than available (required GPU: {REQUIRED_GPU}, available GPU: {list(range(num_gpus))})"
+    if REQUIRED_GPU:
+        assert num_gpus-1 >= max(REQUIRED_GPU), f"More GPU required than available (required GPU: {REQUIRED_GPU}, available GPU: {list(range(num_gpus))})"
     return REQUIRED_GPU
 
 if use_gpu():
