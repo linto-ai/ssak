@@ -139,7 +139,7 @@ def get_vad_segments(audio, sample_rate=16_000,
         plt.figure()
         max_num_samples = 10000
         step = (audio.shape[-1] // max_num_samples) + 1
-        times = [i*step/sample_rate_target for i in range(audio.shape[-1] // step + 1)]
+        times = [i*step/sample_rate_target for i in range((audio.shape[-1]-1) // step + 1)]
         plt.plot(times, audio[::step])
         for s in segments:
             plt.axvspan(s["start"]/sample_rate_target, s["end"]/sample_rate_target, color='red', alpha=0.1)
@@ -216,7 +216,7 @@ def remove_non_speech(audio,
         max_num_samples = 10000
         audio_speech_mono = audio_speech.mean(dim=0) if len(audio_speech.shape) > 1 else audio_speech
         step = (audio_speech_mono.shape[-1] // max_num_samples) + 1
-        times = [i*step/sample_rate for i in range(audio_speech_mono.shape[-1] // step + 1)]
+        times = [i*step/sample_rate for i in range((audio_speech_mono.shape[-1]-1) // step + 1)]
         plt.plot(times, audio_speech_mono[::step])
         if isinstance(plot, str):
             plt.savefig(f"{plot}.speech.jpg", bbox_inches='tight', pad_inches=0)
