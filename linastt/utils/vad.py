@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 from linastt.utils.audio import load_audio, conform_audio, save_audio
 
@@ -8,10 +9,12 @@ pyannote_vad_pipeline = None
 
 
 def get_vad_segments(audio, sample_rate=16_000,
-                     output_sample=False,
-                     method="silero",
+                     method="auditok",
                      min_speech_duration=0.25,
                      min_silence_duration=0.1,
+                     dilatation=0,
+                     output_sample=False,
+                     plot=False,
                      verbose=False,
                      ):
     """
@@ -19,12 +22,23 @@ def get_vad_segments(audio, sample_rate=16_000,
     parameters:
         audio: str or torch.Tensor
             path to audio file or audio data
+        method: str
+            method to use for VAD (silero, pyannote, auditok)
         sample_rate: int
-            sample rate of audio data
+            sample rate of audio data (in case it is not a file)
+        min_speech_duration: float
+            minimum speech duration (seconds)
+        min_silence_duration: float
+            minimum silence duration (seconds)
+        dilatation: float
+            dilatation of speech segments (seconds)
         output_sample: bool
             if True, return start and end in samples instead of seconds
-        method: str
-            method to use for VAD (silero, pyannote)
+        plot: bool
+            if True, plot result
+            if string, save plot to file
+        verbose: bool
+            if True, display information when loading models
     """
     global silero_vad_model, silero_get_speech_ts, pyannote_vad_pipeline
 
@@ -32,15 +46,16 @@ def get_vad_segments(audio, sample_rate=16_000,
     format = "torch"
     if method in ["silero"]:
         sample_rate_target = 16000
-    elif method in ["pyannote"]:
+    elif method in ["pyannote", "auditok"]:
         sample_rate_target = None
     else:
         raise ValueError(f"Unknown VAD method: {method}")
+    if method == "auditok":
+        format = "array"
 
     if isinstance(audio, str):
         (audio, sample_rate) = load_audio(audio, sample_rate=None, return_format=format, verbose=verbose)
-    audio = conform_audio(audio, sample_rate, sample_rate=sample_rate_target,
-                          return_format=format, verbose=verbose)
+    audio = conform_audio(audio, sample_rate, sample_rate=sample_rate_target, return_format=format, verbose=verbose)
 
     if sample_rate_target is None:
         sample_rate_target = sample_rate
@@ -85,6 +100,53 @@ def get_vad_segments(audio, sample_rate=16_000,
         for speech_turn in pyannote_segments.get_timeline().support():
             segments.append({"start": speech_turn.start * sample_rate_target,
                             "end": speech_turn.end * sample_rate_target})
+            
+    elif method == "auditok":
+        import auditok
+
+        data = (audio * 32767).astype(np.int16).tobytes()
+
+        segments = auditok.split(
+            data,
+            sampling_rate=sample_rate_target, # sampling frequency in Hz
+            channels=1,                       # number of channels
+            sample_width=2,                   # number of bytes per sample
+            min_dur=min_speech_duration,      # minimum duration of a valid audio event in seconds
+            max_dur=len(audio)/sample_rate_target, # maximum duration of an event
+            max_silence=min_silence_duration, # maximum duration of tolerated continuous silence within an event
+            energy_threshold=50,
+            drop_trailing_silence=True,
+        )
+
+        segments = [{"start": s._meta.start * sample_rate, "end": s._meta.end * sample_rate} for s in segments]
+
+    if dilatation > 0:
+        dilatation = round(dilatation * sample_rate_target)
+        new_segments = []
+        for seg in segments:
+            new_seg = {
+                "start": max(0, seg["start"] - dilatation),
+                "end": min(len(audio), seg["end"] + dilatation)
+            }
+            if len(new_segments) > 0 and new_segments[-1]["end"] >= new_seg["start"]:
+                new_segments[-1]["end"] = new_seg["end"]
+            else:
+                new_segments.append(new_seg)
+        segments = new_segments
+
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        max_num_samples = 10000
+        step = (audio.shape[-1] // max_num_samples) + 1
+        times = [i*step/sample_rate_target for i in range(audio.shape[-1] // step + 1)]
+        plt.plot(times, audio[::step])
+        for s in segments:
+            plt.axvspan(s["start"]/sample_rate_target, s["end"]/sample_rate_target, color='red', alpha=0.1)
+        if isinstance(plot, str):
+            plt.savefig(f"{plot}.VAD.jpg", bbox_inches='tight', pad_inches=0)
+        else:
+            plt.show()
 
     ratio = sample_rate / sample_rate_target if output_sample else 1 / sample_rate_target
 
@@ -103,11 +165,10 @@ def get_vad_segments(audio, sample_rate=16_000,
 def remove_non_speech(audio,
                       sample_rate=16_000,
                       use_sample=False,
-                      method="silero",
-                      min_speech_duration=0.1,
-                      min_silence_duration=1,
-                      verbose=False,
                       path=None,
+                      plot=False,
+                      verbose=False,
+                      **kwargs,
                       ):
     """
     Remove non-speech segments from audio (using Silero VAD),
@@ -122,10 +183,9 @@ def remove_non_speech(audio,
     segments = get_vad_segments(
         audio, sample_rate=sample_rate,
         output_sample=True,
-        method=method,
-        min_speech_duration=min_speech_duration,
-        min_silence_duration=min_silence_duration,
+        plot=plot,
         verbose=verbose,
+        **kwargs,
     )
 
     segments = [(seg["start"], seg["end"]) for seg in segments]
@@ -135,6 +195,9 @@ def remove_non_speech(audio,
         print(segments)
 
     audio_speech = torch.cat([audio[..., s:e] for s, e in segments], dim=-1)
+    
+    if len(audio.shape) == 1:
+        audio_speech = audio_speech.reshape(-1)
 
     if path:
         if verbose:
@@ -146,6 +209,22 @@ def remove_non_speech(audio,
                     for s, e in segments]
         if verbose:
             print(segments)
+
+    if plot:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        max_num_samples = 10000
+        audio_speech_mono = audio_speech.mean(dim=0) if len(audio_speech.shape) > 1 else audio_speech
+        step = (audio_speech_mono.shape[-1] // max_num_samples) + 1
+        times = [i*step/sample_rate for i in range(audio_speech_mono.shape[-1] // step + 1)]
+        plt.plot(times, audio_speech_mono[::step])
+        if isinstance(plot, str):
+            plt.savefig(f"{plot}.speech.jpg", bbox_inches='tight', pad_inches=0)
+        else:
+            plt.show()
+
+    if not isinstance(audio, torch.Tensor):
+        audio_speech = audio_speech.numpy()
 
     return audio_speech, lambda t, t2 = None: convert_timestamps(segments, t, t2)
 
@@ -195,12 +274,37 @@ def convert_timestamps(segments, t, t2=None):
 
 if __name__ == "__main__":
 
-    import sys
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Remove non-speech segments from audio file and show the result',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument('audio_file', nargs='+', help='path to audio file(s)')
+    parser.add_argument('--method', default="auditok", choices=["silero", "pyannote", "auditok"], help='VAD method')
+    parser.add_argument('--min_speech_duration', type=float, default=0.25, help='minimum speech duration (seconds)')
+    parser.add_argument('--min_silence_duration', type=float, default=0.1, help='minimum silence duration (seconds)')
+    parser.add_argument('--dilatation', type=float, default=0, help='dilatation of speech segments (seconds)')
+    parser.add_argument('--save_output', action="store_true", help='save audio without silence (beside the file)')
+    parser.add_argument('--disable_plot', action="store_true", help='do not plot results')
+    parser.add_argument('--verbose', action="store_true", help='verbose')
+    args = parser.parse_args()
 
-    for audio_file in sys.argv[1:]:
+    kwargs = dict(
+        method=args.method,
+        min_speech_duration=args.min_speech_duration,
+        min_silence_duration=args.min_silence_duration,
+        dilatation=args.dilatation,
+        plot=not args.disable_plot,
+        verbose=args.verbose,
+    )
 
-        print(audio_file)
 
-        for method in ["silero", "pyannote"]:
-            audio, func = remove_non_speech(
-                audio_file, method=method, verbose=True, path=f"{audio_file}.speech_{method}.mp3")
+    for audio_file in args.audio_file:
+
+        if args.verbose:
+            print(f"Processing {audio_file}...")
+
+        audio, func = remove_non_speech(audio_file,
+            path=f"{audio_file}.speech_{args.method}.mp3" if args.save_output else None,
+            **kwargs,
+            )
