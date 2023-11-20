@@ -205,19 +205,11 @@ def get_audio_total_duration(files, max_args=1000, verbose=False):
         total_number+= nb
     return total_number, total_duration
 
-def _sox_duration(files, check_duration=True):
+def _sox_duration(files):
     # TODO: use soxi -D
     stdout = run_command(["soxi"] + files, False)
     last_break = stdout.rfind("\n")
     last_line = stdout[last_break:] if last_break >= 0 else ""
-    if check_duration:
-        for line in stdout.split("\n"):
-            if line.startswith("Input File"):
-                current_file = line.split(":")[1].strip().strip("'")
-            if line.startswith("Duration"):
-                duration = line.split()[2]
-                if duration == "00:01:33.24":
-                    print("Warning: ", current_file)
     if "Total Duration" in last_line:
         fields = last_line.split()
         duration = time2second(fields[-1])
