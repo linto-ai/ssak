@@ -150,6 +150,9 @@ if __name__ == "__main__":
     parser.add_argument('--subsample_checks', help='To take only a subsample of audio to check formats', default=False, action="store_true")
     parser.add_argument('--no_overlapping', default=False, action="store_true", help="To ensure there is no overlapping between segments")
     parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
+    parser.add_argument('--folder_metadata', help='Folder with metadata about each file', default=None)
+    parser.add_argument('--ignore_speakers', default=False, action="store_true", help="To ignore speaker information (when it's not reliable)")
+
     args = parser.parse_args()
 
     if not args.license and args.private:
@@ -462,10 +465,28 @@ if __name__ == "__main__":
         # Look for a date        
         date = None
         xml_file = re.sub(os.path.splitext(_wav)[-1] + "$",".xml", _wav)
+        date_file = None
         if os.path.isfile(xml_file):
             date = extract_from_xml(xml_file, "date")
+            date_file = xml_file
         if date is None:
-            date = wav_dates[all_wavs[_wav]]
+            date = wav_dates.get(all_wavs[_wav])
+            date_file = folder + "/extra_wav.csv"
+        if date is None and args.folder_metadata:
+            metadata = os.path.join(args.folder_metadata, os.path.splitext(os.path.basename(_wav))[0] + ".json")
+            if os.path.isfile(metadata):
+                with open(metadata) as f:
+                    metadata = json.load(f)
+                for key in "publish_date", "date_recorded", "date_created", "date_modified":
+                    if key in metadata:
+                        date = metadata[key]
+                        break
+                if date is None:
+                    print(f"WARNING: could not find date in metadata {metadata}")
+                else:
+                    date_file = metadata
+            else:
+                print(f"WARNING: could not find metadata {metadata}")
         # Conversion to timestamp
         if isinstance(date, str):
             try:
@@ -477,13 +498,16 @@ if __name__ == "__main__":
                         date = datetime.strptime(date, "%d/%m/%Y")
                 elif "-" in date:
                     if "T" in date:
-                        date = datetime.strptime(date, "%Y-%m-%dT%H:%M:%S+00:00")
+                        if date.endswith("+00:00"):
+                            date = datetime.strptime(date, "%Y-%m-%dT%H:%M:%S+00:00")
+                        else:
+                            date = datetime.strptime(date, "%Y-%m-%dT%H:%M:%S")
                     else:
                         date = datetime.strptime(date, "%Y-%m-%d")
                 else:
-                    raise RuntimeError("Could not parse \"%s\" in %s" % (date, xml_file))
+                    raise RuntimeError("Could not parse \"%s\" in %s" % (date, date_file))
             except Exception as err:
-                raise RuntimeError("Could not parse \"%s\" in %s" % (date, xml_file)) from err
+                raise RuntimeError("Could not parse \"%s\" in %s" % (date, date_file)) from err
         if date != None:
             min_date = date if min_date is None else min(date, min_date)
             max_date = date if max_date is None else max(date, max_date)
@@ -494,11 +518,11 @@ if __name__ == "__main__":
         previous_start = 0
         previous_end = 0
         for utterance in sorted(utt, key = lambda x:float(x['start'])):
-            if args.version >= "0.0.2":
+            if args.ignore_speakers or args.version >= "0.0.2":
                 extra = {}
             else:
                 extra = {"speaker": utterance['speaker']}
-            if utterance['gender']:
+            if utterance['gender'] and not args.ignore_speakers:
                 extra.update({"gender" : utterance['gender']})
             start = int(utterance['start'] * 1000)
             end = int(utterance['end'] * 1000)
@@ -524,6 +548,7 @@ if __name__ == "__main__":
                     assert f in extra_this, f"Missing field {f} in extra_utt.csv"
                     if f in extra_this:
                         other[f] = int(extra_this[f])
+            extra = {"extra": extra} if extra else {}
             transcriptions.append(({
                 "date_created": time2str(now) # Overkill, in first version
             } if args.version == "0.0.1" else {}) | {
@@ -533,10 +558,9 @@ if __name__ == "__main__":
                 } | (
                 {
                     "speaker": utterance['speaker'],
-                } if args.version >= "0.0.2" else {}
-                ) | other | {
-                "extra": extra
-            })
+                } if (args.version >= "0.0.2" and not args.ignore_speakers) else {}
+                ) | other | extra
+            )
             if HAS_RAW:
                 t_raw = transcriptions[-1].copy()
                 t_raw["transcript"] = utterance['rawtext']
@@ -569,7 +593,7 @@ if __name__ == "__main__":
 
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         with open(os.path.join(output_folder, "meta.json"), "w") as f:
-            extra = {
+            extra = {} if args.ignore_speakers else {
                 "num_speakers": len(speakers),
             }
             fcount = list(genders.values()).count("f")
@@ -590,6 +614,8 @@ if __name__ == "__main__":
                 extra.update({"num_channels" : note_channels})
             if note_bit_depth:
                 extra.update({"bit_depth" : note_bit_depth})
+
+            extra = {"extra": extra} if extra else {}
 
             metadata = {
                 "name": corpus_name,
@@ -624,12 +650,11 @@ if __name__ == "__main__":
             {
                 "languages": args.languages,
             } if args.version >= "0.0.2" else {}
-            ) | {
-                "extra": extra,
-            }
+            ) | extra
             json_dump(metadata, f)
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
+        speaker_information = "none" if args.ignore_speakers else "uid"
         metadata = ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
             "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
             # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
@@ -639,7 +664,7 @@ if __name__ == "__main__":
         } | (
         {
             "annotation_type": "transcription",
-            "speaker_information": "uid",
+            "speaker_information": speaker_information,
         } if args.version >= "0.0.2" else {}
         ) | {
             "contact": {
