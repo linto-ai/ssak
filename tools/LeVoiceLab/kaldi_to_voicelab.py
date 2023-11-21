@@ -535,7 +535,7 @@ if __name__ == "__main__":
                     if middle <= previous_start:
                         print(f"WARNING: overlapping segment ignored (case 2): \"{utterance['text']}\" ({start/1000:.2f}->{end/1000:.2f} included in {previous_start/1000:.2f}->{previous_end/1000:.2f})")
                         continue
-                    start = middle
+                    start = int(middle)
                     transcriptions[-1]["timestamp_end_milliseconds"] = start
                     if HAS_RAW:
                         transcriptions_raw[-1]["timestamp_end_milliseconds"] = start
