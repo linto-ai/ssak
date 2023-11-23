@@ -169,8 +169,6 @@ if __name__ == "__main__":
     SEED = args.seed
     WARMUP_STEPS = args.warmup_steps
     
-    USE_MIXED_PRECISION = False # use_gpu()
-    USE_MIXED_PRECISION_CPU = False # Too many problems
     args.online = (not args.offline or args.data_augmentation or args.text_augmentation)
     online_dev = not args.offline_dev
     dataloader_num_workers = 2
@@ -368,34 +366,40 @@ if __name__ == "__main__":
     )
     if readme is not None:
         readme.flush()
-          
+
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
-        
-    if PEFT: 
+    
+    if PEFT:
 
         from transformers import BitsAndBytesConfig
         from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
 
-        quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
+        quantization_config = BitsAndBytesConfig(
+            llm_int8_enable_fp32_cpu_offload=True,
+            load_in_8bit=True,
+        )
+
+        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
+        lora_config = LoraConfig(
+            r=32, 
+            lora_alpha=64, 
+            target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+            lora_dropout=0.05, 
+            bias="none",
+        )
 
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
             load_in_8bit=True,
             device_map="auto" if use_gpu() else None, 
-            quantization_config=quantization_config
-            ) 
-        
-        model = prepare_model_for_int8_training(model)
+            quantization_config=quantization_config,
+            # peft_config = lora_config,
+        ) 
 
-        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
-        config = LoraConfig(r=32, 
-                        lora_alpha=64, 
-                        target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
-                        lora_dropout=0.05, 
-                        bias="none",
-                    )
+        # Useless
+        # model = prepare_model_for_int8_training(model)
 
-        model = get_peft_model(model, config)
+        model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
     else:
         # TODO: make it work with load_in_8bit=True?
@@ -418,7 +422,7 @@ if __name__ == "__main__":
     
     if use_gpu():
         mem = gpu_usage("Model loaded", stream = gpu_log)
-        min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
+        min_mem = + mem * 1.5 + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
     
     random.seed(SEED)
@@ -489,7 +493,8 @@ if __name__ == "__main__":
     # training
     tic()
     print(f"Training model in folder: {output_folder}")
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    with torch.autocast("cuda" if use_gpu() else "cpu"): 
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     toc("Training", stream = readme)
     
     # Save model
