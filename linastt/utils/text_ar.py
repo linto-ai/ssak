@@ -66,6 +66,65 @@ def normalize_punct(text):
     text = re.sub("[-_]","",text)
     return text
 
+def normalize_chars(text):
+    # Replace various forms of Alef (ٱ, ٲ, ٵ, ٴ) with أ
+    text = re.sub("[ٱٲٵٴ]", "أ", text)
+
+    # Replace various forms of Waw (ٶ, ٷ) with ؤ
+    text = re.sub("[ٶٷ]", "ؤ", text)
+
+    # Replace Waw Hamza (ٳ) with إ
+    text = re.sub("ٳ", "إ", text)
+
+    # Replace Yeh Hamza (ٸ) with ئ
+    text = re.sub("ٸ", "ئ", text)
+
+    # Replace Gaf (ڠ) with غ
+    text = re.sub("ڠ", "غ", text)
+
+    # Replace various forms of Beh (ٻ, پ, ڀ) with ب
+    text = re.sub("[ٻپڀ]", "ب", text)
+
+    # Replace various forms of Teh (ٿ, ٺ, ٹ, ټ) with ت
+    text = re.sub("[ٿٺٹټ]", "ت", text)
+
+    # Replace various forms of Qaf (ٯ, ڤ, ڦ, ڨ) with ق
+    text = re.sub("[ٯڤڦڨ]", "ق", text)
+
+    # Replace various forms of Fe (ڥ, ڡ, ڢ) with ف
+    text = re.sub("[ڥڡڢ]", "ف", text)
+
+    # Replace various forms of Heh (ھ, ە, ۀ) with ه
+    text = re.sub("[ھەۀ]", "ه", text)
+
+    # Replace various forms of Khah (ځ, ڂ, څ, ڃ, ڄ, چ, ڇ) with خ
+    text = re.sub("[ځڂڅڃڄچڇ]", "خ", text)
+
+    # Replace various forms of Kaf (ڱ, ڲ, ڴ, ڳ, ک, ڪ, ګ, ڬ, ڭ, ڮ, گ, ڰ) with ك
+    text = re.sub("[ڱڲڴڳکڪګڬڭڮگڰ]", "ك", text)
+
+    # Replace various forms of Lam (ڵ, ڶ, ڷ, ڸ) with ل
+    text = re.sub("[ڵڶڷڸ]", "ل", text)
+
+    # Replace various forms of Noon (ڹ, ں, ڻ, ڼ, ڽ) with ن
+    text = re.sub("[ڹںڻڼڽ]", "ن", text)
+
+    # Replace various forms of Yeh (ی, ۍ, ێ, ې, ۑ) with ي
+    text = re.sub("[یۍێېۑ]", "ي", text)
+
+    # Replace various forms of Ze (ڒ, ڑ, ړ, ڔ, ڕ, ږ, ڗ, ژ, ڙ) with ز
+    text = re.sub("[ڒڑړڔڕږڗژڙ]", "ز", text)
+
+    # Replace various forms of Dal (ڈ, ډ, ڊ, ڋ, ڌ, ڍ, ڎ, ڏ, ڐ) with ذ
+    text = re.sub("[ڈډڊڋڌڍڎڏڐ]", "ذ", text)
+
+    # Replace various forms of Sheen (ښ, ڛ, ڜ) with ش
+    text = re.sub("[ښڛڜ]", "ش", text)
+
+    # Replace various forms of Waw (ۄ, ۅ, ۆ, ۇ, ۈ, ۉ, ۊ, ۋ) with و
+    text = re.sub("[ۄۅۆۇۈۉۊۋ]", "و", text)
+
+    return text
 
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
