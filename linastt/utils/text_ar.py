@@ -164,6 +164,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
         line = normalize_arabic_currencies(line, lang="ar")
         line = digit2word(line)
         line = remove_arabic_diacritics(line)
+        line = normalize_chars(line)
         line = normalize_punct(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
