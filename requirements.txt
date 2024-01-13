@@ -15,12 +15,10 @@ Levenshtein
 librosa
 loralib
 matplotlib
-# num2words>0.5.12
-git+https://github.com/linto-ai/num2words.git@872510dd8bfea767916067f60856fc9c360059fe
+num2words
 onnxruntime
 openai-whisper
-# peft>0.3.0
-git+https://github.com/huggingface/peft.git@4fd374e80d670781c0d82c96ce94d1215ff23306
+peft
 psutil
 PyAudio
 py3nvml
@@ -37,9 +35,7 @@ text2num
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
-# transformers>=4.30.0
-# git+https://github.com/huggingface/transformers.git@539e2281cd97c35ef4122757f26c88f44115fa94
-transformers==4.30.2
+transformers
 xmltodict
 vosk
 websockets
