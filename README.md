@@ -45,7 +45,26 @@ This repository focus on the following features:
     └── run_tests.py    : Entrypoint to run tests
 ```
 
-## Docker
+## Installation
+
+### Requirements
+
+```
+sudo apt-get install \
+        sox \
+        libsox-fmt-mp3 \
+        libsox-dev \
+        ffmpeg \
+        libssl-dev \
+        libsndfile1 \
+        portaudio19-dev \
+        xvfb
+
+pip3 install -r requirements.txt
+pip3 install -r tools/requirements.txt
+```
+
+### Docker
 
 If not done, pull the docker image:
 ```

@@ -33,7 +33,8 @@ RUN apt-get install -y --no-install-recommends \
         libsox-dev \
         ffmpeg \
         libsndfile1 \
-        portaudio19-dev
+        portaudio19-dev \
+        libssl-dev
 
 RUN python3 -m pip install --upgrade pip
 
