@@ -16,7 +16,7 @@ def _set_visible_gpus(s):
     if isinstance(s, str):
         if s.lower() == "auto":
             # Choose the GPU with the most free memory
-            from linastt.utils.logs import get_num_gpus, vram_free
+            from linastt.utils.monitoring import get_num_gpus, vram_free
             # GPUs sorted by decreasing free memory
             gpus = list(reversed(sorted(range(get_num_gpus()), key = vram_free)))
             s = str(gpus[0]) if len(gpus) else ""
@@ -76,7 +76,7 @@ def use_gpu():
     if DISABLE_GPU or not torch.cuda.is_available():
         assert REQUIRED_GPU == [], f"GPU required but not available (required GPU: {REQUIRED_GPU})"
         return []
-    from linastt.utils.logs import get_num_gpus
+    from linastt.utils.monitoring import get_num_gpus
     num_gpus = get_num_gpus()
     if REQUIRED_GPU:
         assert num_gpus-1 >= max(REQUIRED_GPU), f"More GPU required than available (required GPU: {REQUIRED_GPU}, available GPU: {list(range(num_gpus))})"

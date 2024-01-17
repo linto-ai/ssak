@@ -25,7 +25,7 @@ This module provides helpers to monitor timing and memory usages.
 Example usage (minimal):
 
 ```python
-from linastt.utils.logs import tic, toc, vram_peak, ram_peak
+from linastt.utils.monitoring import tic, toc, vram_peak, ram_peak
 import torch
 
 tic()

@@ -4,7 +4,7 @@ from operator import itemgetter
 import logging
 import random
 import math
-from linastt.utils.logs import logger
+from linastt.utils.monitoring import logger
 from linastt.utils.misc import commonprefix, get_cache_dir
 from linastt.utils.kaldi import parse_kaldi_wavscp
 

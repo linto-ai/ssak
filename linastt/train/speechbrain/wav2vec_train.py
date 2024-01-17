@@ -4,7 +4,7 @@ from linastt.utils.env import auto_device # handle option --gpus (and set enviro
 from linastt.utils.dataset import kaldi_folder_to_dataset, to_annotation_text
 from linastt.utils.audio import load_audio
 from linastt.utils.text import remove_special_words
-from linastt.utils.logs import get_num_gpus
+from linastt.utils.monitoring import get_num_gpus
 from linastt.utils.augment import SpeechAugment
 from linastt.utils.misc import save_source_dir, get_cache_dir, hashmd5
 from linastt.utils.text_utils import collapse_whitespace

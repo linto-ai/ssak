@@ -6,7 +6,7 @@ import tempfile
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.audio import save_audio
-from linastt.utils.logs import tic, toc
+from linastt.utils.monitoring import tic, toc
 
 def linstt_infer(
     audios,

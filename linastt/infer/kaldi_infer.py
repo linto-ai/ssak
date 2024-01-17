@@ -2,7 +2,7 @@
 
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
-from linastt.utils.logs import tic, toc, vram_peak
+from linastt.utils.monitoring import tic, toc, vram_peak
 from linastt.utils.misc import get_cache_dir, hashmd5
 
 import vosk

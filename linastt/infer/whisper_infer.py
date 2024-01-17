@@ -3,7 +3,7 @@
 from linastt.utils.env import * # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir
-from linastt.utils.logs import tic, toc, vram_peak
+from linastt.utils.monitoring import tic, toc, vram_peak
 
 import whisper
 import torch

@@ -3,7 +3,7 @@
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir, hashmd5
-from linastt.utils.logs import tic, toc, vram_peak, logger
+from linastt.utils.monitoring import tic, toc, vram_peak, logger
 from linastt.utils.debug import plot_logits
 from linastt.utils.yaml_utils import make_yaml_overrides
 

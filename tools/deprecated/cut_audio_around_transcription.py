@@ -7,7 +7,7 @@ from linastt.utils.audio import load_audio
 from linastt.infer.speechbrain_infer import speechbrain_load_model, speechbrain_infer
 from linastt.infer.kaldi_infer import kaldi_infer
 from linastt.infer.transformers_infer import transformers_infer
-from linastt.utils.logs import tic, toc
+from linastt.utils.monitoring import tic, toc
 
 
 import os

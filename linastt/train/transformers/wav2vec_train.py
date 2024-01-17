@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
-from linastt.utils.logs import vram_usage, get_num_gpus, vram_free, tic, toc
+from linastt.utils.monitoring import vram_usage, get_num_gpus, vram_free, tic, toc
 from linastt.utils.text import remove_special_words
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
