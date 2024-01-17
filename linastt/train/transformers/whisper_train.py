@@ -12,7 +12,7 @@ from linastt.utils.text import (
     remove_special_words,
     remove_special_characters,
 )
-from linastt.utils.logs import vram_usage, get_num_gpus, gpu_free_memory, tic, toc
+from linastt.utils.logs import vram_usage, get_num_gpus, vram_free, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
 from linastt.utils.misc import remove_commonprefix

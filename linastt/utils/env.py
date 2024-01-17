@@ -16,9 +16,9 @@ def _set_visible_gpus(s):
     if isinstance(s, str):
         if s.lower() == "auto":
             # Choose the GPU with the most free memory
-            from linastt.utils.logs import get_num_gpus, gpu_free_memory
+            from linastt.utils.logs import get_num_gpus, vram_free
             # GPUs sorted by decreasing free memory
-            gpus = list(reversed(sorted(range(get_num_gpus()), key = gpu_free_memory)))
+            gpus = list(reversed(sorted(range(get_num_gpus()), key = vram_free)))
             s = str(gpus[0]) if len(gpus) else ""
         if s.lower() == "none":
             s = ""
