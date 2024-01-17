@@ -12,7 +12,7 @@ from linastt.utils.text import (
     remove_special_words,
     remove_special_characters,
 )
-from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
+from linastt.utils.logs import vram_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
 from linastt.utils.misc import remove_commonprefix
@@ -418,10 +418,10 @@ if __name__ == "__main__":
     model.train(True)
        
     gpu_log = open(os.path.join(output_folder, "gpu_log.txt"), "a") if use_gpu() else None
-    gpu_usage("START", stream = gpu_log)
+    vram_usage("START", stream = gpu_log)
     
     if use_gpu():
-        mem = gpu_usage("Model loaded", stream = gpu_log)
+        mem = vram_usage("Model loaded", stream = gpu_log)
         min_mem = + mem * 1.5 + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
     

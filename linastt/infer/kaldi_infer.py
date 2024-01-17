@@ -2,7 +2,7 @@
 
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
-from linastt.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.logs import tic, toc, vram_peak
 from linastt.utils.misc import get_cache_dir, hashmd5
 
 import vosk
@@ -267,7 +267,7 @@ def kaldi_infer(
             for pred in results:
                 yield pred
 
-        if log_memtime: gpu_mempeak()
+        if log_memtime: vram_peak()
     if log_memtime: toc("apply network", log_mem_usage = True)
 
 

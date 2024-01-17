@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from linastt.utils.env import * # handle option --gpus (and set environment variables at the beginning)
-from linastt.utils.logs import gpu_usage, get_num_gpus, gpu_free_memory, tic, toc
+from linastt.utils.logs import vram_usage, get_num_gpus, gpu_free_memory, tic, toc
 from linastt.utils.text import remove_special_words
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
@@ -60,7 +60,7 @@ class DataCollatorCTCWithPadding:
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
 
         if self.log_stream is not None:
-            gpu_usage("collater", stream = self.log_stream)
+            vram_usage("collater", stream = self.log_stream)
 
         # split inputs and labels since they have to be of different lenghts and need different padding methods
         if isinstance(features, datasets.Dataset):
@@ -330,10 +330,10 @@ if __name__ == "__main__":
 
     gpu_log = open(os.path.join(output_folder, "gpu_log_{}.txt".format("-".join([str(g) for g in gpus]))), "a") if args.gpus else None
 
-    gpu_usage("START", stream = gpu_log)
+    vram_usage("START", stream = gpu_log)
     if use_gpu:
         model = model.to("cuda:"+str(gpus[0])) # torch.device(type='cuda', index=gpus[0]).
-        mem = gpu_usage("Model loaded", stream = gpu_log)
+        mem = vram_usage("Model loaded", stream = gpu_log)
         min_mem = + mem + (0.5 * mem if USE_MIXED_PRECISION else 0) + 2 * mem + mem
         print("Estimation of minimal GPU memory:", min_mem)
 

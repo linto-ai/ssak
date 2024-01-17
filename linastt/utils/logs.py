@@ -17,21 +17,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__.split(".")[0])
 logger.setLevel(logging.INFO)
 
+# Global variables
 TIC = {}
 GPUMEMPEAK = {}
 TIMES = {}
+NUM_GPU_CACHED = None
+
 
 def tic(name = ""):
     """ start clock
     Args:
         name: name of the clock
     """
-    global TIC, GPUMEMPEAK
+    global TIC
     TIC[name] = time.time()
-    GPUMEMPEAK[name] = gpu_usage(name, verbose = False, ignore_errors=True)
 
-def toc(name = "", stream = None, log_mem_usage = False, total=False):
-    """ end clock and print time elapsed since the last tic 
+
+def toc(name = "", stream = None, verbose = True, log_mem_usage = False, total=False):
+    """ end clock and returns time elapsed since the last tic 
     Args:
         name: name of the clock
         log_mem_usage: if True, log GPU memory usage
@@ -42,17 +45,20 @@ def toc(name = "", stream = None, log_mem_usage = False, total=False):
     if total:
         t = TIMES[name]
     s = f"TIMING {name}: took {t} sec"
-    logger.info(s)
     if stream:        
         print(s, file = stream)
-    if log_mem_usage:
-        gpu_usage(name, ignore_errors=True)
-        log_gpu_gpu_mempeak(name)
+    if verbose:
+        logger.info(s)
+        if log_mem_usage:
+            vram_usage(name, ignore_errors=True)
+            vram_peak(name)
     return t
 
-NUM_GPU_CACHED = None
 
 def get_num_gpus(ignore_errors = False):
+    """
+        Returns the number of GPUs available
+    """
     global NUM_GPU_CACHED
     if NUM_GPU_CACHED is not None:
         return NUM_GPU_CACHED
@@ -71,26 +77,46 @@ def get_num_gpus(ignore_errors = False):
     return NUM_GPU_CACHED
     
 def has_gpu():
+    """
+        Returns True if GPU is available
+    """
     return get_num_gpus() > 0
 
-def gpu_mempeak(name = ""):
-    """ measure / return peak GPU memory usage peak (since last tic) """
-    global GPUMEMPEAK
-    GPUMEMPEAK[name] = max(GPUMEMPEAK.get(name, GPUMEMPEAK[""]), gpu_usage(verbose = False))
-    return GPUMEMPEAK[name]
-
-def log_gpu_gpu_mempeak(name = ""):
-    """ log peak GPU memory usage """
-    if has_gpu():
-        logger.info(f"GPU MEMORY PEAK {name}: {gpu_mempeak(name)} MB")
-
-def gpu_usage(name = "", index = None, verbose = True, stream = None, minimum = 10, ignore_errors=False):
+def vram_peak(name="", index = None, ignore_errors=False, verbose = True, **kwargs):
     """
+        Measures and returns peak VRAM usage (maximum GPU memory) and logs it (with logger.info).
+
+        See vram_usage() for arguments
+    """
+    global GPUMEMPEAK
+    if ignore_errors and not has_gpu():
+        return 0
+    key = f"{name}::{index}"
+    GPUMEMPEAK[key] = max(GPUMEMPEAK.get(key, 0), vram_usage(name=name, index=index, verbose=verbose, ignore_errors=False, **kwargs))
+    if verbose:
+        logger.info(f"GPU MEMORY PEAK {key}: {GPUMEMPEAK[key]} MB")
+    return GPUMEMPEAK[key]
+
+def vram_usage(name = "", index = None, ignore_errors=False, verbose = True, stream = None, minimum = 10):
+    """
+        Returns the VRAM usage (GPU memory) and logs it (with logger.info).
+
     Args:
-        name: name of the clock
-        index: GPU index
-        stream: stream to log to
-        minimum: Minimum memory usage to report the mem usage (per GPU)
+        name: str
+            an arbitrary name for this measure (that will be used in the log). Can be left empty for simple usage.
+        index: list or int or None
+            GPU index or list of indices (if None, all available GPUs are considered)
+        ignore_errors: bool
+            Do not raise errors if GPU is not available
+        verbose: bool
+            Use false to disable logging
+        stream: stream (with .write() and .flush() methods)
+            a stream to write the log to
+        minimum: int or float
+            Minimum memory usage to report the mem usage (in MiB per GPU)
+
+    Returns:
+        Total memory usage in MiB
     """
     if verbose is None:
         verbose = (stream == None)

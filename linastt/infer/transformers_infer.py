@@ -3,7 +3,7 @@
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import flatten, get_cache_dir # TODO: cache folder management
-from linastt.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.logs import tic, toc, vram_peak
 
 import os
 import transformers
@@ -91,7 +91,7 @@ def transformers_infer(
             else:
                 for p in pred:
                     yield p
-            if log_memtime: gpu_mempeak()
+            if log_memtime: vram_peak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
     else:
@@ -110,7 +110,7 @@ def transformers_infer(
                 logits.append((ids, log_probas))
             else:
                 logits.append(log_probas)
-            if log_memtime: gpu_mempeak()
+            if log_memtime: vram_peak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
         if language:

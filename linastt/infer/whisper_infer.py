@@ -3,7 +3,7 @@
 from linastt.utils.env import * # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir
-from linastt.utils.logs import tic, toc, gpu_mempeak
+from linastt.utils.logs import tic, toc, vram_peak
 
 import whisper
 import torch
@@ -94,7 +94,7 @@ def whisper_infer(
         else:
             for p in pred:
                 yield p
-        if log_memtime: gpu_mempeak()
+        if log_memtime: vram_peak()
     if log_memtime: toc("apply network", log_mem_usage = True)
 
 def audio_minimum_padding(audio):

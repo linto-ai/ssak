@@ -3,7 +3,7 @@
 from linastt.utils.env import auto_device # handles option --gpus
 from linastt.utils.dataset import to_audio_batches
 from linastt.utils.misc import get_cache_dir, hashmd5
-from linastt.utils.logs import tic, toc, gpu_mempeak, logger
+from linastt.utils.logs import tic, toc, vram_peak, logger
 from linastt.utils.debug import plot_logits
 from linastt.utils.yaml_utils import make_yaml_overrides
 
@@ -92,7 +92,7 @@ def speechbrain_infer(
             else:
                 for p in pred:
                     yield p
-            if log_memtime: gpu_mempeak()
+            if log_memtime: vram_peak()
         if log_memtime: toc("apply network", log_mem_usage = True)
 
     else:
@@ -112,7 +112,7 @@ def speechbrain_infer(
                 logits.append((ids, log_probas))
             else:
                 logits.append(log_probas)
-            if log_memtime: gpu_mempeak()
+            if log_memtime: vram_peak()
         if log_memtime: toc("apply network", log_mem_usage = True)
    
         tokenizer = model.tokenizer
