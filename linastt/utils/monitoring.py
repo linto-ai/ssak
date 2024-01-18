@@ -182,7 +182,7 @@ def vram_usage(name = "", index = None, ignore_errors=False, verbose = True, str
             assert i < len(indices), f"Got index {i} but only {len(indices)} GPUs available"
             new_indices.append(indices[i])
         indices = new_indices
-    for igpu in indices:
+    for i, igpu in enumerate(indices):
         handle = _get_gpu_handle(igpu)
         info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         gpuname = pynvml.nvmlDeviceGetName(handle)
@@ -191,7 +191,7 @@ def vram_usage(name = "", index = None, ignore_errors=False, verbose = True, str
         memtotal = info.total / 1024**2
         if memused >= minimum: # There is always a residual GPU memory used (1 or a few MB). Less than 10 MB usually means nothing.
             summemused+= memused
-            s = f"VRAM_CURRENT{_name_to_suffix(name)} : {igpu+1}/{len(indices)} {gpuname} (max {memtotal:.0f} MB): {memused:.0f} MB"
+            s = f"VRAM_CURRENT{_name_to_suffix(name)} : {i+1}/{len(indices)} {gpuname} (max {memtotal:.0f} MB): {memused:.0f} MB"
             if verbose:
                 logger.info(s)
             if stream is not None:
