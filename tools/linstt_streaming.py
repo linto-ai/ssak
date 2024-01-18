@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+from __init__ import *
+
 from linastt.utils.linstt import linstt_streaming
 
 if __name__ == "__main__":
 
     import argparse
-    parser = argparse.ArgumentParser(description='Transcribe audio file with LinSTT',
+    parser = argparse.ArgumentParser(description='Transcribe input streaming (from mic) with LinSTT',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('--server', help='Transcription server',
