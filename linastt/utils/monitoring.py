@@ -115,9 +115,9 @@ def get_num_gpus(ignore_errors = False):
     """
         Returns the number of GPUs available
     """
-    global NUM_GPU
-    if NUM_GPU is not None:
-        return NUM_GPU
+    global ALL_GPU_INDICES
+    if ALL_GPU_INDICES is not None:
+        return len(ALL_GPU_INDICES)
     try:
         pynvml.nvmlInit() # Can throw pynvml.NVMLError_DriverNotLoaded if driver problem
     except pynvml.NVMLError_DriverNotLoaded:
@@ -129,8 +129,11 @@ def get_num_gpus(ignore_errors = False):
         if ignore_errors:
             return 0
         raise unexpected_error
-    NUM_GPU = pynvml.nvmlDeviceGetCount()
-    return NUM_GPU
+    num_gpus = pynvml.nvmlDeviceGetCount()
+    ALL_GPU_INDICES = list(range(num_gpus))
+    if os.environ.get("CUDA_VISIBLE_DEVICES"):
+        ALL_GPU_INDICES = [int(i) for i in os.environ["CUDA_VISIBLE_DEVICES"].split(",")]
+    return len(ALL_GPU_INDICES)
     
 def has_gpu():
     """
@@ -163,15 +166,22 @@ def vram_usage(name = "", index = None, ignore_errors=False, verbose = True, str
         verbose = (stream == None)
     summemused = 0
     indices = range(get_num_gpus(ignore_errors=ignore_errors))
+    if indices:
+        indices = ALL_GPU_INDICES
     if index is None:
         pass
     elif isinstance(index, int):
-        assert index in indices, "Got index %d but only %d GPUs available" % (index, indices)
-        indices = [index]
+        # assert index in indices, f"Got index {index} but only {indices} GPUs available"
+        # indices = [index]
+        assert index < len(indices), f"Got index {index} but only {len(indices)} GPUs available"
+        indices = [indices[index]]
     else:
+        new_indices = []
         for i in index:
-            assert i in indices, "Got index %d but only %d GPUs available" % (i, indices)
-        indices = index
+            #  assert i in indices, f"Got index {index} but only {indices} GPUs available"
+            assert i < len(indices), f"Got index {i} but only {len(indices)} GPUs available"
+            new_indices.append(indices[i])
+        indices = new_indices
     for igpu in indices:
         handle = _get_gpu_handle(igpu)
         info = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -314,7 +324,7 @@ def get_processes(python_script_name, pids_to_ignore=[]):
 # Global variables
 TIC = {}
 TIMES = {}
-NUM_GPU = None
+ALL_GPU_INDICES = None
 VRAM_PEAKS = {}
 RAM_PEAKS = {}
 
