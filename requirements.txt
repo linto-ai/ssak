@@ -14,7 +14,7 @@ lang-trans
 Levenshtein
 librosa
 loralib
-matplotlib
+matplotlib==3.7.4
 num2words
 onnxruntime
 openai-whisper
