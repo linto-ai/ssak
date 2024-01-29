@@ -82,7 +82,7 @@ def load_audio(path, start = None, end = None, sample_rate = 16_000, mono = True
             # 2/ Could occur with sox.get_info
             # wav: wave header missing extended part of fmt chunk
             if must_cut: # is not None:
-                start = float(start)
+                start = float(start if start else 0)
                 sr = sox.get_info(path)[0].rate
                 offset = int(start * sr)
                 nframes = 0
