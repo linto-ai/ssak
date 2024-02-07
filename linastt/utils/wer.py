@@ -84,17 +84,6 @@ def compute_wer(refs, preds,
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
 
-    if debug:
-        with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
-            for i in range(len(refs)):
-                if refs[i] != preds[i]:
-                    f.write(f"Line {i} with id [ {ids[i]} ] doesn't match.\n")
-                    f.write("---\n")
-                    f.write("ref.: " + refs[i] + "\n")
-                    f.write("pred: " + preds[i] + "\n")
-                    f.write(
-                        "------------------------------------------------------------------------\n")
-
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
     # Calculate WER for the whole corpus
@@ -114,6 +103,20 @@ def compute_wer(refs, preds,
     else:
         measures = jiwer.compute_measures(refs, preds)
 
+    extra = {}
+    if debug:
+        with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
+            output = jiwer.process_words(refs, preds, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
+            s = jiwer.visualize_alignment(
+                output, show_measures=True, skip_correct=False
+            )
+            # def add_separator(match):
+            #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
+            # s = re.sub(r"(REF: |HYP: )([^\n]+)", add_separator, s)
+            f.write(s)
+            extra = {"alignment": s}
+
+
     sub_score = measures['substitutions']
     del_score = measures['deletions']
     hits_score = measures['hits']
@@ -131,7 +134,7 @@ def compute_wer(refs, preds,
             'ins': scale if ins_score else 0,
             'sub': 0,
             'count': 0,
-        }
+        } | extra
 
     wer_score = (float(del_score + ins_score + sub_score) / count)
     # wer_score = measures['wer']
@@ -142,7 +145,7 @@ def compute_wer(refs, preds,
         'ins': (float(ins_score) * scale/ count),
         'sub': (float(sub_score) * scale/ count),
         'count': count,
-    }
+    } | extra
 
 
 def ensure_not_empty_reference(refs, preds, character_level):
