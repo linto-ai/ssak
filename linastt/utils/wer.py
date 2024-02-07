@@ -280,8 +280,14 @@ if __name__ == "__main__":
     target_test = args.references
     target_pred = args.predictions
 
-    assert os.path.isfile(target_test), f"File {target_test} doesn't exist"
-    assert os.path.isfile(target_pred), f"File {target_pred} doesn't exist"
+    if not os.path.isfile(target_test):
+        assert not os.path.isfile(target_pred), f"File {target_pred} exists but {target_test} doesn't"
+        if " " not in target_test and " " not in target_pred:
+            # Assume file instead of isolated word
+            assert os.path.isfile(target_test), f"File {target_test} doesn't exist"
+            assert os.path.isfile(target_pred), f"File {target_pred} doesn't exist"
+        target_test = [target_test]
+        target_pred = [target_pred]
 
     debug = args.debug
     if debug and debug.lower() in ["true", "false"]:
