@@ -57,6 +57,7 @@ sudo apt-get install \
         ffmpeg \
         libssl-dev \
         libsndfile1 \
+        python3-dev \
         portaudio19-dev \
         xvfb
 
