@@ -250,8 +250,8 @@ def cm_get_token(url, email, password, verbose=False, force=False):
         },
         verbose=verbose,
     )
-    assert "token" in token, f"'token' not found in response: {token}"
-    CM_TOKEN[_id] = token = token["token"]
+    assert "auth_token" in token, f"'token' not found in response: {token}"
+    CM_TOKEN[_id] = token = token["auth_token"]
     return token
 
 ####################
