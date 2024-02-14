@@ -32,6 +32,7 @@ python-slugify
 soxbindings
 tensorboard
 text2num
+textgrids
 torch
 torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
 torchvision
