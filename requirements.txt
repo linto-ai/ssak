@@ -1,4 +1,4 @@
-accelerate==0.19.0
+accelerate
 audiomentations
 bitsandbytes
 cyrtranslit
@@ -33,7 +33,7 @@ soxbindings
 tensorboard
 text2num
 torch
-torchaudio -f https://download.pytorch.org/whl/cu113/torch_stable.html
+torchaudio
 torchvision
 transformers
 xmltodict
