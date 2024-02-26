@@ -86,7 +86,8 @@ def cm_import(
             headers=[f"Authorization: Bearer {token}"],
             verbose=verbose,
         )
-        assert isinstance(res, dict) and (res.get("status") == "OK" or res.get("message") == "Tag added to conversation"), \
+        # Previously: (res.get("status") == "OK" or res.get("message") == "Tag added to conversation")
+        assert isinstance(res, dict) and (res.get("_id") is not None), \
             f"Unexpected response: {res}"
 
 
@@ -163,7 +164,7 @@ def cm_get_tags(url, email, password, organizationId=None, verbose=False):
         organizationId = cm_get_organization(url, email, password, verbose=verbose)
     token = cm_get_token(url, email, password, verbose=verbose)
     return curl_get(
-        url + f"/api/organizations/{organizationId}/tags",
+        url + f"/api/organizations/{organizationId}/tags?categoryType=conversation_metadata",
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
     )
