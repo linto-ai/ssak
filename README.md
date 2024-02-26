@@ -1,4 +1,4 @@
-# Speech-To-Text End2End
+# Speech-Army-Knife
 
 This repository contains helpers and tools to train end-to-end ASR, and do inference with ASR.
 
