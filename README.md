@@ -59,6 +59,7 @@ sudo apt-get install \
         libsndfile1 \
         python3-dev \
         portaudio19-dev \
+        libcurl4-openssl-dev \
         xvfb
 
 pip3 install -r requirements.txt
