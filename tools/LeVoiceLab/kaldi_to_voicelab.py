@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument('--name', help='Corpus name', default=None, type=str)
     parser.add_argument('--ext', help='Audio extension (.wav, .mp3 ...)', default=".wav", type=str)
     parser.add_argument('--languages', help="Languages spoken in the dataset", default=["fr"], nargs="+")
-    parser.add_argument('--version', help='Format version', choices=["0.0.1", "0.0.2"], default="0.0.1", type=str)
+    parser.add_argument('--version', help='Format version', choices=["0.0.1", "0.0.2"], default="0.0.2", type=str)
     parser.add_argument('--disable_kaldi_checks', help='To disable checking that all ids have all info in the input kaldi files', default=False, action="store_true")
     parser.add_argument('--disable_file_checks', help='To disable checking that input file exists', default=False, action="store_true")
     parser.add_argument('--ignore_existing', help='To ignore existing output file', default=False, action="store_true")
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         sample_rate, note_sample_rate = extract_info_from_soxi_output(infos, "Sample Rate", use_percent)
         bit_depth, note_bit_depth = extract_info_from_soxi_output(infos, "Precision", use_percent) # "Sample Encoding"
         channels, note_channels = extract_info_from_soxi_output(infos, "Channels", use_percent)
-        if total_duration is None:
+        if total_duration is None and len(sample)==len(audio_files):
             total_duration = infos.strip().split("\n")[-1].split()[-1]
             total_duration = timestamp2sec(total_duration)
 
@@ -591,6 +591,9 @@ if __name__ == "__main__":
                     "collection_date": time2str(date),
                 }, f)
 
+    if total_duration is None:
+        total_duration = total_duration_speech
+        
     if not os.path.isfile(os.path.join(output_folder, "meta.json")):
         with open(os.path.join(output_folder, "meta.json"), "w") as f:
             extra = {} if args.ignore_speakers else {
