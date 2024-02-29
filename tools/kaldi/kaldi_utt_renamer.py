@@ -36,7 +36,7 @@ def replace_char_in_file(file_path, char_to_replace, replacement_char, column=-1
 if __name__ == '__main__':
 
     import argparse
-    parser = argparse.ArgumentParser(description="Replace a specific character by another one in all kaldi files")
+    parser = argparse.ArgumentParser(description="Replace a specific character by another one in utterances of kaldi files and rename wavs based on wav.scp.")
     parser.add_argument("input_folder", type=str, help="Input folder with kaldi files")
     parser.add_argument("--char_to_replace", type=str, default=":", help="Character to replace")
     parser.add_argument("--replacement_char", type=str, default="-", help="Replacement character")
