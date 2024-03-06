@@ -7,6 +7,7 @@ from tqdm import tqdm
 from datasets import load_dataset
 from linastt.utils.kaldi import check_kaldi_dir
 
+
 def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=dict(), id_spk=0):
     with open(os.path.join(dir_out,"text"), file_mode) as text_f, \
         open(os.path.join(dir_out,"utt2dur"), file_mode) as utt2dur_f, \
@@ -20,10 +21,11 @@ def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=dict(), id_s
             if spk_id not in speakers:
                 speakers[spk_id] = f"{id_spk:05d}"
                 id_spk += 1
-            utt_id = speakers[spk_id]+"_"+example['audio_id']
-            os.system(f"cp {example['audio']['path']} {os.path.join(dir_out,'wavs',example['audio_id'])}.wav")
+            utt_id = (speakers[spk_id]+"_"+example['audio_id']).replace(':','-')
+            os.system(f"cp {example['audio']['path']} {os.path.join(dir_out,'wavs',example['audio_id'].replace(':','-'))}.wav")
+
             text_f.write(f"{utt_id} {example['raw_text']}\n")
-            p = pathlib.Path(os.path.join(dir_out, "wavs", example['audio_id'])).resolve()
+            p = pathlib.Path(os.path.join(dir_out, "wavs", example['audio_id'].replace(':','-'))).resolve()
             wav_f.write(f"{utt_id} {p}.wav\n")
             utt2dur_f.write(f"{utt_id} {duration}\n")
             utt2spk_f.write(f"{utt_id} {speakers[spk_id]}\n")
