@@ -66,6 +66,14 @@ pip3 install -r requirements.txt
 pip3 install -r tools/requirements.txt
 ```
 
+For scraping tools you may also need additional dependencies:
+```
+sudo add-apt-repository ppa:mozillateam/ppa
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends firefox-esr
+```
+
+
 ### Docker
 
 If not done, pull the docker image:

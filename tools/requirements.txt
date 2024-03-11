@@ -3,6 +3,7 @@ certifi
 docx
 free-proxy
 google-ngram-downloader
+words2num
 openpyxl
 # proxy_randomizer
 pycurl

@@ -157,7 +157,9 @@ def search_videos_ids(search_query, open_browser=False, use_global_driver=True):
             DRIVER = webdriver.Firefox(options=options)
         except Exception as err:
             raise RuntimeError("Could not start Firefox driver. You may need to install Firefox:\n\
-                            apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
+                sudo add-apt-repository ppa:mozillateam/ppa\n\
+                sudo apt-get update\n\
+                apt-get install -y --no-install-recommends firefox-esr") from err
     try:
         # Navigate to YouTube and search for videos with subtitles
         DRIVER.get('https://www.youtube.com/results?search_query=' + urllib.parse.quote(search_query) + '&sp=EgIQAQ%253D%253D')
@@ -200,10 +202,13 @@ def search_videos_ids_from_channels(channel_name, open_browser=False, use_global
             DRIVER = webdriver.Firefox(options=options)
         except Exception as err:
             raise RuntimeError("Could not start Firefox driver. You may need to install Firefox:\n\
-                            apt-get update && apt-get install -y --no-install-recommends firefox-esr") from err
+                sudo add-apt-repository ppa:mozillateam/ppa\n\
+                sudo apt-get update\n\
+                apt-get install -y --no-install-recommends firefox-esr") from err
     try:
         # Navigate to YouTube and search for videos with subtitles
-        DRIVER.get('https://www.youtube.com/@' + urllib.parse.quote(channel_name) + "/videos")
+        channel_video_url = 'https://www.youtube.com/@' + urllib.parse.quote(channel_name) + "/videos"
+        DRIVER.get(channel_video_url)
 
         # Click "ACCEPT ALL" button if it exists
         click_button(DRIVER, **{"class": "VfPpkd-LgbsSe VfPpkd-LgbsSe-OWXEXe-k8QpJ VfPpkd-LgbsSe-OWXEXe-dgl2Hf nCP5yc AjY5Oe DuMIQc LQeN7 IIdkle"})
@@ -224,7 +229,7 @@ def search_videos_ids_from_channels(channel_name, open_browser=False, use_global
 
         # Extract video IDs from search results
         video_ids = sorted(list(set(re.findall('"videoId":"([^"]{11})"', str(DRIVER.page_source)))))
-        print(f'Found {len(video_ids)} video IDs for query \"{channel_name}\"')
+        print(f'Found {len(video_ids)} video IDs on {channel_video_url}')
         
     finally:
         if not use_global_driver:
@@ -571,8 +576,6 @@ if __name__ == '__main__':
             path = f"YouTube{lang[0].upper()}{lang[1:].lower()}"
         else:
             path = "YouTube"
-
-    os.makedirs(f'{path}/queries', exist_ok=True)
     
     # proxy setup
     proxies = args.proxies
@@ -592,14 +595,16 @@ if __name__ == '__main__':
         if query:
             # Log to avoid doing twice the same query
             query = query.strip()
-            lockfile = f"{path}/queries/{hashmd5(query)}"
+            if not args.search_channels:
 
-            if os.path.isfile(lockfile):
-                print(f"Skipping (already done) query \"{query}\"")
-                continue
+                lockfile = f"{path}/queries/{hashmd5(query)}"
+                if os.path.isfile(lockfile):
+                    print(f"Skipping (already done) query \"{query}\"")
+                    continue
 
-            with open(lockfile, 'w', encoding="utf8") as f:
-                f.write(query + "\n")
+                os.makedirs(f'{path}/queries', exist_ok=True)
+                with open(lockfile, 'w', encoding="utf8") as f:
+                    f.write(query + "\n")
                 
         try:
             isok = False
