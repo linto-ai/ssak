@@ -152,6 +152,7 @@ if __name__ == "__main__":
     parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
     parser.add_argument('--folder_metadata', help='Folder with metadata about each file', default=None)
     parser.add_argument('--ignore_speakers', default=False, action="store_true", help="To ignore speaker information (when it's not reliable)")
+    parser.add_argument('--unknown_speaker_id', default=None, help="The speaker id associed to unknown speaker")
 
     args = parser.parse_args()
 
@@ -314,6 +315,8 @@ if __name__ == "__main__":
     for key in tqdm(keys):
         _text = text[key]
         _spk = spks[key]
+        if _spk == args.unknown_speaker_id:
+            _spk = "unknown"
         _gender = gender[_spk] if _spk in gender.keys() else ""
         _segment = segments[key]
         _wav_id = _segment[0]
@@ -376,7 +379,8 @@ if __name__ == "__main__":
                 audio_files.append(_wav)
             else:
                 print("WARNING: could not find " + _wav)
-
+        if num_wavs is None:
+            num_wavs = num_audio_files
         sample = audio_files
         if args.subsample_checks:
             if len(sample) > 1000:
@@ -657,7 +661,9 @@ if __name__ == "__main__":
             json_dump(metadata, f)
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
-        speaker_information = "none" if args.ignore_speakers else "uid"
+        speaker_information = "none" if args.ignore_speakers else "uuid"
+        if speaker_information == "uuid" and args.unknown_speaker_id is not None and args.unknown_speaker_id !="":
+            speaker_information += "-with-missing"
         metadata = ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
             "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
             # "format_specification_uri": "http://www.levoicelab.org/annotation_conventions/batvoice_transcription_conventions-v1.1",
