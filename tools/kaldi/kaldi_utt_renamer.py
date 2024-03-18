@@ -15,15 +15,17 @@ def rename_audios_based_on_wavscp(input_folder, char_to_replace, replacement_cha
             os.rename(file_path, new_file_path)
             
 
-def replace_char_in_file(file_path, char_to_replace, replacement_char, column=-1):
+def replace_char_in_file(file_path, char_to_replace, replacement_char, column=-1, delimiter=" ", slices=1):
     new_content = ""
+    if slices is None:
+        slices = -1
     with open(file_path, 'r') as f:
         content = f.readlines()
         for line in content:
             if column>=0:
-                line = line.strip().split(" ", 1)
+                line = line.strip().split(delimiter, slices)
                 line[column] = line[column].replace(char_to_replace, replacement_char)
-                new_content += " ".join(line) + "\n"
+                new_content += delimiter.join(line) + "\n"
             else:
                 new_content += line.replace(char_to_replace, replacement_char)
     with open(file_path, 'w') as f:
@@ -36,34 +38,28 @@ def replace_char_in_file(file_path, char_to_replace, replacement_char, column=-1
 if __name__ == '__main__':
 
     import argparse
-    parser = argparse.ArgumentParser(description="Replace a specific character by another one in utterances of kaldi files and rename wavs based on wav.scp.")
+    parser = argparse.ArgumentParser(description="Replace a character in utterances or audio_ids (or both) of a kaldi dataset.")
     parser.add_argument("input_folder", type=str, help="Input folder with kaldi files")
     parser.add_argument("--char_to_replace", type=str, default=":", help="Character to replace")
     parser.add_argument("--replacement_char", type=str, default="-", help="Replacement character")
+    parser.add_argument("--delimiter", type=str, default=" ", help="Delimiter for kaldi files")
+    parser.add_argument("--rename_wavs", action="store_true", default=False, help="Rename wavs based on wav.scp")
+    parser.add_argument("--rename_mode", action="store_true", default="all", choices=['all', 'audio_ids', 'utt_ids'], help="Rename mode for files: all, audio_ids, utt_ids")
     args = parser.parse_args()
     
-    if os.path.exists(os.path.join(args.input_folder, "utt2dur")):
-        replace_char_in_file(os.path.join(args.input_folder, "utt2dur"), args.char_to_replace, args.replacement_char)
-    if os.path.exists(os.path.join(args.input_folder, "utt2spk")):
-        replace_char_in_file(os.path.join(args.input_folder, "utt2spk"), args.char_to_replace, args.replacement_char)
-    if os.path.exists(os.path.join(args.input_folder, "wav.scp")):
-        rename_audios_based_on_wavscp(args.input_folder, args.char_to_replace, args.replacement_char)
-        replace_char_in_file(os.path.join(args.input_folder, "wav.scp"), args.char_to_replace, args.replacement_char)
-    if os.path.exists(os.path.join(args.input_folder, "segments")):
-        replace_char_in_file(os.path.join(args.input_folder, "segments"), args.char_to_replace, args.replacement_char, column=0)
-    if os.path.exists(os.path.join(args.input_folder, "text")):
-        replace_char_in_file(os.path.join(args.input_folder, "text"), args.char_to_replace, args.replacement_char, column=0)
+    files = None
     
-
-
-# def rename_files(input_folder, char_to_replace, replacement_char, extension=".wav"):
-#     files = os.listdir(input_folder)
-#     for file in files:
-#         if extension=="" or file.endswith(extension):
-#             new_file = file.replace(char_to_replace, replacement_char)
-#             os.rename(os.path.join(input_folder, file), os.path.join(input_folder, new_file))
-
-
-
-
-
+    if args.rename_mode=="utt_ids":
+        files=[("utt2dur", 0),("utt2spk", 0), ("spk2utt", 0),( "segments", 0),("text", 0)]
+    elif args.rename_mode=="audio_ids":
+        files=[("wav.scp", 0), ( "segments", 1)]
+    elif args.rename_mode=="all":
+        files=[("utt2dur", 0),("utt2spk", 0), ("spk2utt", 0),( "segments", 0),("text", 0), ("wav.scp", 0), ( "segments", 1)]
+    
+    if args.rename_wavs:
+        rename_audios_based_on_wavscp(args.input_folder, args.char_to_replace, args.replacement_char)
+        
+    for filename, column in files:
+        filepath = os.path.join(args.input_folder, filename)
+        if os.path.exists(filepath):
+            replace_char_in_file(filepath, args.char_to_replace, args.replacement_char, column=column, delimiter=args.delimiter, slices=-1 if filename!="text" else 1)

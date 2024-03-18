@@ -347,7 +347,7 @@ def split_long_audio_kaldifolder(
                 if new_end - new_start > max_duration:
                     print(f"WARNING: {id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 if last_end <= last_start:
-                    print(f"WARNING: {id} got null or negative duration (after realignment, start={last_start}, end={last_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
+                    print(f"WARNING: Skipping {id}, got null or negative duration (after realignment, start={last_start}, end={last_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
                 else:
                     assert new_end > new_start
                     if verbose:
