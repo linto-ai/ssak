@@ -312,11 +312,15 @@ if __name__ == "__main__":
     durations = []
     several_utt_per_wav = False
     all_wavs = {}
+    is_a_speaker_missing = False
     for key in tqdm(keys):
         _text = text[key]
-        _spk = spks[key]
-        if _spk == args.unknown_speaker_id:
-            _spk = "unknown"
+        _spk = spks[key] 
+        if _spk==args.unknown_speaker_id:
+            is_a_speaker_missing = True
+            _spk = None
+        else:
+            speakers.add(_spk) 
         _gender = gender[_spk] if _spk in gender.keys() else ""
         _segment = segments[key]
         _wav_id = _segment[0]
@@ -342,7 +346,6 @@ if __name__ == "__main__":
                 "duration": _duration
         })
         genders[_spk] = _gender
-        speakers.add(_spk)
         durations.append(_end - _start)
 
     num_wavs = None
@@ -522,7 +525,7 @@ if __name__ == "__main__":
         previous_start = 0
         previous_end = 0
         for utterance in sorted(utt, key = lambda x:float(x['start'])):
-            if args.ignore_speakers or args.version >= "0.0.2":
+            if args.ignore_speakers or utterance['speaker'] is None or args.version >= "0.0.2":
                 extra = {}
             else:
                 extra = {"speaker": utterance['speaker']}
@@ -562,7 +565,7 @@ if __name__ == "__main__":
                 } | (
                 {
                     "speaker": utterance['speaker'],
-                } if (args.version >= "0.0.2" and not args.ignore_speakers) else {}
+                } if (args.version >= "0.0.2" and not args.ignore_speakers and utterance['speaker'] is not None) else {}
                 ) | other | extra
             )
             if HAS_RAW:
@@ -662,7 +665,7 @@ if __name__ == "__main__":
 
     if not os.path.isfile(os.path.join(output_folder_annots, "meta.json")):
         speaker_information = "none" if args.ignore_speakers else "uuid"
-        if speaker_information == "uuid" and args.unknown_speaker_id is not None and args.unknown_speaker_id !="":
+        if speaker_information == "uuid" and is_a_speaker_missing:
             speaker_information += "-with-missing"
         metadata = ( {"version": args.version,} if args.version >= "0.0.2" else {} ) | {
             "format_specification_uri": f"http://levoicelab.org/schemas/{args.version}/annotation-batch.schema.json", 
