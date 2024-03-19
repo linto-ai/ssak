@@ -17,26 +17,29 @@ def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=dict(), id_s
         for i, example in tqdm(enumerate(data), total=len(data)):
             duration = len(example['audio']['array'])/example['audio']['sampling_rate']
             spk_id = example['speaker_id']
-            if spk_id is None or spk_id== "None":
-                spk_id = f"spk-{example['audio_id']}"
+            if spk_id is None or spk_id== "None": 
+                spk_id = f":0>5"
             if spk_id not in speakers:
                 speakers[spk_id] = f"{id_spk:05d}"
                 id_spk += 1
+            spk_id = speakers[spk_id]
             audio_id = example['audio_id'].replace(":", "-")
-            utt_id = speakers[spk_id]+"_"+audio_id
+            utt_id = spk_id+"_"+audio_id
             if not os.path.exists(os.path.join(dir_out, "wavs", audio_id)+".wav"):
                 shutil.copy2(example['audio']['path'], os.path.join(dir_out,'wavs', audio_id)+".wav")
             if example['raw_text']=="" and missing_raw_replacement is not None and example['audio_id'] in missing_raw_replacement:
                 replacement = missing_raw_replacement[example['audio_id']]
-                replacement = re.sub(r"0{9}\b", " milliards", replacement)
-                replacement = re.sub(r"0{6}\b", " millions", replacement)
+                replacement = re.sub(r"(\d) \d\b", r"\1 mille", replacement)
+                # not needed now
+                # replacement = re.sub(r"0{9}\b", " milliards", replacement)
+                # replacement = re.sub(r"0{6}\b", " millions", replacement)
                 text_f.write(f"{utt_id} {replacement}\n")
             else:
                 text_f.write(f"{utt_id} {example['raw_text']}\n")
             p = pathlib.Path(os.path.join(dir_out, "wavs", audio_id)).resolve()
             wav_f.write(f"{utt_id} {p}.wav\n")
             utt2dur_f.write(f"{utt_id} {duration}\n")
-            utt2spk_f.write(f"{utt_id} {speakers[spk_id]}\n")
+            utt2spk_f.write(f"{utt_id} {spk_id}\n")
     return speakers, id_spk
 
 
@@ -59,10 +62,11 @@ def write_missings(data, dir_out):
     print(f"Number of missing raw text: {ct}")
          
                     
-def write_dataset(huggingface_dataset, kaldi_dir="Voxpopuli-fr", language="fr", trust_remote_code=False, set_name=None, missing_raw_replacement_file=None):
+def write_dataset(huggingface_dataset, kaldi_dir="Voxpopuli-fr", language="fr", trust_remote_code=False, set_name=None, missing_raw_replacement_file=None, keep_speakers_ids=True):
     os.makedirs(os.path.join(kaldi_dir,"wavs"), exist_ok=True)
     speakers = dict()
-    id_spk = 0
+    speakers['00000'] = "00000"
+    id_spk = 1
     missing_raw_replacement = None
     if missing_raw_replacement_file is not None:
         with open(missing_raw_replacement_file, "r") as f:
@@ -87,11 +91,12 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", type=str, default="facebook/voxpopuli",help="Dataset name")
     parser.add_argument("--kaldi_path", type=str, default="Voxpopuli_fr",help="Path to new Kaldi directory")
     parser.add_argument("--language", type=str, default="fr",help="Language of the dataset")
-    parser.add_argument("--trust_remote_code", action="store_false",help="Trust the remote code to run code locally. Default is False.")
+    parser.add_argument("--trust_remote_code", action="store_true", default=False, help="Trust the remote code to run code locally. Default is False.")
     parser.add_argument("--set_name", type=str, default=None, help="Name of the set to convert (train, test, validation). If None, all sets are converted.")
-    parser.add_argument("--missing_raw_replacement_file", type=str, default="/home/abert/Linagora/datasets/raw_missing_raw", help="")
+    parser.add_argument("--missing_raw_replacement_file", type=str, default="/home/abert/Linagora/datasets/raw_missing_raw_v2", help="")
 
     args = parser.parse_args()
-
-    write_dataset(huggingface_dataset=args.dataset, kaldi_dir=args.kaldi_path, language=args.language, trust_remote_code=args.trust_remote_code, set_name=args.set_name, missing_raw_replacement_file=args.missing_raw_replacement_file)
+    
+    write_dataset(huggingface_dataset=args.dataset, kaldi_dir=args.kaldi_path, language=args.language, trust_remote_code=args.trust_remote_code, set_name=args.set_name, \
+        missing_raw_replacement_file=args.missing_raw_replacement_file)
     # write_missings(load_dataset(args.dataset, args.language, trust_remote_code=args.trust_remote_code), "")
