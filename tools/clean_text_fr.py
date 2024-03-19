@@ -17,7 +17,9 @@ if __name__ == "__main__":
     parser.add_argument('--keep_punc', help="Keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_num', help="Keep numbers and symbols", default= False, action="store_true")
     parser.add_argument('--keep_case', help="Keep case (otherwise, everything will be lowercased)", default= False, action="store_true")
-    parser.add_argument('--remove_suspicious_entry', help="To remove entries that are probably written in bad French", default= False, action="store_true")
+    parser.add_argument('--empty_string_policy', choices=["fail", "allow", "ignore"], default="fail", help="What to do with empty strings")
+    parser.add_argument('--linebreak_policy', choices=["fail", "allow"], default="fail", help="What to do when a line break is introduced")
+    parser.add_argument('--remove_suspicious_entry', help="To ignore entries that are probably written in bad French", default= False, action="store_true")
     parser.add_argument('--extract_parenthesis', help="To pull out parenthesis and process them separately (as new lines)", default= False, action="store_true")
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
@@ -29,7 +31,7 @@ if __name__ == "__main__":
         output_file = args.output
         if os.path.exists(output_file):
             raise RuntimeError(f"Output file {output_file} already exists")
-            # os.remove(output_file)
+            # os.ignore(output_file)
         dname = os.path.dirname(output_file)
         if dname and not os.path.isdir(dname):
             os.makedirs(dname)
@@ -48,11 +50,13 @@ if __name__ == "__main__":
         num_lines = sum(1 for _ in open(input_file))
         gen = open(input_file, "r", encoding="utf-8")
     else:
+        print(f"WARNING: File {input_file} not found. Interpreting that as an input")
         num_lines = 1
         gen = [input_file]
 
     try:
         for line in tqdm(gen, total=num_lines):
+            full_line = line
             if args.ignore_first:
                 words = line.split()
                 assert len(words) >= args.ignore_first, f"Line {line} has less than {args.ignore_first} words"
@@ -66,13 +70,20 @@ if __name__ == "__main__":
                 fid_special_chars = fid_special_char,
                 remove_suspicious_entry = args.remove_suspicious_entry,
             )
+            num_dumps = 0
             for subline in line.splitlines():
                 subline = subline.strip()
-                if subline:
+                if subline or args.empty_string_policy in "allow":
                     if args.ignore_first:
                         subline = " ".join(words[:args.ignore_first]) + " " + subline
                     fout.write(subline+"\n")
                     fout.flush()
+                    num_dumps += 1
+            if not num_dumps:
+                raise RuntimeError(f"Empty string found (on '{full_line}').\nUse option --empty_string_policy=allow or --empty_string_policy=ignore to explicitly allow or ignore empty strings")
+            if num_dumps > 1 and args.linebreak_policy == "fail":
+                line_ = line.replace("\n", "\\n")
+                raise RuntimeError(f"Line break found when normalizing '{full_line}' (into '{line_}').\nUse option --linebreak_policy=allow to explicitly allow line breaks")
     finally:
         if fout is not sys.stdout:
             fout.close()
