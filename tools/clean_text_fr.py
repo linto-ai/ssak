@@ -31,7 +31,7 @@ if __name__ == "__main__":
         output_file = args.output
         if os.path.exists(output_file):
             raise RuntimeError(f"Output file {output_file} already exists")
-            # os.ignore(output_file)
+            # os.remove(output_file)
         dname = os.path.dirname(output_file)
         if dname and not os.path.isdir(dname):
             os.makedirs(dname)
