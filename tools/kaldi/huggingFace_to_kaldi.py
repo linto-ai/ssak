@@ -9,21 +9,24 @@ from tqdm import tqdm
 from datasets import load_dataset
 from linastt.utils.kaldi import check_kaldi_dir
 
-def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=dict(), id_spk=0, missing_raw_replacement=None):
+def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=None, missing_raw_replacement=None):
     with open(os.path.join(dir_out,"text"), file_mode) as text_f, \
         open(os.path.join(dir_out,"utt2dur"), file_mode) as utt2dur_f, \
         open(os.path.join(dir_out,"wav.scp"), file_mode) as wav_f, \
         open(os.path.join(dir_out,"utt2spk"), file_mode) as utt2spk_f:
+        # open(os.path.join(dir_out,"spk2gender"), file_mode) as spk2gender_f:
         for i, example in tqdm(enumerate(data), total=len(data)):
             duration = len(example['audio']['array'])/example['audio']['sampling_rate']
             spk_id = example['speaker_id']
+            gender = example['gender']
             if spk_id is None or spk_id== "None": 
-                spk_id = f":0>5"
-            if spk_id not in speakers:
-                speakers[spk_id] = f"{id_spk:05d}"
-                id_spk += 1
-            spk_id = speakers[spk_id]
+                spk_id = f"{'0':0>6}"
+            else:
+                spk_id = f"{spk_id:0>6}"
             audio_id = example['audio_id'].replace(":", "-")
+            # add a 0 before last char if after last _ there is only one digit
+            if audio_id[-2]=="_":
+                audio_id = audio_id[:-1]+"0"+audio_id[-1]
             utt_id = spk_id+"_"+audio_id
             if not os.path.exists(os.path.join(dir_out, "wavs", audio_id)+".wav"):
                 shutil.copy2(example['audio']['path'], os.path.join(dir_out,'wavs', audio_id)+".wav")
@@ -40,8 +43,6 @@ def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=dict(), id_s
             wav_f.write(f"{utt_id} {p}.wav\n")
             utt2dur_f.write(f"{utt_id} {duration}\n")
             utt2spk_f.write(f"{utt_id} {spk_id}\n")
-    return speakers, id_spk
-
 
 def write_missings(data, dir_out):
     nb_checks = 100
@@ -62,11 +63,9 @@ def write_missings(data, dir_out):
     print(f"Number of missing raw text: {ct}")
          
                     
-def write_dataset(huggingface_dataset, kaldi_dir="Voxpopuli-fr", language="fr", trust_remote_code=False, set_name=None, missing_raw_replacement_file=None, keep_speakers_ids=True):
+def write_dataset(huggingface_dataset, kaldi_dir="Voxpopuli-fr", language="fr", trust_remote_code=False, set_name=None, missing_raw_replacement_file=None):
     os.makedirs(os.path.join(kaldi_dir,"wavs"), exist_ok=True)
     speakers = dict()
-    speakers['00000'] = "00000"
-    id_spk = 1
     missing_raw_replacement = None
     if missing_raw_replacement_file is not None:
         with open(missing_raw_replacement_file, "r") as f:
@@ -75,11 +74,11 @@ def write_dataset(huggingface_dataset, kaldi_dir="Voxpopuli-fr", language="fr", 
             missing_raw_replacement = {x.split(" ",1)[0]: x.split(" ",1)[1] for x in missing_raw_replacement}
     if set_name is not None:
         data = load_dataset(huggingface_dataset, language, split=set_name, trust_remote_code=trust_remote_code)
-        speakers, id_spk = write_set(data, kaldi_dir, "w", speakers, id_spk, missing_raw_replacement=missing_raw_replacement) 
+        write_set(data, kaldi_dir, "w", missing_raw_replacement=missing_raw_replacement) 
     else:
         data = load_dataset(huggingface_dataset, language, trust_remote_code=trust_remote_code)
-        for split in tqdm(data.keys(), total=len(data.keys())):
-            speakers, id_spk = write_set(data[split], kaldi_dir, "w" if id_spk==0 else "a", speakers, id_spk, missing_raw_replacement=missing_raw_replacement)
+        for i, split in enumerate(tqdm(data.keys(), total=len(data.keys()))):
+           write_set(data[split], kaldi_dir, "w" if i==0 else "a", missing_raw_replacement=missing_raw_replacement)
 
     check_kaldi_dir(kaldi_dir)
 
@@ -94,6 +93,7 @@ if __name__ == '__main__':
     parser.add_argument("--trust_remote_code", action="store_true", default=False, help="Trust the remote code to run code locally. Default is False.")
     parser.add_argument("--set_name", type=str, default=None, help="Name of the set to convert (train, test, validation). If None, all sets are converted.")
     parser.add_argument("--missing_raw_replacement_file", type=str, default="/home/abert/Linagora/datasets/raw_missing_raw_v2", help="")
+    parser.add_argument("--is_valid_kaldi_dir", type=bool, default=False, help="Make and verify the Kaldi directory. Default is False.")
 
     args = parser.parse_args()
     
