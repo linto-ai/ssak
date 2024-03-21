@@ -32,7 +32,7 @@ def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=None, missin
             if audio_id[-2]=="_":
                 audio_id = audio_id[:-1]+"00"+audio_id[-1]
             elif audio_id[-3]=="_":
-                audio_id = audio_id[:-1]+"0"+audio_id[-1]
+                audio_id = audio_id[:-2]+"0"+audio_id[-2:]
             if utterences_to_remove is not None and any(audio_id.startswith(prefix) for prefix in utterences_to_remove):
                 print(f"Removing uuterance {audio_id} from the dataset")
                 os.makedirs("removed", exist_ok=True)
