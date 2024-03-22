@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument('--folder_depth', help='Number of folder name to include in the final id', default=0, type=int)
     parser.add_argument('--folder_metadata', help='Folder with metadata about each file', default=None)
     parser.add_argument('--ignore_speakers', default=False, action="store_true", help="To ignore speaker information (when it's not reliable)")
-    parser.add_argument('--unknown_speaker_id', default=None, help="The speaker id associed to unknown speaker")
+    parser.add_argument('--unknown_speaker_ids', default=None, nargs='+',help="The speaker id associed to unknown speaker")
 
     args = parser.parse_args()
 
@@ -316,12 +316,13 @@ if __name__ == "__main__":
     for key in tqdm(keys):
         _text = text[key]
         _spk = spks[key] 
-        if _spk==args.unknown_speaker_id:
+        _gender = gender[_spk] if _spk in gender.keys() else ""
+        if (isinstance(args.unknown_speaker_ids, list) and _spk in args.unknown_speaker_ids) or (_spk==args.unknown_speaker_ids):
             is_a_speaker_missing = True
             _spk = None
         else:
             speakers.add(_spk) 
-        _gender = gender[_spk] if _spk in gender.keys() else ""
+            genders[_spk] = _gender
         _segment = segments[key]
         _wav_id = _segment[0]
         _start = float(_segment[1])
@@ -345,7 +346,6 @@ if __name__ == "__main__":
                 "end": _end,
                 "duration": _duration
         })
-        genders[_spk] = _gender
         durations.append(_end - _start)
 
     num_wavs = None
