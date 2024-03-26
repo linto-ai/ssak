@@ -1,6 +1,10 @@
+import websockets
 from audio_recorder_streamlit import audio_recorder
 import streamlit as st
 from linastt.infer.whisper_infer import *
+from linastt.infer.kaldi_infer import *
+import asyncio
+from linastt.utils.linstt import _linstt_streaming
 import os
 import tempfile
 import librosa
@@ -19,98 +23,84 @@ def visualize_audio(audio, sr):
     ax.set_title("Audio Waveform")
     st.pyplot(fig)
 
-def main():
-    # This script allows the user to transcribe an audio file or a recorded audio clip using the Whisper library.
+def render_transcription(transcription, border_style):
+    st.header('Transcription')
+    if isinstance(transcription, str):
+        st.markdown(border_style, unsafe_allow_html=True)
+        st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
 
-    # Add custom CSS styles
+def get_language_border_style(language):
+    direction = 'rtl' if language == 'ar' else 'ltr'
+    return f"""
+    <style>
+    .transcription-list {{
+        border: 1px solid #000;
+        padding: 10px;
+        border-radius: 5px;
+        direction: {direction};
+        text-align: {direction};
+    }}
+    </style>
+    """
+kaldi_m = st.sidebar.checkbox("KALDI TN")
+
+def main():
     st.markdown(
         """
         <style>
         body {
-            background-color: #f0f0f0;-m pip install --upgrade pip
+            background-color: #f0f0f0;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
-        </style>
         
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        """
-        <style>
         .transcription {
-            border : 'bold','1px';
+            border: 'bold','1px';
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 16px;
             color: #333;
         }
         </style>
-        
         """,
         unsafe_allow_html=True
     )
 
-
-
-    # Add content to your app
     st.title('Transcriberlit')
-    st.write('Welcome to my Transcriberlit, This app allows you to transcribe audio files or audio clips using the Whisper library.')
+    st.write('Welcome to my Transcriberlit. This app allows you to transcribe audio files or audio clips using the Whisper library.')
     st.header('Instructions')
     st.write('To use this app, upload an audio file or record a clip using the microphone. Then click the "Transcribe Audio" button to transcribe the audio.')
-
 
     sample_rate = 16_000
 
     models = {
-        # "ALG_small" : '/home/linagora/stt-end2end-expes/models/Model_alg/finals',
-        # "CV13_small" : '/home/linagora/stt-end2end-expes/models/cv13_model/finals',
-        "Tiny" : 'tiny',
-        "Base" : 'base',
-        "Small" : 'small',
+        "TN_model": "/home/usertn2/Documents/Data/Models/TN_model",
+        "Tiny": 'tiny',
+        "Base": 'base',
+        "Small": 'small',
     }
 
     Language = {
-    "Arabic" : "ar",
-    "English" : "en",
-    "French" : "fr",
+        "Arabic": "ar",
+        "English": "en",
+        "French": "fr",
     }
 
-    model_name = st.sidebar.selectbox("Select a model", list(models.keys()), index=0)
-    model_name = models[model_name]
+    model_name = None
+   
+    if kaldi_m:
+        model_name = "/home/usertn2/Documents/Data/Models/LinSTT_TN_ASR_from_scratch_20340203/am,/home/usertn2/Documents/Data/Models/LinSTT_TN_ASR_from_scratch_20340203/graph"
+    else:
+        selected_model = st.sidebar.selectbox("Select a model", list(models.keys()), index=0)
+        model_name = models[selected_model]
 
     language = st.sidebar.selectbox("Select a language", list(Language.keys()), index=0)
     language = Language[language]
 
-    if language == "ar":
-        border_style = """
-        <style>
-        .transcription-list {
-            border: 1px solid #000;
-            padding: 10px;
-            border-radius: 5px;
-            direction: rtl;
-            text-align: right;
-        }
-        </style>
-        """
-    else:
-        border_style = """
-        <style>
-        .transcription-list {
-            border: 1px solid #000;
-            padding: 10px;
-            border-radius: 5px;
-            direction: ltr;
-            text-align: left;
-        }
-        </style>
-        """
+    border_style = get_language_border_style(language)
 
-    # Upload an audio file (WAV or MP3) from the sidebar
-    audio_file = st.file_uploader("Upload an audio File:",type=['wav', 'mp3'])
+    audio_file = st.file_uploader("Upload an audio File:", type=['wav', 'mp3', 'flac'])
 
-
-    # Record an audio clip using the microphone
     audio_bytes = audio_recorder(
         energy_threshold=(-2.0, 2.0),
         pause_threshold=15.0,
@@ -136,17 +126,18 @@ def main():
             audio, sr = load_audio(temp_path)
             st.audio(temp_path)
             visualize_audio(audio, sr)
-            for transcription in whisper_infer(
-                model_name, temp_path,
-                language = language,
-                ):
-                st.header('Transcription')
-                if isinstance(transcription, str):
-                    st.markdown(border_style, unsafe_allow_html=True)
-                    st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
-                
+            if not kaldi_m:
+                for transcription in whisper_infer(
+                    model_name, temp_path,
+                    language = language,
+                    ):
+                    render_transcription(transcription,border_style)
+            else:  
+                for transcription in kaldi_infer(
+                    model_name, temp_path,
+                    batch_size = 4,
+                    ):
+                    render_transcription(transcription,border_style)
 
         elif audio_bytes:
             filename = "audio_record.wav"
@@ -165,12 +156,7 @@ def main():
                     language = language,
                     ):
                     st.header('Transcription')
-                    if isinstance(transcription, str):
-                        st.markdown(border_style, unsafe_allow_html=True)
-                        st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<ul class="transcription-list">{transcription}</ul>', unsafe_allow_html=True)
-
+                    render_transcription(transcription,border_style)
         else:
             st.error('You need to record/upload an audio file')
 

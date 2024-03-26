@@ -32,6 +32,7 @@ python-slugify
 soxbindings
 tensorboard
 text2num
+textgrids
 torch
 torchaudio
 torchvision
