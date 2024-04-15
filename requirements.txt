@@ -15,7 +15,7 @@ Levenshtein
 librosa
 loralib
 matplotlib==3.7.4
-num2words
+git+https://github.com/hedhoud/num2words.git
 onnxruntime
 openai-whisper
 peft
@@ -32,7 +32,7 @@ python-slugify
 soxbindings
 tensorboard
 text2num
-textgrids
+praat-textgrids
 torch
 torchaudio
 torchvision

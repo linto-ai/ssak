@@ -200,6 +200,61 @@ _symbol_to_word = {
         "C$":"دولار كندي",
 
     },
+    "tn": {
+        "%": "بالمئة",
+        "٪": "بالمئة",
+        "‰": "بالألف",
+        "~": "حوالي",
+        "=": "يساوي",
+        "÷": "مقسوم على",
+        # "*": "مضروبا بـ",  # ?
+        "×": "مضروبا بـ",
+        "±": "بلوس أو مون",
+        "+": "مع",
+        "⁺": "مع",
+        "⁻": "إلا",
+        "&": "و",
+        "@": "على",
+        "µ": "ميكرو",
+        "mm²": "مم مربع",
+        "مم²": "مم مربع",
+        "mm³": "مم مكعب",
+        "مم³": "مم مكعب",
+        "هـ":"هجري",
+        "ق.م": "قبل الميلاد",
+        "cm²": "سم مربع",
+        "cm³": "سم مكعب",
+        "سم²": "سم مربع",
+        "سم³": "سم مكعب",
+        "m²": "م مربع",
+        "m³": "م مكعب",
+        "م²": "م مربع",
+        "م³": "م مكعب",
+        "²": "مربع",
+        "³": "مكعب",
+        "⁵": "الخامسة",
+        "⁷": "السابعة",
+        "½": "نصف",
+        "⅓": "ثلث",
+        "⅔": "ثلثين",
+        "¼": "ربع",
+        "¾": "ربعين",
+        "§": "فقرة",
+        "°C": "درجة مئوية",
+        "°F": "درجة فهرنهايت",
+        "°K": "كيلفن",
+        "°": "درجة",
+        # "/":"أو",
+        "€": "يورو",
+        "¢": "سنت",
+        "$": "دولار",
+        "£": "جنيه",
+        "¥": "ين",
+        "₹": "روبية هندية",
+        "₽": "روبل روسي",
+        "C$":"دولار كندي",
+
+    },
 
     "ru": {
         "№": "номер",
@@ -252,6 +307,52 @@ _symbol_to_word = {
 
 _ar_currencies = {
     "ar":{
+        "EGP":"جنيه مصري",
+        "ج.م":"جنيه مصري",
+        "IQD":"دينار عراقي",
+        "د.ع":"دينار عراقي",
+        "SYP":"ليرة سورية",
+        "ل.س":"ليرة سورية",
+        "ل.ل":"ليرة لبنانية",
+        "LBP":"ليرة لبنانية",
+        "JOD":"دينار أردني",
+        "د.ا":"دينار أردني",
+        "SAR":"ريال سعودي",
+        "ر.س":"ريال سعودي",
+        "YER":"ريال يمني",
+        "ر.ي":"ريال يمني",
+        "LYD":"دينار ليبي",
+        "د.ل":"دينار ليبي",
+        "SDG":"جنيه سوداني",
+        "ج.س":"جنيه سوداني",
+        "MAD":"درهم مغربي",
+        "د.م":"درهم مغربي",
+        "TND":"دينار تونسي",
+        "د.ت":"دينار تونسي",
+        "KWD":"دينار كويتي",
+        "د.ك":"دينار كويتي",
+        "DZD":"دينار جزائري",
+        "د.ج":"دينار جزائري",
+        "MRO":"أوقية موريتانية",
+        "أ.م":"أوقية موريتانية",
+        "BHD":"دينار بحريني",
+        "د.ب":"دينار بحريني",
+        "QAR":"ريال قطري",
+        "ر.ق":"ريال قطري",
+        "AED":"درهم إماراتي",
+        "د.إ":"درهم إماراتي",
+        "OMR":"ريال عماني",
+        "ر.ع":"ريال عماني",
+        "SOS":"شلن صومالي",
+        "ش.ص":"شلن صومالي",
+        "FDJ":"فرنك جيبوتي",
+        "ف.ج":"فرنك جيبوتي",
+        "KMF":"فرنك قمري",
+        "EUR":"يورو",
+        "USD":"دولار أمريكي",
+
+    },
+    "tn":{
         "EGP":"جنيه مصري",
         "ج.م":"جنيه مصري",
         "IQD":"دينار عراقي",
@@ -397,7 +498,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar","tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
@@ -424,7 +525,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     elif len(sfirst) == 4: # 2019/1/1
                         is_date = third > 0 and third < 32 and second > 0 and second < 13 and first > 1000
                         if is_date:
-                            if lang == "ar":
+                            if lang == "ar" or lang == "tn":
                                 is_islamic_date = is_date and first < 1600
                             first, third = third, first
                             sfirst, sthird = sthird, sfirst
@@ -432,7 +533,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = sfirst.lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar", "tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
                 use_ordinal = (lang == "ru")
@@ -644,7 +745,9 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     if lang == "fr" and to == "ordinal":
         res = res.replace("vingtsième", "vingtième")
     elif lang == "ar":
-        res = res.replace(",","فاصيله")
+        res = res.replace(",","فاصله")
+    elif lang == "tn":
+        res = res.replace(",","فاصل")
     return res
 
 
@@ -821,6 +924,20 @@ _int_to_month = {
         11: "ذو القعدة",
         12: "ذو الحجة",
     },
+    "tn": {
+        1: "جانفي",
+        2: "فيفري",
+        3: "مارس",
+        4: "أفريل",
+        5: "ماي",
+        6: "جوان",
+        7: "جويلية",
+        8: "أوت",
+        9: "سبتمبر",
+        10: "أكتوبر",
+        11: "نوفمبر",
+        12: "ديسمبر",
+    },
     "ru": { # all forms are genetive
         1: "января",
         2: "февраля",
@@ -855,10 +972,18 @@ _punct_to_word = {
         "!": "exclamation mark",
     },
     "ar": {
-        ",": "فاصيله",
-        ".": "فاصيله", # "نقطه",
-        ";": "نقطه وفاصيله",
+        ",": "فاصلة",
+        ".": "فاصلة", # "نقطه",
+        ";": "نقطة و فاصلة",
         ":": "نقطتان",
+        "?": "علامه الاستفهام",
+        "!": "علامه التعجب",
+    },
+    "tn" : {
+        ",": "فاصل",
+        ".": "فاصل", # "نقطه",
+        ";": "نقطة و فاصلة",
+        ":": "نقطين",
         "?": "علامه الاستفهام",
         "!": "علامه التعجب",
     },
@@ -876,6 +1001,7 @@ _minus = {
     "en": "minus",
     "fr": "moins",
     "ar": "سالب",
+    "tn": "سالب",
     "de": "minus",
     "es": "menos",
     "it": "meno",

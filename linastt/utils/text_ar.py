@@ -11,7 +11,7 @@ from linastt.utils.text_utils import (
 from lang_trans.arabic import buckwalter as bw
 
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
-_regex_latin_chars = "a-zA-Z" # TODO: improve me
+_regex_latin_chars = "a-zA-ZÀ-ÖØ-öø-ÿĀ-ž'"  # Latin characters with common diacritics and '
 _arabic_punctuation = "؟!،.?,"
 _latin_punctuation = "!?.,:;"
 _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
@@ -54,9 +54,9 @@ def convert_hindi_numbers(text):
     return text
 
 # Convert digit to chars
-def digit2word(text):
+def digit2word(text,lang):
     text = convert_hindi_numbers(text)
-    text = cardinal_numbers_to_letters(text, lang="ar")
+    text = cardinal_numbers_to_letters(text, lang=lang)
     return text
 
 
@@ -68,7 +68,7 @@ def normalize_punct(text):
 
 def normalize_chars(text):
     # Replace various forms of Alef (ٱ, ٲ, ٵ, ٴ) with أ
-    text = re.sub("[ٱٲٵٴ]", "أ", text)
+    text = re.sub("[إأٱآاٱٲٵٴ]", "ا", text)
 
     # Replace various forms of Waw (ٶ, ٷ) with ؤ
     text = re.sub("[ٶٷ]", "ؤ", text)
@@ -98,7 +98,7 @@ def normalize_chars(text):
     text = re.sub("[ھەۀ]", "ه", text)
 
     # Replace various forms of Khah (ځ, ڂ, څ, ڃ, ڄ, چ, ڇ) with خ
-    text = re.sub("[ځڂڅڃڄچڇ]", "خ", text)
+    text = re.sub("[ځﭼڂڅڃڄچڇ]", "خ", text)
 
     # Replace various forms of Kaf (ڱ, ڲ, ڴ, ڳ, ک, ڪ, ګ, ڬ, ڭ, ڮ, گ, ڰ) with ك
     text = re.sub("[ڱڲڴڳکڪګڬڭڮگڰ]", "ك", text)
@@ -130,6 +130,10 @@ def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
 
 
+def get_arabic_and_latin(text):
+    return re.sub(r"[^" + _regex_arabic_chars + _regex_latin_chars + "]+", " ", text)
+
+
 # this function can get only the arabic chars with/without punctuation.
 def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
 
@@ -155,30 +159,61 @@ def unglue_arabic_and_latin_chars(line):
     line = re.sub(" {2,}", " ", line)
     return line
 
+def remove_repeated_chars(word, threshold=2):
+    pattern = r'(.)\1{' + str(threshold) + ',}'
+    return re.sub(pattern, r'\1', word)
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
+# def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
+#     input_line = line
+#     try:
+#         line = remove_url(line)
+#         line = symbols_to_letters(line, lang="ar", lower_case=False)
+#         line = normalize_arabic_currencies(line, lang="ar")
+#         line = digit2word(line)
+#         line = remove_arabic_diacritics(line)
+#         line = normalize_chars(line)
+#         line = normalize_punct(line)
+#         if not keep_latin_chars:
+#             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
+#         else:
+#             line = unglue_arabic_and_latin_chars(line)
+#             line = remove_special_characters(line)
+#             if not keep_punc:
+#                 line = remove_punctuations(line, " ")
+#         if bw:
+#             line = bw_transliterate(line)    
+#     except Exception as err:
+#         print(f"Error when processing line: \"{input_line}\"")
+#         raise err
+#     return collapse_whitespace(line)
+
+
+def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar"):
     input_line = line
     try:
         line = remove_url(line)
-        line = symbols_to_letters(line, lang="ar", lower_case=False)
-        line = normalize_arabic_currencies(line, lang="ar")
-        line = digit2word(line)
+        line = symbols_to_letters(line, lang=lang, lower_case=False)
+        line = normalize_arabic_currencies(line, lang=lang)
+        line = digit2word(line, lang=lang)
         line = remove_arabic_diacritics(line)
         line = normalize_chars(line)
         line = normalize_punct(line)
+        line = remove_repeated_chars(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
         else:
             line = unglue_arabic_and_latin_chars(line)
+            line = get_arabic_and_latin(line)
             line = remove_special_characters(line)
             if not keep_punc:
                 line = remove_punctuations(line, " ")
         if bw:
-            line = bw_transliterate(line)    
+            line = bw_transliterate(line)
     except Exception as err:
         print(f"Error when processing line: \"{input_line}\"")
         raise err
     return collapse_whitespace(line)
+
    
 if __name__ == '__main__':
 
@@ -186,6 +221,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
+    parser.add_argument('--language', help= "Whether to use tn or ar", type=str, default="ar")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
@@ -196,6 +232,7 @@ if __name__ == '__main__':
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
         "bw": args.bw,
+        "lang": args.language,
     }
 
     if len(input) == 1 and os.path.isfile(input[0]):
