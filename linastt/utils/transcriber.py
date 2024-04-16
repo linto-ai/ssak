@@ -194,7 +194,7 @@ def read_transcriber(
                                     break
                         else:
                             if verbose:
-                                print(f"WARNING: Inconsistent number of speakers ({nbr_spk}) and texts ({possible_lens})")
+                                print(f"WARNING: Inconsistent number of speakers ({nbr_spk}) and texts ({possible_lens}) {turn_start}->{turn_end} {trs_file}")#:\n{sync_texts}")
                             for sync_texts_ in split_text(sync_texts):
                                 break
                             if nbr_spk == 1:
@@ -292,13 +292,25 @@ def split_given_list(liste, elt):
 def file_encoding(filename):
     """ Guess the encoding of a file """
     # Note we could use "file" on linux OS
-    import magic
-    blob = open(filename, 'rb').read()
-    m = magic.Magic(mime_encoding=True)
-    encoding = m.from_buffer(blob)
-    if encoding in ["unknown-8bit"]:
-        return xml_encoding(filename)
-    return encoding
+    try:
+        import magic
+        blob = open(filename, 'rb').read()
+        m = magic.Magic(mime_encoding=True)
+        encoding = m.from_buffer(blob)
+        if encoding in ["unknown-8bit"]:
+            return xml_encoding(filename)
+        return encoding
+    except ImportError:
+        # print("Warning: magic library not found. Using chardet instead.")
+        import chardet
+        with open(filename, 'rb') as f:
+            blob = f.read()
+        result = chardet.detect(blob)
+        encoding = result['encoding']
+        if encoding in ["unknown-8bit"]:
+            return xml_encoding(filename)  # You need to define xml_encoding function
+        return encoding
+
 
 
 def xml_encoding(infile):
@@ -349,8 +361,9 @@ def encrypt_speaker(spk_name):
     import hashlib
     import random
     random.seed(1234)
+    h = spk_name
     for method in hashlib.sha1, hashlib.sha224, hashlib.sha256, hashlib.sha384, hashlib.sha512, hashlib.md5:
-        h = method(spk_name.encode("utf8")).hexdigest()
+        h = method(h.encode("utf8")).hexdigest()
         h = list(h)
         random.shuffle(h)
         h = "".join(h)[:-1]
