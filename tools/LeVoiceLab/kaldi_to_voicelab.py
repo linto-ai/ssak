@@ -315,7 +315,7 @@ if __name__ == "__main__":
                     audio_path = line[start + 1 : end - 1]
                     break
 
-            assert audio_path is not None, "Could not find audio file in: " + line
+            assert audio_path is not None, f"Could not find audio file in: {line} are you sure that --ext={args.ext} corresponds to the extension of the audio file?"
             wavs[fields[0]] = audio_path
             # This verification takes too long. Whatever will fail later...
             # if os.path.exists(audio_path):
