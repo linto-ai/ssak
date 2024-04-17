@@ -240,8 +240,10 @@ def read_transcriber(
                         for pattern, replacement in replacements.items():
                             sync_text = re.sub(r"\b" + pattern + r"\b", replacement, sync_text)
 
-                    sync_text = correct_text(sync_text, capitalize=capitalize)
-
+                    sync_text = correct_text(sync_text, capitalize=capitalize, remove_extra_speech=remove_extra_speech)
+                    if len(sync_text) == 0:
+                        # print(f"WARNING: skipping empty text for {seg_id} ({turn_start}->{turn_end})")
+                        continue
                     # if turn_speaker_id not in speaker_id:
                     #     turn_speaker_gender = "m"
 
@@ -428,7 +430,7 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     # ("æ","ae"),
                 ]]
 
-def correct_text(text, capitalize=True):
+def correct_text(text, capitalize=True, remove_extra_speech=False):
 
     # 1. Minimal character normalization
     for reg, replacement in _corrections_caracteres_speciaux_fr:
@@ -451,7 +453,7 @@ def correct_text(text, capitalize=True):
     # - "&...":  Disfluencies
     # - ex: &hum, §heu
     text = re.sub(r"^[&§]", "",  text.strip())
-    text = re.sub(" [&§]", " ", text)
+    text = re.sub(r"([' ])[&§]", " ", text)
     # - "(...)": Unsaid stuff
     # - ex: spect(acle)
     text = re.sub(r"\([^\)]*\)", "...", text)
@@ -461,11 +463,17 @@ def correct_text(text, capitalize=True):
     # - "*..." : Wrong pronunciation
     # - ex:  *Martin
     text = re.sub(r"\*", "", text)
-
+    
+    if remove_extra_speech:
+        text = re.sub(r"<ph_.*/>", "", text)
+        text = re.sub(r"{.*}","", text)
+    
     # # 2. Special character removal
     # text = re.sub('/',' ', text)
     # text = re.sub('#+',' ', text)
     # text = re.sub('\*+', ' ', text)
+    # text = re.sub(r"²","", text)
+    # text = re.sub(r"\+","", text)
     
     # Finally, remove extra spaces
     text = collapse_whitespace(text)
