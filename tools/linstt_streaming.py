@@ -14,6 +14,7 @@ if __name__ == "__main__":
         default="wss://api.linto.ai/stt-vivatech-streaming/streaming",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
+    parser.add_argument("--audio_file", default=None, help="A path to an audio file to transcribe (if not provided, use mic)")
     args = parser.parse_args()
 
-    res = linstt_streaming(None, args.server, verbose=2 if args.verbose else 1)
+    res = linstt_streaming(args.audio_file, args.server, verbose=2 if args.verbose else 1)
