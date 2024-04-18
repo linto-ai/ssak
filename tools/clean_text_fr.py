@@ -83,7 +83,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
                         raw_file.write(full_line)
                     fout.flush()
                     num_dumps += 1
-            if not num_dumps and empty_string_policy == "fail":
+            if not num_dumps and empty_string_policy != "ignore":
                 raise RuntimeError(f"Empty string found (on '{full_line}').\nUse option --empty_string_policy=allow or --empty_string_policy=ignore to explicitly allow or ignore empty strings")
             if num_dumps > 1 and linebreak_policy == "fail":
                 line_ = line.replace("\n", "\\n")
