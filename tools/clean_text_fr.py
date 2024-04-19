@@ -10,7 +10,10 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
     
     if file_clean_mode == "kaldi":
         if not os.path.isdir(input):
-            raise FileNotFoundError(f"Input folder {input} not found")
+            if os.path.isfile(input):
+                raise FileNotFoundError(f"Input folder {input} is a file, not a folder")
+            else:
+                raise FileNotFoundError(f"Input folder {input} not found")
         if not os.path.exists(os.path.join(input,"text")):
             raise FileNotFoundError(f"Input folder {input} does not contain a 'text' file")
         if os.path.exists(output):
