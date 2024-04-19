@@ -221,7 +221,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
-    parser.add_argument('--language', help= "Whether to use tn or ar", type=str, default="ar")
+    parser.add_argument('--language', help= "Whether to use 'ar or ar_tn'", type=str, default="ar")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")

@@ -200,7 +200,7 @@ _symbol_to_word = {
         "C$":"دولار كندي",
 
     },
-    "tn": {
+    "ar_tn": {
         "%": "بالمئة",
         "٪": "بالمئة",
         "‰": "بالألف",
@@ -352,7 +352,7 @@ _ar_currencies = {
         "USD":"دولار أمريكي",
 
     },
-    "tn":{
+    "ar_tn":{
         "EGP":"جنيه مصري",
         "ج.م":"جنيه مصري",
         "IQD":"دينار عراقي",
@@ -498,7 +498,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar","tn"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar","ar_tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
@@ -525,7 +525,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     elif len(sfirst) == 4: # 2019/1/1
                         is_date = third > 0 and third < 32 and second > 0 and second < 13 and first > 1000
                         if is_date:
-                            if lang == "ar" or lang == "tn":
+                            if lang == "ar" or lang == "ar_tn":
                                 is_islamic_date = is_date and first < 1600
                             first, third = third, first
                             sfirst, sthird = sthird, sfirst
@@ -533,7 +533,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = sfirst.lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar", "tn"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar", "ar_tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
                 use_ordinal = (lang == "ru")
@@ -746,7 +746,7 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
         res = res.replace("vingtsième", "vingtième")
     elif lang == "ar":
         res = res.replace(",","فاصله")
-    elif lang == "tn":
+    elif lang == "ar_tn":
         res = res.replace(",","فاصل")
     return res
 
@@ -924,7 +924,7 @@ _int_to_month = {
         11: "ذو القعدة",
         12: "ذو الحجة",
     },
-    "tn": {
+    "ar_tn": {
         1: "جانفي",
         2: "فيفري",
         3: "مارس",
@@ -979,7 +979,7 @@ _punct_to_word = {
         "?": "علامه الاستفهام",
         "!": "علامه التعجب",
     },
-    "tn" : {
+    "ar_tn" : {
         ",": "فاصل",
         ".": "فاصل", # "نقطه",
         ";": "نقطة و فاصلة",
@@ -1001,7 +1001,7 @@ _minus = {
     "en": "minus",
     "fr": "moins",
     "ar": "سالب",
-    "tn": "سالب",
+    "ar_tn": "سالب",
     "de": "minus",
     "es": "menos",
     "it": "meno",
