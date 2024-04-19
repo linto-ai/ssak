@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
-
+    parser.add_argument('--language', default="ar", type=str, help="Specify language to use(ar | tn)")
     args = parser.parse_args()
 
     input_file = args.input
@@ -55,7 +55,8 @@ if __name__ == "__main__":
             line = format_text_ar(line,
                 keep_punc=args.keep_punc,
                 keep_latin_chars=args.keep_latin_chars,
-                bw=args.bw
+                bw=args.bw,
+                lang=args.language,
             )
             for subline in line.splitlines():
                 subline = subline.strip()
