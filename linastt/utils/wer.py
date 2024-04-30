@@ -43,7 +43,7 @@ def compute_wer(refs, preds,
     # Open the test dataset human translation file
     if isinstance(refs, str):
         assert os.path.isfile(refs), f"Reference file {refs} doesn't exist"
-        assert isinstance(preds, str) and os.path.isfile(preds)
+        assert isinstance(preds, str) and os.path.isfile(preds), f"Prediction file {preds} doesn't exist"
         if use_ids:
             refs = parse_text_with_ids(refs)
             preds = parse_text_with_ids(preds)
@@ -87,6 +87,12 @@ def compute_wer(refs, preds,
             normalize_func = lambda x: format_text_latin(x, lang=normalization)
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
+        if normalization == "fr":
+            def further_normalize(s):
+                # Fix masculine / feminine for un
+                return re.sub(r"\bune?\b", "1", s)
+            refs = [further_normalize(ref) for ref in refs]
+            preds = [further_normalize(pred) for pred in preds]
         if strong_normalization:
             def remove_not_words(s):
                 return collapse_whitespace(re.sub("[^\w]", " ", s))
