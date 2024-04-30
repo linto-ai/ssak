@@ -36,7 +36,8 @@ def compute_wer(refs, preds,
     :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
                   Must be of the same type as refs.
     :param use_ids: (for files) whether reference and prediction files includes id as a first field
-    :param normalization: None or a language code ("fr", "ar", ...)
+    :param normalization: None or a language code ("fr", "ar", ...).
+        Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
     :param debug: if True, print debug information. If string, write debug information to the file.
     """
     # Open the test dataset human translation file
@@ -74,7 +75,10 @@ def compute_wer(refs, preds,
     assert len(refs) == len(preds)
 
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru
+        strong_normalization = normalization.endswith("+")
+        if strong_normalization:
+            normalization = normalization[:-1]
+        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
         if normalization == "ar":
             normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
         elif normalization == "ru":
@@ -83,6 +87,11 @@ def compute_wer(refs, preds,
             normalize_func = lambda x: format_text_latin(x, lang=normalization)
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
+        if strong_normalization:
+            def remove_not_words(s):
+                return collapse_whitespace(re.sub("[^\w]", " ", s))
+            refs = [remove_not_words(ref) for ref in refs]
+            preds = [remove_not_words(pred) for pred in preds]
 
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
@@ -276,7 +285,7 @@ if __name__ == "__main__":
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
-    parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...)", default=None)
+    parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
     args = parser.parse_args()
 
