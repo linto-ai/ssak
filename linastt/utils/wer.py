@@ -28,7 +28,8 @@ def compute_wer(refs, preds,
                 normalization=None,
                 character_level=False,
                 use_percents=False,
-                debug=False,
+                alignment=False,
+                include_correct_in_alignement=True,
                 ):
     """
     Compute WER between two files.
@@ -38,7 +39,8 @@ def compute_wer(refs, preds,
     :param use_ids: (for files) whether reference and prediction files includes id as a first field
     :param normalization: None or a language code ("fr", "ar", ...).
         Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
-    :param debug: if True, print debug information. If string, write debug information to the file.
+    :param alignment: if True, print alignment information. If string, write alignment information to the file.
+    :parm include_correct_in_alignement: whether to include correct words in the alignment
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
@@ -78,6 +80,9 @@ def compute_wer(refs, preds,
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
             normalization = normalization[:-1]
+        very_strong_normalization = normalization.endswith("+")
+        if very_strong_normalization:
+            normalization = normalization[:-1]
         from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
         if normalization == "ar":
             normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
@@ -89,15 +94,22 @@ def compute_wer(refs, preds,
         preds = [normalize_func(pred) for pred in preds]
         if normalization == "fr":
             def further_normalize(s):
-                # Fix masculine / feminine for un
+                # Fix masculine / feminine for un ("1 fois" / "une fois" -> "un fois")
                 return re.sub(r"\bune?\b", "1", s)
             refs = [further_normalize(ref) for ref in refs]
             preds = [further_normalize(pred) for pred in preds]
         if strong_normalization:
             def remove_not_words(s):
+                # Remove any character that is not alpha-numeric (e.g. apostrophes, dashes, ...)
                 return collapse_whitespace(re.sub("[^\w]", " ", s))
             refs = [remove_not_words(ref) for ref in refs]
             preds = [remove_not_words(pred) for pred in preds]
+        if very_strong_normalization:
+            def remove_ending_s(s):
+                # Remove "s" at the end of words, like "les" -> "le"
+                return re.sub(r"(\w)s\b", r"\1", s)
+            refs = [remove_ending_s(ref) for ref in refs]
+            preds = [remove_ending_s(pred) for pred in preds]
 
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
@@ -119,11 +131,11 @@ def compute_wer(refs, preds,
         measures = jiwer.compute_measures(refs, preds)
 
     extra = {}
-    if debug:
-        with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
-            output = jiwer.process_words(refs, preds, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
+    if alignment:
+        with open(alignment, 'w+') if isinstance(alignment, str) else open("/dev/stdout", "w") as f:
+            output = jiwer.process_words(refs, refs, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
             s = jiwer.visualize_alignment(
-                output, show_measures=True, skip_correct=False
+                output, show_measures=True, skip_correct=not include_correct_in_alignement
             )
             # def add_separator(match):
             #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
@@ -290,7 +302,8 @@ if __name__ == "__main__":
     parser.add_argument('references', help="File with reference text lines (ground-truth)", type=str)
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
-    parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
+    parser.add_argument('--alignment', '--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
+    parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
     args = parser.parse_args()
@@ -307,9 +320,9 @@ if __name__ == "__main__":
         target_test = [target_test]
         target_pred = [target_pred]
 
-    debug = args.debug
-    if debug and debug.lower() in ["true", "false"]:
-        debug = eval(debug.title())
+    alignment = args.alignment
+    if alignment and alignment.lower() in ["true", "false"]:
+        alignment = eval(alignment.title())
     use_ids = args.use_ids
 
     result = compute_wer(
@@ -317,7 +330,9 @@ if __name__ == "__main__":
         use_ids=use_ids,
         normalization=args.norm,
         character_level=args.char,
-        debug=debug)
+        alignment=alignment,
+        include_correct_in_alignement=args.include_correct_in_alignement,
+        )
     print(' ------------------------------------------------------------------------------------------------------- ')
     print(' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
         "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
