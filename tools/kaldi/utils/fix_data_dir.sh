@@ -7,7 +7,11 @@
 # data-dir/.backup
 
 data=`realpath $1 2> /dev/null`
-
+if [ -z "$2" ]; then
+  strict_sort=true
+else
+  strict_sort=$2
+fi
 ROOT=`dirname $0`
 ROOT=`dirname $ROOT`
 ROOT=`realpath $ROOT`
@@ -20,7 +24,7 @@ spk_extra_files=
 
 . utils/parse_options.sh
 
-if [ $# != 1 ]; then
+if [ $# -ne 1 ] && [ $# -ne 2 ]; then  
   echo "Usage: utils/fix_data_dir.sh <data-dir>"
   echo "e.g.: utils/fix_data_dir.sh data/train"
   echo "This script helps ensure that the various files in a data directory"
@@ -98,6 +102,7 @@ function filter_recordings {
       exit 1;
     fi
     awk '{print $2}' < $data/segments | sort | uniq > $tmpdir/recordings
+    # awk '{print $2}' < $data/segments | sort -k1,1 | uniq > $tmpdir/recordings
     n1=$(cat $tmpdir/recordings | wc -l)
     [ ! -s $tmpdir/recordings ] && \
       echo "Empty list of recordings (bad file $data/segments)?" && exit 1;
@@ -144,20 +149,23 @@ function filter_speakers {
 function filter_utts {
   cat $data/utt2spk | awk '{print $1}' > $tmpdir/utts
 
-  ! cat $data/utt2spk | sort | cmp - $data/utt2spk && \
-    echo "utt2spk is not in sorted order (fix this yourself)" && exit 1;
+  if [ "$strict_sort" == "true" ]; then
+    ! cat $data/utt2spk | sort | cmp - $data/utt2spk && \
+      echo "utt2spk is not in sorted order (fix this yourself)" && exit 1;
 
-  ! cat $data/utt2spk | sort -k2 | cmp - $data/utt2spk && \
-    echo "utt2spk is not in sorted order when sorted first on speaker-id " && \
-    echo "(fix this by making speaker-ids prefixes of utt-ids)" && exit 1;
+    ! cat $data/utt2spk | sort -k2 | cmp - $data/utt2spk && \
+      echo "utt2spk is not in sorted order when sorted first on speaker-id " && \
+      echo "(fix this by making speaker-ids prefixes of utt-ids)" && exit 1;
 
-  ! cat $data/spk2utt | sort | cmp - $data/spk2utt && \
-    echo "spk2utt is not in sorted order (fix this yourself)" && exit 1;
+    ! cat $data/spk2utt | sort | cmp - $data/spk2utt && \
+      echo "spk2utt is not in sorted order (fix this yourself)" && exit 1;
 
-  if [ -f $data/utt2uniq ]; then
-    ! cat $data/utt2uniq | sort | cmp - $data/utt2uniq && \
-      echo "utt2uniq is not in sorted order (fix this yourself)" && exit 1;
+    if [ -f $data/utt2uniq ]; then
+      ! cat $data/utt2uniq | sort | cmp - $data/utt2uniq && \
+        echo "utt2uniq is not in sorted order (fix this yourself)" && exit 1;
+    fi
   fi
+
 
   maybe_wav=
   maybe_reco2dur=
@@ -190,7 +198,7 @@ function filter_utts {
   [ ! -s $tmpdir/utts ] && echo "fix_data_dir.sh: no utterances remained: not proceeding further." && \
     rm $tmpdir/utts && exit 1;
 
-
+  
   if [ -f $data/utt2spk ]; then
     new_nutts=$(cat $tmpdir/utts | wc -l)
     old_nutts=$(cat $data/utt2spk | wc -l)
@@ -200,7 +208,7 @@ function filter_utts {
       echo "fix_data_dir.sh: kept all $old_nutts utterances."
     fi
   fi
-
+  
   for x in utt2spk utt2uniq feats.scp vad.scp text segments utt2lang utt2dur utt2num_frames $maybe_wav $maybe_reco2dur $utt_extra_files; do
     if [ -f $data/$x ]; then
       cp $data/$x $data/.backup/$x
@@ -219,5 +227,10 @@ filter_speakers
 filter_recordings
 
 utils/utt2spk_to_spk2utt.pl $data/utt2spk > $data/spk2utt
+
+if [ "$strict_sort" == "false" ]; then # reorder it based on utts if order utt!=order spk
+  (cat "$data/utt2spk" | sort -k1,1) > "$data/utt2spk.tmp" && mv "$data/utt2spk.tmp" "$data/utt2spk"
+  (cat "$data/spk2utt" | sort -k1,1) > "$data/spk2utt.tmp" && mv "$data/spk2utt.tmp" "$data/spk2utt"
+fi
 
 echo "fix_data_dir.sh: old files are kept in $data/.backup"
