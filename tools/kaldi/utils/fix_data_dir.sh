@@ -102,7 +102,6 @@ function filter_recordings {
       exit 1;
     fi
     awk '{print $2}' < $data/segments | sort | uniq > $tmpdir/recordings
-    # awk '{print $2}' < $data/segments | sort -k1,1 | uniq > $tmpdir/recordings
     n1=$(cat $tmpdir/recordings | wc -l)
     [ ! -s $tmpdir/recordings ] && \
       echo "Empty list of recordings (bad file $data/segments)?" && exit 1;

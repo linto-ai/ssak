@@ -116,9 +116,6 @@ fi
 
 check_sorted_and_uniq $data/spk2utt
 
-# ! cmp -s <(cat $data/utt2spk | awk '{print $1, $2;}') \
-#      <(utils/spk2utt_to_utt2spk.pl $data/spk2utt)  && \
-#    echo "$0: spk2utt and utt2spk do not seem to match" && exit 1;
   ! cmp -s <(cat $data/spk2utt) \
      <(utils/utt2spk_to_spk2utt.pl $data/utt2spk | sort -k1,1)  && \
     echo "$0: spk2utt and utt2spk do not seem to match" && exit 1;
