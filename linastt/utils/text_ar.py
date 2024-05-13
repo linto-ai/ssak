@@ -23,7 +23,7 @@ _regex_latin_punctuation = regex_escape(_latin_punctuation)
 _regex_all_punctuation = regex_escape(_all_punctuation)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-directory_path = os.path.join(script_dir, "../../dict/arabic_normalization_chars.pl")
+directory_path = os.path.join(script_dir, "../../dict/arabic_normalization_chars.pkl")
 with open(directory_path, "rb") as f:
     normalization_rules = pickle.load(f)
 
