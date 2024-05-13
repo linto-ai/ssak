@@ -94,7 +94,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
     finally:
         if fout is not sys.stdout:
             fout.close()
-        if gen is not sys.stdin:
+        if hasattr(gen, "close"):
             gen.close()
         if file_clean_mode == "kaldi":
             raw_file.close()
