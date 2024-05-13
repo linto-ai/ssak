@@ -30,7 +30,7 @@ def compute_wer(refs, preds,
                 use_percents=False,
                 alignment=False,
                 include_correct_in_alignement=True,
-                word_lists=None,
+                words_list=None,
                 ):
     """
     Compute WER between two files.
@@ -42,7 +42,7 @@ def compute_wer(refs, preds,
         Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
     :param alignment: if True, print alignment information. If string, write alignment information to the file.
     :param include_correct_in_alignement: whether to include correct words in the alignment
-    :param word_lists: list of words to focus on
+    :param words_list: list of words to focus on
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
@@ -94,24 +94,34 @@ def compute_wer(refs, preds,
             normalize_func = lambda x: format_text_latin(x, lang=normalization)
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
+        if words_list:
+            words_list = [normalize_func(w) for w in words_list]
         if normalization == "fr":
             def further_normalize(s):
                 # Fix masculine / feminine for un ("1 fois" / "une fois" -> "un fois")
                 return re.sub(r"\bune?\b", "1", s)
             refs = [further_normalize(ref) for ref in refs]
             preds = [further_normalize(pred) for pred in preds]
+            if words_list:
+                words_list = [further_normalize(w) for w in words_list]
         if strong_normalization:
             def remove_not_words(s):
                 # Remove any character that is not alpha-numeric (e.g. apostrophes, dashes, ...)
                 return collapse_whitespace(re.sub("[^\w]", " ", s))
             refs = [remove_not_words(ref) for ref in refs]
             preds = [remove_not_words(pred) for pred in preds]
+            if words_list:
+                words_list = [remove_not_words(w) for w in words_list]
         if very_strong_normalization:
             def remove_ending_s(s):
                 # Remove "s" at the end of words, like "les" -> "le"
                 return re.sub(r"(\w)s\b", r"\1", s)
             refs = [remove_ending_s(ref) for ref in refs]
             preds = [remove_ending_s(pred) for pred in preds]
+            if words_list:
+                words_list = [remove_ending_s(w) for w in words_list]
+        if words_list:
+            words_list = [w for w in words_list if w]
 
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
@@ -145,11 +155,11 @@ def compute_wer(refs, preds,
             f.write(s)
             extra = {"alignment": s}
 
-    if word_lists:
+    if words_list:
         n_total = 0
         n_correct = 0
         for r, p in zip(refs, preds):
-            for w in word_lists:
+            for w in words_list:
                 if re.search(r"\b" + w + r"\b", r):
                     n_total += 1
                     if re.search(r"\b" + w + r"\b", p):
@@ -322,7 +332,7 @@ if __name__ == "__main__":
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
-    parser.add_argument('--word_lists', help="Files with list of words to focus on", default=None)
+    parser.add_argument('--words_list', help="Files with list of words to focus on", default=None)
     args = parser.parse_args()
 
     target_test = args.references
@@ -337,11 +347,11 @@ if __name__ == "__main__":
         target_test = [target_test]
         target_pred = [target_pred]
 
-    if args.word_lists:
-        assert os.path.isfile(args.word_lists), f"File {args.word_lists} doesn't exist"
-        word_list_name = os.path.splitext(os.path.basename(args.word_lists))[0]
-        with open(args.word_lists) as f:
-            word_lists = [l.strip() for l in f.readlines()]
+    if args.words_list:
+        assert os.path.isfile(args.words_list), f"File {args.words_list} doesn't exist"
+        word_list_name = os.path.splitext(os.path.basename(args.words_list))[0]
+        with open(args.words_list) as f:
+            words_list = [l.strip() for l in f.readlines()]
 
     alignment = args.alignment
     if alignment and alignment.lower() in ["true", "false"]:
@@ -355,7 +365,7 @@ if __name__ == "__main__":
         character_level=args.char,
         alignment=alignment,
         include_correct_in_alignement=args.include_correct_in_alignement,
-        word_lists=word_lists if args.word_lists else None,
+        words_list=words_list if args.words_list else None,
         )
     line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
         "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
