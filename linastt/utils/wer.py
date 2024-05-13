@@ -149,6 +149,8 @@ def compute_wer(refs, preds,
                 words_list = [remove_ending_s(w) for w in words_list]
             if replacements_ref:
                 replacements_ref = {remove_ending_s(k): remove_ending_s(v) for k, v in replacements_ref.items()}
+            if replacements_pred:
+                replacements_pred = {remove_ending_s(k): remove_ending_s(v) for k, v in replacements_pred.items()}
         if words_list:
             words_list = [w for w in words_list if w]
         if replacements_ref:
@@ -156,6 +158,11 @@ def compute_wer(refs, preds,
                 for k, v in replacements_ref.items():
                     if k in ref:
                         refs[i] = re.sub(r"\b" + k + r"\b", v, refs[i])
+        if replacements_pred:
+            for i, pred in enumerate(preds):
+                for k, v in replacements_pred.items():
+                    if k in pred:
+                        preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
 
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
