@@ -83,13 +83,17 @@ def compute_wer(refs, preds,
     assert len(refs) == len(preds)
 
     if replacements_ref:
-        for i, ref in enumerate(refs):
-            for k, v in replacements_ref.items():
+        for k, v in replacements_ref.items():
+            for i, ref in enumerate(refs):
                 if k in ref:
                     refs[i] = re.sub(r"\b" + k + r"\b", v, refs[i])
+            if words_list:
+                for i, w in enumerate(words_list):
+                    if k in w:
+                        words_list[i] = re.sub(r"\b" + k + r"\b", v, w)
     if replacements_pred:
-        for i, pred in enumerate(preds):
-            for k, v in replacements_pred.items():
+        for k, v in replacements_pred.items():
+            for i, pred in enumerate(preds):
                 if k in pred:
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
@@ -154,13 +158,17 @@ def compute_wer(refs, preds,
         if words_list:
             words_list = [w for w in words_list if w]
         if replacements_ref:
-            for i, ref in enumerate(refs):
-                for k, v in replacements_ref.items():
+            for k, v in replacements_ref.items():
+                for i, ref in enumerate(refs):
                     if k in ref:
                         refs[i] = re.sub(r"\b" + k + r"\b", v, refs[i])
+                if words_list:
+                    for i, w in enumerate(words_list):
+                        if k in w:
+                            words_list[i] = re.sub(r"\b" + k + r"\b", v, w)
         if replacements_pred:
-            for i, pred in enumerate(preds):
-                for k, v in replacements_pred.items():
+            for k, v in replacements_pred.items():
+                for i, pred in enumerate(preds):
                     if k in pred:
                         preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
