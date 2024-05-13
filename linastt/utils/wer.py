@@ -110,66 +110,57 @@ def compute_wer(refs, preds,
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
     if normalization:
+        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
             normalization = normalization[:-1]
         very_strong_normalization = normalization.endswith("+")
         if very_strong_normalization:
             normalization = normalization[:-1]
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+
+        normalize_funcs = []
         if normalization == "ar":
-            normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
+            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
         elif normalization == "ru":
-            normalize_func = lambda x: format_text_ru(x)
+            normalize_funcs.append(lambda x: format_text_ru(x))
         else:
-            normalize_func = lambda x: format_text_latin(x, lang=normalization)
-        refs = [normalize_func(ref) for ref in refs]
-        preds = [normalize_func(pred) for pred in preds]
-        if words_list:
-            words_list = [normalize_func(w) for w in words_list]
-        if replacements_ref:
-            replacements_ref = {normalize_func(k): normalize_func(v) for k, v in replacements_ref.items()}
-        if replacements_pred:
-            replacements_pred = {normalize_func(k): normalize_func(v) for k, v in replacements_pred.items()}
+            normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
+
         if normalization == "fr":
             def further_normalize(s):
                 # Fix masculine / feminine for un ("1 fois" / "une fois" -> "un fois")
                 return re.sub(r"\bune?\b", "1", s)
-            refs = [further_normalize(ref) for ref in refs]
-            preds = [further_normalize(pred) for pred in preds]
-            if words_list:
-                words_list = [further_normalize(w) for w in words_list]
-            if replacements_ref:
-                replacements_ref = {further_normalize(k): further_normalize(v) for k, v in replacements_ref.items()}
-            if replacements_pred:
-                replacements_pred = {further_normalize(k): further_normalize(v) for k, v in replacements_pred.items()}
+            normalize_funcs.append(further_normalize)
+
         if strong_normalization:
             def remove_not_words(s):
                 # Remove any character that is not alpha-numeric (e.g. apostrophes, dashes, ...)
                 return collapse_whitespace(re.sub("[^\w]", " ", s))
-            refs = [remove_not_words(ref) for ref in refs]
-            preds = [remove_not_words(pred) for pred in preds]
-            if words_list:
-                words_list = [remove_not_words(w) for w in words_list]
-            if replacements_ref:
-                replacements_ref = {remove_not_words(k): remove_not_words(v) for k, v in replacements_ref.items()}
-            if replacements_pred:
-                replacements_pred = {remove_not_words(k): remove_not_words(v) for k, v in replacements_pred.items()}
+            normalize_funcs.append(remove_not_words)
+
         if very_strong_normalization:
             def remove_ending_s(s):
                 # Remove "s" at the end of words, like "les" -> "le"
                 return re.sub(r"(\w)s\b", r"\1", s)
-            refs = [remove_ending_s(ref) for ref in refs]
-            preds = [remove_ending_s(pred) for pred in preds]
-            if words_list:
-                words_list = [remove_ending_s(w) for w in words_list]
-            if replacements_ref:
-                replacements_ref = {remove_ending_s(k): remove_ending_s(v) for k, v in replacements_ref.items()}
-            if replacements_pred:
-                replacements_pred = {remove_ending_s(k): remove_ending_s(v) for k, v in replacements_pred.items()}
+            normalize_funcs.append(remove_ending_s)
+
+        def normalize_func(s):
+            for f in normalize_funcs:
+                s = f(s)
+            return s
+
+        refs = [normalize_func(ref) for ref in refs]
+        preds = [normalize_func(pred) for pred in preds]
         if words_list:
+            words_list = [normalize_func(w) for w in words_list]
             words_list = [w for w in words_list if w]
+
         # Replacements AFTER normalization
+        if replacements_ref:
+            replacements_ref = {normalize_func(k): normalize_func(v) for k, v in replacements_ref.items()}
+        if replacements_pred:
+            replacements_pred = {normalize_func(k): normalize_func(v) for k, v in replacements_pred.items()}
         if replacements_ref:
             for k, v in replacements_ref.items():
                 for i, ref in enumerate(refs):
