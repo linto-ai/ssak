@@ -31,6 +31,7 @@ def compute_wer(refs, preds,
                 alignment=False,
                 include_correct_in_alignement=True,
                 words_list=None,
+                words_blacklist=None,
                 replacements_ref=None,
                 replacements_pred=None,
                 ):
@@ -45,6 +46,7 @@ def compute_wer(refs, preds,
     :param alignment: if True, print alignment information. If string, write alignment information to the file.
     :param include_correct_in_alignement: whether to include correct words in the alignment
     :param words_list: list of words to focus on
+    :param words_blacklist: list of words to exclude all the examples where the reference include such a word
     :param replacements_ref: dictionary of replacements to perform in the reference
     :param replacements_pred: dictionary of replacements to perform in the hypothesis
     """
@@ -82,6 +84,16 @@ def compute_wer(refs, preds,
     assert isinstance(preds, list)
     assert len(refs) == len(preds)
 
+    if words_blacklist:
+        # Remove examples where the reference includes a word from the blacklist
+        for i in range(len(refs)-1, -1, -1):
+            for w in words_blacklist:
+                if re.search(r"\b" + w + r"\b", refs[i]):
+                    del refs[i]
+                    del preds[i]
+                    break
+
+    # Replacements BEFORE normalization
     if replacements_ref:
         for k, v in replacements_ref.items():
             for i, ref in enumerate(refs):
@@ -157,6 +169,7 @@ def compute_wer(refs, preds,
                 replacements_pred = {remove_ending_s(k): remove_ending_s(v) for k, v in replacements_pred.items()}
         if words_list:
             words_list = [w for w in words_list if w]
+        # Replacements AFTER normalization
         if replacements_ref:
             for k, v in replacements_ref.items():
                 for i, ref in enumerate(refs):
@@ -383,6 +396,7 @@ if __name__ == "__main__":
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
     parser.add_argument('--words_list', help="Files with list of words to focus on", default=None)
+    parser.add_argument('--words_blacklist', help="Files with list of words to exclude all the examples where the reference include such a word", default=None)
     parser.add_argument('--replacements', help="Files with list of replacements to perform in both reference and hypothesis", default=None)
     parser.add_argument('--replacements_ref', help="Files with list of replacements to perform in references only", default=None)
     parser.add_argument('--replacements_pred', help="Files with list of replacements to perform in predicions only", default=None)
@@ -400,11 +414,18 @@ if __name__ == "__main__":
         target_test = [target_test]
         target_pred = [target_pred]
 
+    words_list = None
     if args.words_list:
         assert os.path.isfile(args.words_list), f"File {args.words_list} doesn't exist"
         word_list_name = os.path.splitext(os.path.basename(args.words_list))[0]
         with open(args.words_list) as f:
             words_list = [l.strip() for l in f.readlines()]
+
+    words_blacklist = None
+    if args.words_blacklist:
+        assert os.path.isfile(args.words_blacklist), f"File {args.words_blacklist} doesn't exist"
+        with open(args.words_blacklist) as f:
+            words_blacklist = [l.strip() for l in f.readlines()]
 
     replacements_ref = {}
     replacements_pred = {}
@@ -448,7 +469,8 @@ if __name__ == "__main__":
         character_level=args.char,
         alignment=alignment,
         include_correct_in_alignement=args.include_correct_in_alignement,
-        words_list=words_list if args.words_list else None,
+        words_list=words_list,
+        words_blacklist=words_blacklist,
         replacements_ref=replacements_ref,
         replacements_pred=replacements_pred,
         )
