@@ -1,4 +1,6 @@
+import pickle
 import re
+import os
 from linastt.utils.text_utils import (
     cardinal_numbers_to_letters,
     regex_escape,
@@ -19,6 +21,11 @@ _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
 _regex_arabic_punctuation = regex_escape(_arabic_punctuation)
 _regex_latin_punctuation = regex_escape(_latin_punctuation)
 _regex_all_punctuation = regex_escape(_all_punctuation)
+
+script_dir = os.path.dirname(os.path.realpath(__file__))
+directory_path = os.path.join(script_dir, "../../dict/arabic_normalization_chars.pl")
+with open(directory_path, "rb") as f:
+    normalization_rules = pickle.load(f)
 
 def bw_transliterate(text):
     return bw.transliterate(text)
@@ -63,67 +70,12 @@ def digit2word(text,lang):
 def normalize_punct(text):
     text = re.sub("[;؛]",".",text)
     text = re.sub("[:,]","،",text)
-    text = re.sub("[-_]","",text)
-    return text
+    text = re.sub("[-_]"," ",text)
+    return text.strip()
 
 def normalize_chars(text):
-    # Replace various forms of Alef (ٱ, ٲ, ٵ, ٴ) with أ
-    text = re.sub("[إأٱآاٱٲٵٴ]", "ا", text)
-
-    # Replace various forms of Waw (ٶ, ٷ) with ؤ
-    text = re.sub("[ٶٷ]", "ؤ", text)
-
-    # Replace Waw Hamza (ٳ) with إ
-    text = re.sub("ٳ", "إ", text)
-
-    # Replace Yeh Hamza (ٸ) with ئ
-    text = re.sub("ٸ", "ئ", text)
-
-    # Replace Gaf (ڠ) with غ
-    text = re.sub("ڠ", "غ", text)
-
-    # Replace various forms of Beh (ٻ, پ, ڀ) with ب
-    text = re.sub("[ٻپڀ]", "ب", text)
-
-    # Replace various forms of Teh (ٿ, ٺ, ٹ, ټ) with ت
-    text = re.sub("[ٿٺٹټ]", "ت", text)
-
-    # Replace various forms of Qaf (ٯ, ڤ, ڦ, ڨ) with ق
-    text = re.sub("[ٯڤڦڨ]", "ق", text)
-
-    # Replace various forms of Fe (ڥ, ڡ, ڢ) with ف
-    text = re.sub("[ڥڡڢ]", "ف", text)
-
-    # Replace various forms of Heh (ھ, ە, ۀ) with ه
-    text = re.sub("[ھەۀ]", "ه", text)
-
-    # Replace various forms of Khah (ځ, ڂ, څ, ڃ, ڄ, چ, ڇ) with خ
-    text = re.sub("[ځﭼڂڅڃڄچڇ]", "خ", text)
-
-    # Replace various forms of Kaf (ڱ, ڲ, ڴ, ڳ, ک, ڪ, ګ, ڬ, ڭ, ڮ, گ, ڰ) with ك
-    text = re.sub("[ڱڲڴڳکڪګڬڭڮگڰ]", "ك", text)
-
-    # Replace various forms of Lam (ڵ, ڶ, ڷ, ڸ) with ل
-    text = re.sub("[ڵڶڷڸ]", "ل", text)
-
-    # Replace various forms of Noon (ڹ, ں, ڻ, ڼ, ڽ) with ن
-    text = re.sub("[ڹںڻڼڽ]", "ن", text)
-
-    # Replace various forms of Yeh (ی, ۍ, ێ, ې, ۑ) with ي
-    text = re.sub("[یۍێېۑ]", "ي", text)
-
-    # Replace various forms of Ze (ڒ, ڑ, ړ, ڔ, ڕ, ږ, ڗ, ژ, ڙ) with ز
-    text = re.sub("[ڒڑړڔڕږڗژڙ]", "ز", text)
-
-    # Replace various forms of Dal (ڈ, ډ, ڊ, ڋ, ڌ, ڍ, ڎ, ڏ, ڐ) with ذ
-    text = re.sub("[ڈډڊڋڌڍڎڏڐ]", "ذ", text)
-
-    # Replace various forms of Sheen (ښ, ڛ, ڜ) with ش
-    text = re.sub("[ښڛڜ]", "ش", text)
-
-    # Replace various forms of Waw (ۄ, ۅ, ۆ, ۇ, ۈ, ۉ, ۊ, ۋ) with و
-    text = re.sub("[ۄۅۆۇۈۉۊۋ]", "و", text)
-
+    regex = re.compile("|".join(map(re.escape, normalization_rules.keys())))
+    text = regex.sub(lambda match: normalization_rules[match.group(0)], text)
     return text
 
 def remove_url(text):
@@ -163,30 +115,8 @@ def remove_repeated_chars(word, threshold=2):
     pattern = r'(.)\1{' + str(threshold) + ',}'
     return re.sub(pattern, r'\1', word)
 
-# def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False):
-#     input_line = line
-#     try:
-#         line = remove_url(line)
-#         line = symbols_to_letters(line, lang="ar", lower_case=False)
-#         line = normalize_arabic_currencies(line, lang="ar")
-#         line = digit2word(line)
-#         line = remove_arabic_diacritics(line)
-#         line = normalize_chars(line)
-#         line = normalize_punct(line)
-#         if not keep_latin_chars:
-#             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
-#         else:
-#             line = unglue_arabic_and_latin_chars(line)
-#             line = remove_special_characters(line)
-#             if not keep_punc:
-#                 line = remove_punctuations(line, " ")
-#         if bw:
-#             line = bw_transliterate(line)    
-#     except Exception as err:
-#         print(f"Error when processing line: \"{input_line}\"")
-#         raise err
-#     return collapse_whitespace(line)
-
+def remove_long_words(text, threshold=15):
+    return (" ").join(word for word in text.split(" ") if len(word) < threshold)
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar"):
     input_line = line
@@ -199,6 +129,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = normalize_chars(line)
         line = normalize_punct(line)
         line = remove_repeated_chars(line)
+        line = remove_long_words(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
         else:
