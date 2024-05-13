@@ -30,6 +30,7 @@ def compute_wer(refs, preds,
                 use_percents=False,
                 alignment=False,
                 include_correct_in_alignement=True,
+                word_lists=None,
                 ):
     """
     Compute WER between two files.
@@ -40,7 +41,8 @@ def compute_wer(refs, preds,
     :param normalization: None or a language code ("fr", "ar", ...).
         Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
     :param alignment: if True, print alignment information. If string, write alignment information to the file.
-    :parm include_correct_in_alignement: whether to include correct words in the alignment
+    :param include_correct_in_alignement: whether to include correct words in the alignment
+    :param word_lists: list of words to focus on
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
@@ -133,7 +135,7 @@ def compute_wer(refs, preds,
     extra = {}
     if alignment:
         with open(alignment, 'w+') if isinstance(alignment, str) else open("/dev/stdout", "w") as f:
-            output = jiwer.process_words(refs, refs, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
+            output = jiwer.process_words(refs, preds, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
             s = jiwer.visualize_alignment(
                 output, show_measures=True, skip_correct=not include_correct_in_alignement
             )
@@ -143,6 +145,20 @@ def compute_wer(refs, preds,
             f.write(s)
             extra = {"alignment": s}
 
+    if word_lists:
+        n_total = 0
+        n_correct = 0
+        for r, p in zip(refs, preds):
+            for w in word_lists:
+                if re.search(r"\b" + w + r"\b", r):
+                    n_total += 1
+                    if re.search(r"\b" + w + r"\b", p):
+                        n_correct += 1
+                    break
+        if n_total > 0:
+            extra.update({
+                "word_err": (n_total - n_correct) / n_total,
+            })
 
     sub_score = measures['substitutions']
     del_score = measures['deletions']
@@ -306,6 +322,7 @@ if __name__ == "__main__":
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
+    parser.add_argument('--word_lists', help="Files with list of words to focus on", default=None)
     args = parser.parse_args()
 
     target_test = args.references
@@ -320,6 +337,12 @@ if __name__ == "__main__":
         target_test = [target_test]
         target_pred = [target_pred]
 
+    if args.word_lists:
+        assert os.path.isfile(args.word_lists), f"File {args.word_lists} doesn't exist"
+        word_list_name = os.path.splitext(os.path.basename(args.word_lists))[0]
+        with open(args.word_lists) as f:
+            word_lists = [l.strip() for l in f.readlines()]
+
     alignment = args.alignment
     if alignment and alignment.lower() in ["true", "false"]:
         alignment = eval(alignment.title())
@@ -332,8 +355,12 @@ if __name__ == "__main__":
         character_level=args.char,
         alignment=alignment,
         include_correct_in_alignement=args.include_correct_in_alignement,
+        word_lists=word_lists if args.word_lists else None,
         )
-    print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
-        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
-    print(' ------------------------------------------------------------------------------------------------------- ')
+    line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
+        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
+    if "word_err" in result:
+        line = f" {word_list_name} err: {result['word_err'] * 100:.2f} % |" + line
+    print('-' * len(line))
+    print(line)
+    print('-' * len(line))
