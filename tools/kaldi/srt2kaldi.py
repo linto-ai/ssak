@@ -24,7 +24,9 @@ def split_channel_funcgen(
     ):
     # Generate a function to split an annotation line into channel, text
     def split_speaker(line):
-        assert separator in line, f"Separator {separator} not found in line: {line}"
+        if separator not in line:
+            # print(f"Separator {separator} not found in line: {line}")
+            return 1, line
         speaker, text = line.split(separator, 1)
         return get_channel(speaker), text
     return split_speaker
@@ -38,6 +40,7 @@ def read_srt(filename, split_channel = split_channel_funcgen()):
         with open(filename, 'r') as fn:
             num_turns = 0
             turn_bias = None
+            turn_number_error = False
             for iline, line in enumerate(fn):
                 line_orig = line.rstrip('\n')
                 line = line.strip().strip("\ufeff")
@@ -47,12 +50,15 @@ def read_srt(filename, split_channel = split_channel_funcgen()):
                         iturn = int(line)
                         if turn_bias is None:
                             turn_bias = iturn - num_turns
-                            assert turn_bias in [0,1], f"Unexpected turn number {iturn} != {num_turns}"
-                        assert iturn == num_turns + turn_bias, f"Unexpected turn number {iturn} != {num_turns + turn_bias}"
+                            if not turn_bias in [0,1,2]:
+                                print(f"Warning: Unexpected turn bias {turn_bias} (turn {iturn} != {num_turns}) in {filename}")
+                        if not iturn == num_turns + turn_bias and not turn_number_error:
+                            print(f"Warning: Unexpected turn number {iturn} != {num_turns + turn_bias} in {filename}")
+                            turn_number_error = True
                     elif n == 1:
                         start, end = line.split(" --> ")
                         start = parse_timestamp(start)
-                        end = parse_timestamp(end)
+                        end = parse_timestamp(end.split()[0])
                     elif n == 2:
                         channel, text = split_channel(line)
                         text = format_special_characters(text)
@@ -82,21 +88,30 @@ def find_all_audio_files(audio_folder):
             audio_files[filename] = os.path.join(root, filename)
     return audio_files
 
-def find_audio_files(audio_files, name):
-    possible_prefixes = [name] + [name[:s.start()] for s in re.finditer(r"[\-_\.]", name)][-1::-1]
-    for prefix in possible_prefixes:
+def find_audio_files(audio_files, name, same_exact_name=True):
+    if same_exact_name:
         all_candidates = []
-        for relpath, fullpath in audio_files.items():
-            if relpath.startswith(prefix):
-                all_candidates.append(fullpath)
+        for i in audio_files:
+            if os.path.splitext(i)[0]==os.path.splitext(name)[0]:
+                all_candidates.append(audio_files[i])
         if len(all_candidates):
-            return prefix, all_candidates
+            return name, all_candidates
+    else:
+        possible_prefixes = [name] + [name[:s.start()] for s in re.finditer(r"[\-_\.]", name)][-1::-1]
+        for prefix in possible_prefixes:
+            all_candidates = []
+            for relpath, fullpath in audio_files.items():
+                if relpath.startswith(prefix):
+                    all_candidates.append(fullpath)
+            if len(all_candidates):
+                return prefix, all_candidates
     raise RuntimeError(f"Could not find audio file for {name}")
 
 def srt2kaldi(srt_folder, audio_folder, output_folder,
     new_audio_folder=None,
     language=None,
     metadata=None,
+    missing_gender=False,
     ignore_existing_mixed_audio=True,
     encoding="utf8"
     ):
@@ -165,7 +180,6 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
     
     speakers_to_genders = {}
     speakers_to_metadata = {}
-
     os.makedirs(output_folder, exist_ok=True)
 
     with open(output_folder + '/text', 'w', encoding=encoding) as text_file, \
@@ -189,7 +203,7 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
             expected_channels = list(range(1,1+len(audio_files)))
             assert len(audio_files) > 0
             assert trs_channels == expected_channels, f"Unexpected channels: {trs_channels} != {expected_channels} (audio files: {audio_files})"
-            if len(audio_files) == 0:
+            if len(audio_files) == 1:
                 audio_file = audio_files[0]
             else:
                 audio_file = os.path.join(new_audio_folder, basename + os.path.splitext(audio_files[0])[1])
@@ -228,9 +242,10 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                 utt2dur_file.write(f"{utt_id} {duration}\n")
                 extra_utt.writerow([utt_id, channel])
 
-    with open(output_folder + '/spk2gender', 'w') as spk2gender_file:
-        for speaker, gender in speakers_to_genders.items():
-            spk2gender_file.write(f"{speaker} {gender}\n")
+    if not missing_gender:
+        with open(output_folder + '/spk2gender', 'w') as spk2gender_file:
+            for speaker, gender in speakers_to_genders.items():
+                spk2gender_file.write(f"{speaker} {gender}\n")
 
     if speakers_to_metadata:
         with open(output_folder + '/extra_spk.csv', 'w', encoding=encoding) as extra_speaker_file:
@@ -251,6 +266,7 @@ if __name__ == '__main__':
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument('--metadata', default=None, type=str, help='Metadata file')
     parser.add_argument('--language', default=None, type=str, help='Main language (only for checking the charset and giving warnings)')
+    parser.add_argument('--missing_gender', action='store_true', help='Specify if generate spk2gender file')
     args = parser.parse_args()
 
     srt_folder = args.srt_folder
@@ -263,4 +279,4 @@ if __name__ == '__main__':
     assert os.path.isdir(srt_folder), f"Input folder not found: {srt_folder}"
     # assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    srt2kaldi(srt_folder, audio_folder, output_folder, language=args.language, metadata=args.metadata)
+    srt2kaldi(srt_folder, audio_folder, output_folder, language=args.language, metadata=args.metadata, missing_gender=args.missing_gender)
