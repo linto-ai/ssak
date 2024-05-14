@@ -4,6 +4,7 @@ import jiwer
 import numpy as np
 import re
 import os
+import csv
 
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
@@ -34,6 +35,7 @@ def compute_wer(refs, preds,
                 words_blacklist=None,
                 replacements_ref=None,
                 replacements_pred=None,
+                details_words_list=False,
                 ):
     """
     Compute WER between two files.
@@ -49,6 +51,7 @@ def compute_wer(refs, preds,
     :param words_blacklist: list of words to exclude all the examples where the reference include such a word
     :param replacements_ref: dictionary of replacements to perform in the reference
     :param replacements_pred: dictionary of replacements to perform in the hypothesis
+    :param details_words_list: whether to output information about words that are well recognized (among the specified words_list)
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
@@ -212,17 +215,40 @@ def compute_wer(refs, preds,
     if words_list:
         n_total = 0
         n_correct = 0
+        if details_words_list:
+            words_list_total = {w: 0 for w in words_list}
+            words_list_correct = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
             for w in words_list:
                 if re.search(r"\b" + w + r"\b", r):
                     n_total += 1
+                    if details_words_list:
+                        words_list_total[w] += 1
                     if re.search(r"\b" + w + r"\b", p):
                         n_correct += 1
+                        if details_words_list:
+                            words_list_correct[w] += 1
                     break
         if n_total > 0:
             extra.update({
                 "word_err": (n_total - n_correct) / n_total,
             })
+        if details_words_list:
+            words_list_err = {w: (words_list_total[w] - words_list_correct[w]) / words_list_total[w] for w in words_list if words_list_total[w]}
+            with open(details_words_list, 'w+') if isinstance(details_words_list, str) else open("/dev/stdout", "w") as f:
+                csv_writer = csv.writer(f, delimiter=',')
+                csv_writer.writerow(["Word", "ErrorRate%", "Total", "Correct"])
+                max_length_words = max([len(w) for w in words_list])
+                for w in sorted(words_list_err.keys(), key=lambda w: (
+                    # words_list_err[w],
+                    -words_list_total[w],
+                    w
+                    ), reverse=False):
+                    err = f"{round(words_list_err[w]*100, 1): <6}"
+                    total = f"{words_list_total[w]: <5}"
+                    correct = f"{words_list_correct[w]: <5}"
+                    w = f"{w: <{max_length_words}}"
+                    csv_writer.writerow([w, err, total, correct])
 
     sub_score = measures['substitutions']
     del_score = measures['deletions']
@@ -388,6 +414,7 @@ if __name__ == "__main__":
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
     parser.add_argument('--words_list', help="Files with list of words to focus on", default=None)
     parser.add_argument('--words_blacklist', help="Files with list of words to exclude all the examples where the reference include such a word", default=None)
+    parser.add_argument('--details_words_list', help="Output file to save information about words that are well recognized", type=str, default=False, metavar="FILENAME/True/False")
     parser.add_argument('--replacements', help="Files with list of replacements to perform in both reference and hypothesis", default=None)
     parser.add_argument('--replacements_ref', help="Files with list of replacements to perform in references only", default=None)
     parser.add_argument('--replacements_pred', help="Files with list of replacements to perform in predicions only", default=None)
@@ -451,6 +478,10 @@ if __name__ == "__main__":
     alignment = args.alignment
     if alignment and alignment.lower() in ["true", "false"]:
         alignment = eval(alignment.title())
+
+    details_words_list = args.details_words_list
+    if details_words_list and details_words_list.lower() in ["true", "false"]:
+        details_words_list = eval(details_words_list.title())
     use_ids = args.use_ids
 
     result = compute_wer(
@@ -464,6 +495,7 @@ if __name__ == "__main__":
         words_blacklist=words_blacklist,
         replacements_ref=replacements_ref,
         replacements_pred=replacements_pred,
+        details_words_list=details_words_list,
         )
     line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
         "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
