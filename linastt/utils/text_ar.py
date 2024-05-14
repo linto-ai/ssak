@@ -157,10 +157,10 @@ def remove_repeated_chars(word, threshold=2):
 def remove_long_words(text, threshold=15):
     return (" ").join(word for word in text.split(" ") if len(word) < threshold)
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar", do_normalize=False):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar_tn", normalize_tn_words=False):
     input_line = line
     try:
-        if do_normalize:
+        if normalize_tn_words:
             line = normalize_tunisan_multi_words(line)
             line = normalize_tunisan_one_words(line)
         line = remove_url(line)
@@ -195,21 +195,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
     parser.add_argument('--language', help= "Whether to use 'ar or ar_tn'", type=str, default="ar")
-    parser.add_argument('--do_normalize', help="Whether to Normalize language words", default= False, action="store_true")
+    parser.add_argument('--normalize_tn_words', help="Whether to Normalize Tunisian words", default= False, action="store_true")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
     args = parser.parse_args()
         
 
-
+    if args.normalize_tn_words:
+        args.language = "ar_tn"
     input = args.input
     kwargs = {
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
         "bw": args.bw,
         "lang": args.language,
-        "do_normalize":args.do_normalize,
+        "normalize_tn_words":args.normalize_tn_words,
     }
 
     if len(input) == 1 and os.path.isfile(input[0]):

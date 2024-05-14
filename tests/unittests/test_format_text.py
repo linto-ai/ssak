@@ -301,6 +301,7 @@ class TestFormatTextArabic(Test):
             format_text_ar("هجري 1437/01/20"),
             'هجري ألف و أربعمائة و سبعة و ثلاثون محرم عشرون'
         )
+        
 
         self.assertEqual(
             format_text_ar("هجري 1937/01/20"),
@@ -308,9 +309,15 @@ class TestFormatTextArabic(Test):
         )
 
         self.assertEqual(
-            format_text_ar("اليوم 22/03/2002"),
-            'اليوم اثنان و عشرون مارس ألفان و اثنان'
+            format_text_ar("اليوم 22/04/2002"),
+            'اليوم اثنان و عشرون أبريل ألفان و اثنان'
         )
+
+        self.assertEqual(
+            format_text_ar("اليوم 22/04/2002",lang="ar_tn"),
+            'اليوم ثنين و عشرين أفريل ألفين و ثنين'
+        )
+
     def test_biggest_numbers(self):
         
         self.assertEqual(
@@ -319,8 +326,23 @@ class TestFormatTextArabic(Test):
         )
 
         self.assertEqual(
+            format_text_ar("-123456789123456789128942", lang="ar_tn"),
+            'سالب مائة و ثلاثة و عشرون سكستيليونا و أربعمائة و ستة و خمسون كوينتليونا و سبعمائة و تسعة و ثمانون كوادريليونا و مائة و ثلاثة و عشرون تريليونا و أربعمائة و ستة و خمسون مليارا و سبعمائة و تسعة و ثمانون مليونا و مائة و ثمانية و عشرون ألفا و تسعمائة و اثنان و أربعون'
+        )
+
+        self.assertEqual(
             format_text_ar("-1234567891234567891289425"),
             'سالب سبتيليون و مئتان و أربعة و ثلاثون سكستيليونا و خمسمائة و سبعة و ستون كوينتليونا و ثمانمائة و واحد و تسعون كوادريليونا و مئتان و أربعة و ثلاثون تريليونا و خمسمائة و سبعة و ستون مليارا و ثمانمائة و واحد و تسعون مليونا و مئتان و تسعة و ثمانون ألفا و أربعمائة و خمسة و عشرون'
+        )
+
+        self.assertEqual(
+            format_text_ar("-12", lang="ar_tn"),
+            'ناقس أثناش'
+        )
+
+        self.assertEqual(
+            format_text_ar("-5000", lang="ar_tn"),
+            'ناقس خمس آلاف'
         )
 
     def test_words_normalization(self):
