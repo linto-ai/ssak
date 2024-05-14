@@ -226,7 +226,7 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
-            'في اللغة الإنجليزية ، يمكن للمرء أن يقول !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول " "!'
         )
 
         self.assertEqual(
@@ -236,7 +236,7 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            sentence # 'في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!'
+            sentence #'في اللغة الإنجليزية ، يمكن للمرء أن يقول Hello world !'
         )
 
         sentence = "؟Jérôme。"
@@ -251,7 +251,7 @@ class TestFormatTextArabic(Test):
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            sentence
+            "؟Jérôme"
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
@@ -319,6 +319,19 @@ class TestFormatTextArabic(Test):
         self.assertEqual(
             format_text_ar("-1234567891234567891289425"),
             'سالب سبتيليون و مئتان و أربعة و ثلاثون سكستيليونا و خمسمائة و سبعة و ستون كوينتليونا و ثمانمائة و واحد و تسعون كوادريليونا و مئتان و أربعة و ثلاثون تريليونا و خمسمائة و سبعة و ستون مليارا و ثمانمائة و واحد و تسعون مليونا و مئتان و تسعة و ثمانون ألفا و أربعمائة و خمسة و عشرون'
+        )
+
+    def test_words_normalization(self):
+        sentence = "انشا الله  بسبعه عسلامة يسلمك ديجا"
+        
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, do_normalize=True),
+            'إن شاء الله بسبع عالسلامة يسلمك'
+        )
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, do_normalize=True),
+            'إن شاء الله بسبع عالسلامة يسلمك déjà'
         )
 
     # def test_digit_round_check(self):
