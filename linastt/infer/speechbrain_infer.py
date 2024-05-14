@@ -339,12 +339,15 @@ def speechbrain_load_model(source, device = None):
     overrides = make_yaml_overrides(yaml_file, {"save_path": save_path})
     try:
         model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
-    except ValueError:
+    except ValueError as err1:
         try:
             model = sb.pretrained.EncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
-        except ValueError:
-            model = HuggingFaceWhisper(source, save_path = get_cache_dir("huggingface/hub"), freeze = True)
-            model = model.to(device)
+        except ValueError as err2:
+            try:
+                model = HuggingFaceWhisper(source, save_path = get_cache_dir("huggingface/hub"), freeze = True)
+                model = model.to(device)
+            except Exception as err3:
+                raise RuntimeError(f"Cannot load model from {source}:\n==={err3}\n===\n{err2}\n===\n{err1}")
     model.train(False)
     model.requires_grad_(False)
     return model
