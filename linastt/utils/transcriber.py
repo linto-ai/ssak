@@ -194,7 +194,7 @@ def read_transcriber(
                                     break
                         else:
                             if verbose:
-                                print(f"WARNING: Inconsistent number of speakers ({nbr_spk}) and texts ({possible_lens})")
+                                print(f"WARNING: Inconsistent number of speakers ({nbr_spk}) and texts ({possible_lens}) {turn_start}->{turn_end} {trs_file}")#:\n{sync_texts}")
                             for sync_texts_ in split_text(sync_texts):
                                 break
                             if nbr_spk == 1:
@@ -240,8 +240,10 @@ def read_transcriber(
                         for pattern, replacement in replacements.items():
                             sync_text = re.sub(r"\b" + pattern + r"\b", replacement, sync_text)
 
-                    sync_text = correct_text(sync_text, capitalize=capitalize)
-
+                    sync_text = correct_text(sync_text, capitalize=capitalize, remove_extra_speech=remove_extra_speech)
+                    if len(sync_text) == 0:
+                        # print(f"WARNING: skipping empty text for {seg_id} ({turn_start}->{turn_end})")
+                        continue
                     # if turn_speaker_id not in speaker_id:
                     #     turn_speaker_gender = "m"
 
@@ -292,13 +294,25 @@ def split_given_list(liste, elt):
 def file_encoding(filename):
     """ Guess the encoding of a file """
     # Note we could use "file" on linux OS
-    import magic
-    blob = open(filename, 'rb').read()
-    m = magic.Magic(mime_encoding=True)
-    encoding = m.from_buffer(blob)
-    if encoding in ["unknown-8bit"]:
-        return xml_encoding(filename)
-    return encoding
+    try:
+        import magic
+        blob = open(filename, 'rb').read()
+        m = magic.Magic(mime_encoding=True)
+        encoding = m.from_buffer(blob)
+        if encoding in ["unknown-8bit"]:
+            return xml_encoding(filename)
+        return encoding
+    except ImportError:
+        # print("Warning: magic library not found. Using chardet instead.")
+        import chardet
+        with open(filename, 'rb') as f:
+            blob = f.read()
+        result = chardet.detect(blob)
+        encoding = result['encoding']
+        if encoding in ["unknown-8bit"]:
+            return xml_encoding(filename)  # You need to define xml_encoding function
+        return encoding
+
 
 
 def xml_encoding(infile):
@@ -349,8 +363,9 @@ def encrypt_speaker(spk_name):
     import hashlib
     import random
     random.seed(1234)
+    h = spk_name
     for method in hashlib.sha1, hashlib.sha224, hashlib.sha256, hashlib.sha384, hashlib.sha512, hashlib.md5:
-        h = method(spk_name.encode("utf8")).hexdigest()
+        h = method(h.encode("utf8")).hexdigest()
         h = list(h)
         random.shuffle(h)
         h = "".join(h)[:-1]
@@ -415,7 +430,7 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     # ("æ","ae"),
                 ]]
 
-def correct_text(text, capitalize=True):
+def correct_text(text, capitalize=True, remove_extra_speech=False):
 
     # 1. Minimal character normalization
     for reg, replacement in _corrections_caracteres_speciaux_fr:
@@ -438,7 +453,7 @@ def correct_text(text, capitalize=True):
     # - "&...":  Disfluencies
     # - ex: &hum, §heu
     text = re.sub(r"^[&§]", "",  text.strip())
-    text = re.sub(" [&§]", " ", text)
+    text = re.sub(r"([' ])[&§]", " ", text)
     # - "(...)": Unsaid stuff
     # - ex: spect(acle)
     text = re.sub(r"\([^\)]*\)", "...", text)
@@ -448,11 +463,17 @@ def correct_text(text, capitalize=True):
     # - "*..." : Wrong pronunciation
     # - ex:  *Martin
     text = re.sub(r"\*", "", text)
-
+    
+    if remove_extra_speech:
+        text = re.sub(r"<ph_.*/>", "", text)
+        text = re.sub(r"{.*}","", text)
+    
     # # 2. Special character removal
     # text = re.sub('/',' ', text)
     # text = re.sub('#+',' ', text)
     # text = re.sub('\*+', ' ', text)
+    # text = re.sub(r"²","", text)
+    # text = re.sub(r"\+","", text)
     
     # Finally, remove extra spaces
     text = collapse_whitespace(text)

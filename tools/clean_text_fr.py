@@ -1,6 +1,106 @@
 #!/usr/bin/env python3
 
 from linastt.utils.text_latin import format_text_latin
+from linastt.utils.kaldi import check_kaldi_dir
+import shutil
+
+def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_num=False, keep_case=False, \
+    empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
+    extract_parenthesis=False,  ignore_first=0, file_acronyms=None, file_special_char=None):
+    
+    if file_clean_mode == "kaldi":
+        if not os.path.isdir(input):
+            if os.path.isfile(input):
+                raise FileNotFoundError(f"Input folder {input} is a file, not a folder")
+            else:
+                raise FileNotFoundError(f"Input folder {input} not found")
+        if not os.path.exists(os.path.join(input,"text")):
+            raise FileNotFoundError(f"Input folder {input} does not contain a 'text' file")
+        if os.path.exists(output):
+            raise RuntimeError(f"Output folder {output} already exists")
+        os.makedirs(output)
+        fout = open(os.path.join(output, "text"), "w", encoding="utf-8")
+        num_lines = sum(1 for _ in open(os.path.join(input,"text")))
+        gen = open(os.path.join(input,"text"), "r", encoding="utf-8")
+        raw_file = open(os.path.join(output, "text_raw"), "w", encoding="utf-8")
+        shutil.copy2(os.path.join(input,"utt2spk"), os.path.join(output,"utt2spk"))
+        shutil.copy2(os.path.join(input, "utt2dur"), os.path.join(output, "utt2dur"))
+        shutil.copy2(os.path.join(input,"segments"), os.path.join(output,"segments"))
+        shutil.copy2(os.path.join(input,"wav.scp"), os.path.join(output,"wav.scp"))
+        shutil.copy2(os.path.join(input, "spk2utt"), os.path.join(output, "spk2utt"))
+        if os.path.exists(os.path.join(input,"spk2gender")):
+            shutil.copy2(os.path.join(input,"spk2gender"), os.path.join(output,"spk2gender"))
+    else:
+        if output:
+            output_file = output
+            if os.path.exists(output_file):
+                raise RuntimeError(f"Output file {output_file} already exists")
+                # os.remove(output_file)
+            
+            dname = os.path.dirname(output_file)
+            if dname and not os.path.isdir(dname):
+                os.makedirs(dname)
+            fout = open(output_file, "a", encoding="utf-8")
+        else:
+            fout = sys.stdout
+            
+        # Get the number of lines
+        # Note: This is ~10 times slower than wc -l
+        #       but it's reasonnable (20 sec for ~70 000 000)
+        # see https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python
+        if os.path.isfile(input):
+            num_lines = sum(1 for _ in open(input))
+            gen = open(input, "r", encoding="utf-8")
+        else:
+            print(f"WARNING: File {input} not found. Interpreting that as an input")
+            num_lines = 1
+            gen = [input]
+
+    fid_acronyms = open(file_acronyms, "a", encoding="utf-8") if file_acronyms else None
+    fid_special_char = open(file_special_char, "a", encoding="utf-8") if file_special_char else None
+
+    try:
+        for line in tqdm(gen, total=num_lines):
+            full_line = line
+            if ignore_first:
+                words = line.split()
+                assert len(words) >= ignore_first, f"Line {line} has less than {ignore_first} words"
+                line = " ".join(words[ignore_first:])
+            line = format_text_latin(line,
+                lower_case = not keep_case,
+                keep_punc = keep_punc,
+                convert_numbers= not keep_num,
+                extract_parenthesis = extract_parenthesis,
+                fid_acronyms = fid_acronyms,
+                fid_special_chars = fid_special_char,
+                remove_suspicious_entry = remove_suspicious_entry,
+            )
+            num_dumps = 0
+            for subline in line.splitlines():
+                subline = subline.strip()
+                if subline or empty_string_policy == "allow":
+                    if ignore_first:
+                        subline = " ".join(words[:ignore_first]) + " " + subline
+                    fout.write(subline+"\n")
+                    if file_clean_mode == "kaldi":
+                        raw_file.write(full_line)
+                    fout.flush()
+                    num_dumps += 1
+            if not num_dumps and empty_string_policy != "ignore":
+                raise RuntimeError(f"Empty string found (on '{full_line}').\nUse option --empty_string_policy=allow or --empty_string_policy=ignore to explicitly allow or ignore empty strings")
+            if num_dumps > 1 and linebreak_policy == "fail":
+                line_ = line.replace("\n", "\\n")
+                raise RuntimeError(f"Line break found when normalizing '{full_line}' (into '{line_}').\nUse option --linebreak_policy=allow to explicitly allow line breaks")
+    finally:
+        if fout is not sys.stdout:
+            fout.close()
+        if hasattr(gen, "close"):
+            gen.close()
+        if file_clean_mode == "kaldi":
+            raw_file.close()
+    if file_clean_mode=="kaldi":
+        check_kaldi_dir(output)
+
 
 if __name__ == "__main__":
 
@@ -24,66 +124,10 @@ if __name__ == "__main__":
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
     parser.add_argument('--file_special_char', help="A file to list special characters that were removed", default= None, type = str)
+    parser.add_argument('--file_clean_mode', choices=["file", "kaldi"], default="file", help="Type of input and output (file or kaldi folder)")
     args = parser.parse_args()
 
-    input_file = args.input
-    if args.output:
-        output_file = args.output
-        if os.path.exists(output_file):
-            raise RuntimeError(f"Output file {output_file} already exists")
-            # os.remove(output_file)
-        dname = os.path.dirname(output_file)
-        if dname and not os.path.isdir(dname):
-            os.makedirs(dname)
-        fout = open(output_file, "a", encoding="utf-8")
-    else:
-        fout = sys.stdout
-
-    fid_acronyms = open(args.file_acronyms, "a", encoding="utf-8") if args.file_acronyms else None
-    fid_special_char = open(args.file_special_char, "a", encoding="utf-8") if args.file_special_char else None
-
-    # Get the number of lines
-    # Note: This is ~10 times slower than wc -l
-    #       but it's reasonnable (20 sec for ~70 000 000)
-    # see https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python
-    if os.path.isfile(input_file):
-        num_lines = sum(1 for _ in open(input_file))
-        gen = open(input_file, "r", encoding="utf-8")
-    else:
-        print(f"WARNING: File {input_file} not found. Interpreting that as an input")
-        num_lines = 1
-        gen = [input_file]
-
-    try:
-        for line in tqdm(gen, total=num_lines):
-            full_line = line
-            if args.ignore_first:
-                words = line.split()
-                assert len(words) >= args.ignore_first, f"Line {line} has less than {args.ignore_first} words"
-                line = " ".join(words[args.ignore_first:])
-            line = format_text_latin(line,
-                lower_case = not args.keep_case,
-                keep_punc = args.keep_punc,
-                convert_numbers= not args.keep_num,
-                extract_parenthesis = args.extract_parenthesis,
-                fid_acronyms = fid_acronyms,
-                fid_special_chars = fid_special_char,
-                remove_suspicious_entry = args.remove_suspicious_entry,
-            )
-            num_dumps = 0
-            for subline in line.splitlines():
-                subline = subline.strip()
-                if subline or args.empty_string_policy in "allow":
-                    if args.ignore_first:
-                        subline = " ".join(words[:args.ignore_first]) + " " + subline
-                    fout.write(subline+"\n")
-                    fout.flush()
-                    num_dumps += 1
-            if not num_dumps:
-                raise RuntimeError(f"Empty string found (on '{full_line}').\nUse option --empty_string_policy=allow or --empty_string_policy=ignore to explicitly allow or ignore empty strings")
-            if num_dumps > 1 and args.linebreak_policy == "fail":
-                line_ = line.replace("\n", "\\n")
-                raise RuntimeError(f"Line break found when normalizing '{full_line}' (into '{line_}').\nUse option --linebreak_policy=allow to explicitly allow line breaks")
-    finally:
-        if fout is not sys.stdout:
-            fout.close()
+    clean_text_fr(input=args.input, output=args.output, file_clean_mode=args.file_clean_mode, keep_punc=args.keep_punc, keep_num=args.keep_num, \
+        keep_case=args.keep_case, empty_string_policy=args.empty_string_policy, linebreak_policy=args.linebreak_policy, \
+        remove_suspicious_entry=args.remove_suspicious_entry, extract_parenthesis=args.extract_parenthesis, \
+        ignore_first=args.ignore_first, file_acronyms=args.file_acronyms, file_special_char=args.file_special_char)
