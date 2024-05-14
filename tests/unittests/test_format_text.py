@@ -349,12 +349,12 @@ class TestFormatTextArabic(Test):
         sentence = "انشا الله  بسبعه عسلامة يسلمك ديجا"
         
         self.assertEqual(
-            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, do_normalize=True),
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, normalize_tn_words=True),
             'إن شاء الله بسبع عالسلامة يسلمك'
         )
 
         self.assertEqual(
-            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, do_normalize=True),
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, normalize_tn_words=True),
             'إن شاء الله بسبع عالسلامة يسلمك déjà'
         )
 
