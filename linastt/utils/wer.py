@@ -28,7 +28,12 @@ def compute_wer(refs, preds,
                 normalization=None,
                 character_level=False,
                 use_percents=False,
-                debug=False,
+                alignment=False,
+                include_correct_in_alignement=True,
+                words_list=None,
+                words_blacklist=None,
+                replacements_ref=None,
+                replacements_pred=None,
                 ):
     """
     Compute WER between two files.
@@ -36,13 +41,19 @@ def compute_wer(refs, preds,
     :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
                   Must be of the same type as refs.
     :param use_ids: (for files) whether reference and prediction files includes id as a first field
-    :param normalization: None or a language code ("fr", "ar", ...)
-    :param debug: if True, print debug information. If string, write debug information to the file.
+    :param normalization: None or a language code ("fr", "ar", ...).
+        Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
+    :param alignment: if True, print alignment information. If string, write alignment information to the file.
+    :param include_correct_in_alignement: whether to include correct words in the alignment
+    :param words_list: list of words to focus on
+    :param words_blacklist: list of words to exclude all the examples where the reference include such a word
+    :param replacements_ref: dictionary of replacements to perform in the reference
+    :param replacements_pred: dictionary of replacements to perform in the hypothesis
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
         assert os.path.isfile(refs), f"Reference file {refs} doesn't exist"
-        assert isinstance(preds, str) and os.path.isfile(preds)
+        assert isinstance(preds, str) and os.path.isfile(preds), f"Prediction file {preds} doesn't exist"
         if use_ids:
             refs = parse_text_with_ids(refs)
             preds = parse_text_with_ids(preds)
@@ -73,16 +84,98 @@ def compute_wer(refs, preds,
     assert isinstance(preds, list)
     assert len(refs) == len(preds)
 
+    if words_blacklist:
+        # Remove examples where the reference includes a word from the blacklist
+        for i in range(len(refs)-1, -1, -1):
+            for w in words_blacklist:
+                if re.search(r"\b" + w + r"\b", refs[i]):
+                    del refs[i]
+                    del preds[i]
+                    break
+
+    # Replacements BEFORE normalization
+    if replacements_ref:
+        for k, v in replacements_ref.items():
+            for i, ref in enumerate(refs):
+                if k in ref:
+                    refs[i] = re.sub(r"\b" + k + r"\b", v, refs[i])
+            if words_list:
+                for i, w in enumerate(words_list):
+                    if k in w:
+                        words_list[i] = re.sub(r"\b" + k + r"\b", v, w)
+    if replacements_pred:
+        for k, v in replacements_pred.items():
+            for i, pred in enumerate(preds):
+                if k in pred:
+                    preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
+
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru
+        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+
+        strong_normalization = normalization.endswith("+")
+        if strong_normalization:
+            normalization = normalization[:-1]
+        very_strong_normalization = normalization.endswith("+")
+        if very_strong_normalization:
+            normalization = normalization[:-1]
+
+        normalize_funcs = []
         if normalization == "ar":
-            normalize_func = lambda x: format_text_ar(x, keep_latin_chars=True)
+            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
         elif normalization == "ru":
-            normalize_func = lambda x: format_text_ru(x)
+            normalize_funcs.append(lambda x: format_text_ru(x))
         else:
-            normalize_func = lambda x: format_text_latin(x, lang=normalization)
+            normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
+
+        if normalization == "fr":
+            def further_normalize(s):
+                # Fix masculine / feminine for un ("1 fois" / "une fois" -> "un fois")
+                return re.sub(r"\bune?\b", "1", s)
+            normalize_funcs.append(further_normalize)
+
+        if strong_normalization:
+            def remove_not_words(s):
+                # Remove any character that is not alpha-numeric (e.g. apostrophes, dashes, ...)
+                return collapse_whitespace(re.sub("[^\w]", " ", s))
+            normalize_funcs.append(remove_not_words)
+
+        if very_strong_normalization:
+            def remove_ending_s(s):
+                # Remove "s" at the end of words, like "les" -> "le"
+                return re.sub(r"(\w)s\b", r"\1", s)
+            normalize_funcs.append(remove_ending_s)
+
+        def normalize_func(s):
+            for f in normalize_funcs:
+                s = f(s)
+            return s
+
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
+        if words_list:
+            words_list = [normalize_func(w) for w in words_list]
+            words_list = [w for w in words_list if w]
+
+        # Replacements AFTER normalization
+        if replacements_ref:
+            replacements_ref = {normalize_func(k): normalize_func(v) for k, v in replacements_ref.items()}
+        if replacements_pred:
+            replacements_pred = {normalize_func(k): normalize_func(v) for k, v in replacements_pred.items()}
+        if replacements_ref:
+            for k, v in replacements_ref.items():
+                for i, ref in enumerate(refs):
+                    if k in ref:
+                        refs[i] = re.sub(r"\b" + k + r"\b", v, refs[i])
+                if words_list:
+                    for i, w in enumerate(words_list):
+                        if k in w:
+                            words_list[i] = re.sub(r"\b" + k + r"\b", v, w)
+        if replacements_pred:
+            for k, v in replacements_pred.items():
+                for i, pred in enumerate(preds):
+                    if k in pred:
+                        preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
+
 
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
@@ -104,11 +197,11 @@ def compute_wer(refs, preds,
         measures = jiwer.compute_measures(refs, preds)
 
     extra = {}
-    if debug:
-        with open(debug, 'w+') if isinstance(debug, str) else open("/dev/stdout", "w") as f:
+    if alignment:
+        with open(alignment, 'w+') if isinstance(alignment, str) else open("/dev/stdout", "w") as f:
             output = jiwer.process_words(refs, preds, reference_transform=cer_transform, hypothesis_transform=cer_transform) if character_level else jiwer.process_words(refs, preds)
             s = jiwer.visualize_alignment(
-                output, show_measures=True, skip_correct=False
+                output, show_measures=True, skip_correct=not include_correct_in_alignement
             )
             # def add_separator(match):
             #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
@@ -116,6 +209,20 @@ def compute_wer(refs, preds,
             f.write(s)
             extra = {"alignment": s}
 
+    if words_list:
+        n_total = 0
+        n_correct = 0
+        for r, p in zip(refs, preds):
+            for w in words_list:
+                if re.search(r"\b" + w + r"\b", r):
+                    n_total += 1
+                    if re.search(r"\b" + w + r"\b", p):
+                        n_correct += 1
+                    break
+        if n_total > 0:
+            extra.update({
+                "word_err": (n_total - n_correct) / n_total,
+            })
 
     sub_score = measures['substitutions']
     del_score = measures['deletions']
@@ -280,9 +387,15 @@ if __name__ == "__main__":
     parser.add_argument('references', help="File with reference text lines (ground-truth)", type=str)
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
-    parser.add_argument('--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
-    parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...)", default=None)
+    parser.add_argument('--alignment', '--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
+    parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
+    parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
+    parser.add_argument('--words_list', help="Files with list of words to focus on", default=None)
+    parser.add_argument('--words_blacklist', help="Files with list of words to exclude all the examples where the reference include such a word", default=None)
+    parser.add_argument('--replacements', help="Files with list of replacements to perform in both reference and hypothesis", default=None)
+    parser.add_argument('--replacements_ref', help="Files with list of replacements to perform in references only", default=None)
+    parser.add_argument('--replacements_pred', help="Files with list of replacements to perform in predicions only", default=None)
     args = parser.parse_args()
 
     target_test = args.references
@@ -297,9 +410,52 @@ if __name__ == "__main__":
         target_test = [target_test]
         target_pred = [target_pred]
 
-    debug = args.debug
-    if debug and debug.lower() in ["true", "false"]:
-        debug = eval(debug.title())
+    words_list = None
+    if args.words_list:
+        assert os.path.isfile(args.words_list), f"File {args.words_list} doesn't exist"
+        word_list_name = os.path.splitext(os.path.basename(args.words_list))[0]
+        with open(args.words_list) as f:
+            words_list = [l.strip() for l in f.readlines()]
+
+    words_blacklist = None
+    if args.words_blacklist:
+        assert os.path.isfile(args.words_blacklist), f"File {args.words_blacklist} doesn't exist"
+        with open(args.words_blacklist) as f:
+            words_blacklist = [l.strip() for l in f.readlines()]
+
+    replacements_ref = {}
+    replacements_pred = {}
+
+    repl_ref_files = []
+    repl_pred_files = []
+    if args.replacements_ref:
+        repl_ref_files.append(args.replacements_ref)
+    if args.replacements_pred:
+        repl_pred_files.append(args.replacements_pred)
+    if args.replacements:
+        repl_ref_files.append(args.replacements)
+        repl_pred_files.append(args.replacements)
+
+    for fn in repl_ref_files:
+        with open(fn) as f:
+            for l in f.readlines():
+                trans = l.strip().split()
+                if len(trans) != 2:
+                    trans = l.strip().split("\t")
+                assert len(trans) == 2, f"Invalid line {l}"
+                replacements_ref[trans[0]] = trans[1]
+    for fn in repl_pred_files:
+        with open(fn) as f:
+            for l in f.readlines():
+                trans = l.strip().split()
+                if len(trans) != 2:
+                    trans = l.strip().split("\t")
+                assert len(trans) == 2, f"Invalid line {l}"
+                replacements_pred[trans[0]] = trans[1]
+
+    alignment = args.alignment
+    if alignment and alignment.lower() in ["true", "false"]:
+        alignment = eval(alignment.title())
     use_ids = args.use_ids
 
     result = compute_wer(
@@ -307,8 +463,17 @@ if __name__ == "__main__":
         use_ids=use_ids,
         normalization=args.norm,
         character_level=args.char,
-        debug=debug)
-    print(' ------------------------------------------------------------------------------------------------------- ')
-    print(' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
-        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count']))
-    print(' ------------------------------------------------------------------------------------------------------- ')
+        alignment=alignment,
+        include_correct_in_alignement=args.include_correct_in_alignement,
+        words_list=words_list,
+        words_blacklist=words_blacklist,
+        replacements_ref=replacements_ref,
+        replacements_pred=replacements_pred,
+        )
+    line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
+        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
+    if "word_err" in result:
+        line = f" {word_list_name} err: {result['word_err'] * 100:.2f} % |" + line
+    print('-' * len(line))
+    print(line)
+    print('-' * len(line))

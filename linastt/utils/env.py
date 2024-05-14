@@ -58,6 +58,7 @@ if not os.environ.get("HOME"):
 
 # Set cache directory
 os.environ["HUGGINGFACE_HUB_CACHE"] = get_cache_dir("huggingface/hub")
+os.environ["HF_HOME"] = get_cache_dir("huggingface/hub")
 os.environ["TRANSFORMERS_CACHE"] = get_cache_dir("huggingface/hub")
 import datasets
 datasets.config.HF_MODULES_CACHE = get_cache_dir("huggingface/modules")

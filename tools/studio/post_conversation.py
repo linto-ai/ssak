@@ -5,6 +5,7 @@ import json
 import time
 import datetime
 import numpy as np
+import re
 
 from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.linstt import linstt_transcribe
@@ -70,7 +71,7 @@ def cm_import(
     print("\n"+result["message"])
 
     if len(tags):
-        conversation = cm_find_conversation(name,url,email, password, verbose=verbose, strict=True)
+        conversation = cm_find_conversation(name, url, email, password, verbose=verbose, strict=True)
         assert len(conversation) > 0, f"Conversation not found: {conversation}"
         assert len(conversation) == 1, f"Multiple conversations found: {conversation}"
         conversation = conversation[0]
@@ -119,7 +120,7 @@ def cm_find_conversation(
 
     conversations = curl_get(
         url + f"/api/organizations/{organization_id}/conversations",
-        {"name": name},
+        {"name": re.escape(name)},
         headers=[f"Authorization: Bearer {token}"],
         verbose=verbose,
         default={"conversations": []},
