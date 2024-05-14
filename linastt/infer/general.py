@@ -4,6 +4,7 @@ from linastt.infer.speechbrain_infer import(
     speechbrain_load_model,
     speechbrain_compute_logits,
     speechbrain_infer,
+    get_tokenizer_vocab,
 )
 from linastt.infer.transformers_infer import (
     transformers_load_model,
@@ -125,10 +126,7 @@ def get_model_vocab(model):
     model_type = get_model_type(model)
     
     if model_type == ModelType.SPEECHBRAIN:
-        tokenizer = model.tokenizer
-        labels = [{'':" ", ' ⁇ ':"<pad>"}.get(i,i).lower() for i in tokenizer.decode([[i] for i in range(tokenizer.get_piece_size())])]
-        blank_id = labels.index("<pad>")
-        return labels, blank_id
+        return get_tokenizer_vocab(model.tokenizer)
     
     elif model_type == ModelType.TRANSFORMERS:
         processor = model[1]
