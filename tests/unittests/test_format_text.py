@@ -203,6 +203,8 @@ class TestFormatTextLatin(Test):
             self.get_tool_path("clean_text_fr.py"),
             self.get_data_path("text/frwac.txt"),
             output_file,
+            "--empty_string_policy=ignore",
+            "--linebreak_policy=allow",
             "--extract_parenthesis",
             "--file_acro", acronym_file,
             "--file_special", special_char_file,
