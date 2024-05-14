@@ -120,7 +120,7 @@ def speechbrain_infer(
 
         # Apply language model
         tic()
-        num_outputs = tokenizer.get_piece_size() + 2
+        num_outputs = len(get_tokenizer_vocab(tokenizer, with_delimiters=True)[0])
         for l in logits:
             if output_ids:
                 ids, l = l
@@ -246,27 +246,50 @@ def speechbrain_decoder_with_lm(tokenizer, arpa_file, alpha = 0.5, beta = 1.0):
 
     return a processor of type Wav2Vec2ProcessorWithLM to be used as "processor.batch_decode(log_probas.numpy()).text"
     """
-    labels = [{'':" ", ' ⁇ ':"<pad>"}.get(i,i).lower() for i in tokenizer.decode([[i] for i in range(tokenizer.get_piece_size())])] + ["<s>", "</s>"]
+    labels = get_tokenizer_vocab(tokenizer, with_delimiters=True)[0]
     vocab = dict((c,i) for i,c in enumerate(labels))
     vocab_file = os.path.join(tempfile.gettempdir(), "vocab.json")
     json.dump(vocab, open(vocab_file, "w"), ensure_ascii = False)
     tokenizer_hf = transformers.Wav2Vec2CTCTokenizer(
         vocab_file,
-        bos_token='<s>', eos_token='</s>', unk_token='<unk>', pad_token='<pad>',
+        bos_token='<s>', eos_token='</s>', unk_token="<pad>", pad_token="<pad>",
         word_delimiter_token=' ', replace_word_delimiter_char=' ', do_lower_case=False
     )
     decoder = pyctcdecode.build_ctcdecoder(
-        labels =  labels,
+        labels = labels,
         kenlm_model_path = arpa_file,
         alpha = alpha,
         beta = beta,
     )
+
     processor = transformers.Wav2Vec2ProcessorWithLM(
         feature_extractor = transformers.Wav2Vec2FeatureExtractor(),
         tokenizer = tokenizer_hf,
         decoder = decoder
     )
     return processor
+
+def get_tokenizer_vocab(tokenizer, with_delimiters=False, try_to_use="<pad>"):
+    from pyctcdecode.alphabet import UNK_TOKEN # ⁇
+    _labels_trans_no_unk = {'':" ", "<unk>":try_to_use, f" {UNK_TOKEN} ":try_to_use, UNK_TOKEN:try_to_use, "<pad>":try_to_use}
+    labels00 = tokenizer.decode([[i] for i in range(tokenizer.get_piece_size())])
+    labels0 = [tokenizer.id_to_piece(i) for i in range(tokenizer.get_piece_size())]
+    labels = [_labels_trans_no_unk.get(i,i) for i in labels0]
+    # Use lower case unless it introduces a conflict
+    labels_ = [l.lower() for l in labels]
+    if len(set(labels_)) == len(labels_):
+        labels = labels_
+    blank_id = labels.index(try_to_use)
+    if len(set(labels)) != len(labels):
+        print("Unexpected situation: some tokens are duplicated")
+        import pdb; pdb.set_trace()
+    if with_delimiters:
+        if "<s>" not in labels:
+            labels.append("<s>")
+        if "</s>" not in labels:
+            labels.append("</s>")
+    return labels, blank_id
+    
 
 def pack_sequences(tensors, device = "cpu"):
     if len(tensors) == 1:

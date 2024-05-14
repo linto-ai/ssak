@@ -250,7 +250,10 @@ def transformers_compute_logits(model, processor, batch, device = None, language
 
         def do_infer(batch):
             input_features = batch.input_features.to(device)
-            return model.generate(input_features=input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=448)
+            # The length of `decoder_input_ids` equal `prompt_ids` plus special start tokens is 4
+            # The combined length of `decoder_input_ids` and `max_new_tokens`=444 is: 448
+            # which corresponds to the `max_target_positions` of the Whisper model: 448
+            return model.generate(input_features=input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=444)
         
     with torch.no_grad():
         if l > max_duration:

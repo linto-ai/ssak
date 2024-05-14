@@ -404,7 +404,10 @@ def kaldi_folder_to_dataset(
         "weight": weights
     }
 
-    metastr = ", ".join("{} {}".format(v,k) for k,v in meta.items())
+    if nsamples_dup != len(uttids):
+        metastr = ", ".join("{} {}".format(v,k) for k,v in meta.items())
+    else:
+        metastr = ", ".join("{} {}".format(v,k) for k,v in meta.items() if k not in ["samples (with duplicates)", "h duration (with duplicates)", "weight"])
     if verbose:
         print("   ", metastr)
     if logstream:
@@ -446,7 +449,7 @@ def make_cachable(dataset, online=False, shuffle=False, seed=69, n_shards=1, ret
     else:
         cache_filenames = [os.path.join(cache_file_dir, f"full.csv")]
     assert len(cache_filenames)
-    cache_file_regex = cache_filenames[0][:-5] + "*.csv"
+    cache_file_regex = cache_filenames[0][:-4] + "*.csv"
     if verbose:
         print("Caching CSV dataset in ", cache_file_regex)
     if logstream:
