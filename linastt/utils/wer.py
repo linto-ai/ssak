@@ -185,6 +185,7 @@ def plot_wer(
     title=None,
     label_rotation=15,
     label_fontdict={'weight': 'bold'},
+    ylim=(0,100),
     **kwargs
     ):
     """
@@ -243,6 +244,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
     plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
+    plt.ylim(ylim)
     if legend:
         plt.legend()
     if title:
