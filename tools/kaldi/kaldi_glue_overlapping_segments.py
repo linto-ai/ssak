@@ -16,83 +16,38 @@ def load_segment_file(filename):
             data.append({"seg":seg, "spk":seg.split("_")[0], "file":file, "start":start, "end":end})  
         return data
 
-def check_overlap(data):
-    overlaps = []
-    seen = set()
-    data.sort(key=lambda x: (x["file"], x["start"]))
-    for i in tqdm(range(len(data) - 1)):
-        if data[i]["seg"] in seen:
-            continue
-        add = 1
-        while data[i]["end"] > data[i + add]["start"] and data[i]["file"] == data[i + add]["file"]:
-            if add>1: 
-                overlaps[-1].append(data[i + add])
-            else:
-                overlaps.append([data[i], data[i + add]])
-            seen.add(data[i + add]["seg"])
-            add += 1         
-    return overlaps
+def check_if_can_concatenate(segment1, segment2, max_silence_duration_to_glue, max_segment_duration):
+    if segment1 is None:
+        return False
+    elif segment1["file"]!=segment2["file"]:
+        return False
+    elif segment1["spk"]!=segment2["spk"]:
+        return False
+    elif abs(segment1["end"]-segment2["start"])>max_silence_duration_to_glue:
+        return False
+    elif segment2["end"]-segment1["start"]>max_segment_duration:
+        return False
+    return True
 
-def overlaps_to_set(overlaps):
-    overlap_set = set()
-    for overlap_group in overlaps:
-        for overlap in overlap_group:
-            overlap_set.add(overlap["seg"])
-    return overlap_set
-
-def find_concatenate_segments(overlaps, data, max_segment_duration=15, max_silence_duration_to_glue=0.5):
-    data.sort(key=lambda x: (x["seg"],x["start"]))
-    # for i in range(len(data)):
-    #     print(data[i])
-    #     if i>2:
-    #         break
-    concatenated_segments = []
-    concatenated_ids = set()
+def find_concatenate_segments(data, text, max_segment_duration=15, max_silence_duration_to_glue=0.5):
+    data.sort(key=lambda x: (x["file"], x["spk"], x["start"]))
+    previous_segment = None
+    previous_text = None
+    new_data = []
+    new_text = []
     for i, d in tqdm(enumerate(data), total=len(data)):
-        if d["seg"] not in overlaps or d["seg"] in concatenated_ids:
-            continue
+        if check_if_can_concatenate(previous_segment, d, max_silence_duration_to_glue, max_segment_duration):
+            previous_segment = {"seg":previous_segment["seg"], "spk":previous_segment["spk"], "file":previous_segment["file"], "start":previous_segment["start"], "end":d["end"]}
+            previous_text += " " + text[d["seg"]]              
         else:
-            concat = [data[i]]
-            if i<len(data)-1 and data[i+1]['file']==data[i]['file'] and abs(data[i+1]['start']-data[i]['end'])<=max_silence_duration_to_glue and data[i+1]['end']-min(concat, key=lambda x: x["start"])["start"]<=max_segment_duration:
-                concat.append(data[i+1])
-            if i>0 and data[i-1]['file']==data[i]['file'] and abs(data[i]['start']-data[i-1]['end'])<=max_silence_duration_to_glue and max(concat, key=lambda x: x["end"])["end"]-data[i-1]['start']<=max_segment_duration:
-                concat.append(data[i-1])
-            if len(concat) > 1:
-                concatenated_segments.append(concat)
-                for c in concat:
-                    concatenated_ids.add(c["seg"])
-    return concatenated_segments, concatenated_ids
+            if previous_segment is not None:
+                new_data.append(previous_segment)
+                new_text.append({"seg":previous_segment["seg"], "text":previous_text})
+            previous_segment = d
+            previous_text = text[d["seg"]]
+    return new_data, new_text
 
-def concatenate_segments(segments_to_concat, ids, data, text_data):
-    new_segments_data = []
-    new_text_data = []
-    new_ids = set()
-    debug_show_concat = 0
-    for i in data:
-        if i['seg'] not in ids:
-            new_segments_data.append(i)
-            new_text_data.append({"seg":i["seg"], "text":text_data[i['seg']]})
-            new_ids.add(i['seg'])
-    for concat in segments_to_concat:
-        new_start = min(concat, key=lambda x: x["start"])["start"]
-        new_end = max(concat, key=lambda x: x["end"])["end"]
-        new_text = ""
-        concat.sort(key=lambda x: x["start"])
-        for c in concat:
-            new_text += text_data[c['seg']] + " "
-        new_segments_data.append({"seg":concat[0]['seg'], "spk":concat[0]['spk'], "file":concat[0]['file'], "start":new_start, "end":new_end})
-        new_text_data.append({"seg":concat[0]["seg"], "text":new_text})
-        new_ids.add(concat[0]['seg'])
-        if debug_show_concat>0:
-            print("Concatenating segment:")
-            print(f"Input segments: {concat}")
-            print(f"Input text: {[text_data[c['seg']] for c in concat]}")
-            print(f"New segment: {new_segments_data[-1]}")
-            print(f"New text: {new_text_data[-1]}")
-            print()
-            debug_show_concat -= 1
-    return new_segments_data, new_text_data, new_ids
-        
+      
 def load_file(filename):
     data = dict()
     with open(filename, 'r') as file:
@@ -102,12 +57,10 @@ def load_file(filename):
         return data
 
 
-
 def write_files(fsegment, ftext, new_segments_data, new_text_data):
     for seg, txt in zip(new_segments_data, new_text_data):
         fsegment.write(f"{seg['seg']} {seg['file']} {seg['start']} {seg['end']}\n")
         ftext.write(f"{txt['seg']} {txt['text']}\n")
-
 
 
 if __name__=="__main__":
@@ -131,18 +84,12 @@ if __name__=="__main__":
     
     data = load_segment_file(os.path.join(input_folder, "segments"))
     print(f"Number of segments: {len(data)}")
-
-    overlaps = check_overlap(data)
-    print(f"Find {len(overlaps)} overlaps")
-
-    overlaps = overlaps_to_set(overlaps)
-
-    segments_to_concat, ids = find_concatenate_segments(overlaps, data, max_segment_duration=args.max_segment_duration, max_silence_duration_to_glue=args.max_silence_duration_to_glue)
-        
     text = load_file(os.path.join(input_folder, "text"))
-    new_segments_data, new_text_data, ids = concatenate_segments(segments_to_concat, ids, data, text)
     
-    print(f"New number of segments: {len(ids)}")
+    
+    new_segments_data, new_text_data = find_concatenate_segments(data, text, max_segment_duration=args.max_segment_duration, max_silence_duration_to_glue=args.max_silence_duration_to_glue)
+    
+    print(f"New number of segments: {len(new_segments_data)}")
     
     segment_filename = "segments" if input_folder!=output_folder else "segments_new"
     text_filename = "text" if input_folder!=output_folder else "text_new"
@@ -155,6 +102,5 @@ if __name__=="__main__":
         if os.path.exists(os.path.join(input_folder, "spk2gender")):
             shutil.copy(os.path.join(input_folder, "spk2gender"), os.path.join(output_folder, "spk2gender"))
         check_kaldi_dir(output_folder)
-        
     
     print(f"Done! Output folder: {output_folder}")
