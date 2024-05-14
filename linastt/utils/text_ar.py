@@ -195,7 +195,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
     parser.add_argument('--language', help= "Whether to use 'ar or ar_tn'", type=str, default="ar")
-    parser.add_argument('--normalize_tn_words', help="Whether to Normalize Tunisian words", default= False, action="store_true")
+    parser.add_argument('--normalize_tn_words', help="Whether to Normalize Tunisian words", default = False, action="store_true")
     parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
@@ -204,6 +204,10 @@ if __name__ == '__main__':
 
     if args.normalize_tn_words:
         args.language = "ar_tn"
+    
+    if args.language == "tn":
+        args.language = "ar_tn"
+
     input = args.input
     kwargs = {
         "keep_punc": args.keep_punc,
