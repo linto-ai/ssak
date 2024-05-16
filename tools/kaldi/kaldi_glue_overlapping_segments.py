@@ -73,7 +73,7 @@ def find_concatenate_segments(data, text, max_segment_duration=15, max_silence_d
         if check_if_can_concatenate(previous_segment, d, max_silence_duration_to_glue, max_segment_duration, segments_to_concatenate):
             spk = d["spk"]
             seg = previous_segment[spk]
-            previous_segment[spk] = {"seg":seg["seg"], "spk":seg["spk"], "file":seg["file"], "start":seg["start"], "end":d["end"]}
+            previous_segment[spk] = {"seg":seg["seg"] if d['seg'] not in segments_to_concatenate else d['seg'], "spk":seg["spk"], "file":seg["file"], "start":seg["start"], "end":d["end"]}
             previous_text[spk] += " " + text[d["seg"]]
         elif check_if_overlap(previous_segment, d, data[i+1] if i+1<len(data) else None):
             if d['spk'] in previous_segment:
