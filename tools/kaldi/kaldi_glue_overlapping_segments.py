@@ -16,10 +16,25 @@ def load_segment_file(filename):
             data.append({"seg":seg, "spk":seg.split("_")[0], "file":file, "start":start, "end":end})  
         return data
 
-def check_if_can_concatenate(segment1, segment2, max_silence_duration_to_glue, max_segment_duration):
-    if segment1 is None:
+
+def find_overlaps(data):
+    data.sort(key=lambda x: (x["file"], x["start"]))
+    overlaped_segments = set()
+    for i, d in tqdm(enumerate(data), total=len(data)):
+        if i>0 and check_if_overlap({data[i-1]['spk']: data[i-1]}, d, data[i+1] if i+1<len(data) else None):
+            overlaped_segments.add(d['seg'])
+    return overlaped_segments
+
+def check_if_can_concatenate(segment1, segment2, max_silence_duration_to_glue, max_segment_duration, segments_to_concatenate=None):
+    if not segment1: 
         return False
-    elif segment1["file"]!=segment2["file"]:
+    if segment2['spk'] not in segment1:
+        return False
+    segment1 = segment1[segment2['spk']]
+    if segments_to_concatenate is not None and segment1["seg"] not in segments_to_concatenate and not segment2["seg"] in segments_to_concatenate:
+        return False
+    
+    if segment1["file"]!=segment2["file"]:
         return False
     elif segment1["spk"]!=segment2["spk"]:
         return False
@@ -29,25 +44,60 @@ def check_if_can_concatenate(segment1, segment2, max_silence_duration_to_glue, m
         return False
     return True
 
-def find_concatenate_segments(data, text, max_segment_duration=15, max_silence_duration_to_glue=0.5):
-    data.sort(key=lambda x: (x["file"], x["spk"], x["start"]))
-    previous_segment = None
-    previous_text = None
+def check_if_overlap(segment1, segment2, segment_next=None):
+    if not segment1: 
+        return False
+    segment1 = segment1.copy()
+    # segment1.pop(segment2[segment2['spk']], None)
+    if not segment1:
+        return False
+    for k in segment1:
+        if segment1[k]["file"]==segment2["file"] and segment1[k]["end"]>segment2["start"]:
+            return segment1[k]["seg"]
+        
+    if segment_next is None:
+        return False
+    if segment2['spk']==segment_next['spk'] or segment2['file']!=segment_next['file']:
+        return False
+    if segment2["end"]>segment_next["start"]:
+        return segment_next["seg"]
+    return False
+
+def find_concatenate_segments(data, text, max_segment_duration=15, max_silence_duration_to_glue=0.5, segments_to_concatenate=None):
+    data.sort(key=lambda x: (x["file"], x["start"]))
+    previous_segment = dict()
+    previous_text = dict()
     new_data = []
     new_text = []
     for i, d in tqdm(enumerate(data), total=len(data)):
-        if check_if_can_concatenate(previous_segment, d, max_silence_duration_to_glue, max_segment_duration):
-            previous_segment = {"seg":previous_segment["seg"], "spk":previous_segment["spk"], "file":previous_segment["file"], "start":previous_segment["start"], "end":d["end"]}
-            previous_text += " " + text[d["seg"]]              
+        if check_if_can_concatenate(previous_segment, d, max_silence_duration_to_glue, max_segment_duration, segments_to_concatenate):
+            spk = d["spk"]
+            seg = previous_segment[spk]
+            previous_segment[spk] = {"seg":seg["seg"], "spk":seg["spk"], "file":seg["file"], "start":seg["start"], "end":d["end"]}
+            previous_text[spk] += " " + text[d["seg"]]
+        elif check_if_overlap(previous_segment, d, data[i+1] if i+1<len(data) else None):
+            if d['spk'] in previous_segment:
+                new_data.append(previous_segment[d['spk']])
+                new_text.append({"seg":previous_segment[d['spk']]["seg"], "text":previous_text[d['spk']]})
+                previous_segment.pop(d['spk'])
+                previous_text.pop(d['spk'])
+            previous_segment[d['spk']] = d
+            previous_text[d['spk']] = text[d["seg"]]
+
         else:
-            if previous_segment is not None:
-                new_data.append(previous_segment)
-                new_text.append({"seg":previous_segment["seg"], "text":previous_text})
-            previous_segment = d
-            previous_text = text[d["seg"]]
+            if previous_segment:
+                for k in previous_segment:
+                    new_data.append(previous_segment[k])
+                    new_text.append({"seg":previous_segment[k]["seg"], "text":previous_text[k]})
+                previous_segment = dict()
+                previous_text = dict()
+            previous_segment[d['spk']] = d
+            previous_text[d['spk']] = text[d["seg"]]
+    for k in previous_segment:
+        new_data.append(previous_segment[k])
+        new_text.append({"seg":previous_segment[k]["seg"], "text":previous_text[k]})
     return new_data, new_text
 
-      
 def load_file(filename):
     data = dict()
     with open(filename, 'r') as file:
@@ -78,16 +128,16 @@ if __name__=="__main__":
     else:
         output_folder = args.output_folder
         os.makedirs(output_folder, exist_ok=True)
-        
-    if args.glue_mode == "all":
-        raise NotImplementedError("Glue mode 'all' is not implemented yet. For now you can glue overlapping segments")
     
     data = load_segment_file(os.path.join(input_folder, "segments"))
     print(f"Number of segments: {len(data)}")
     text = load_file(os.path.join(input_folder, "text"))
     
+    if args.glue_mode == "overlap":
+        overlaped_segments = find_overlaps(data)
+        print(f"Number of overlapping segments: {len(overlaped_segments)}")
     
-    new_segments_data, new_text_data = find_concatenate_segments(data, text, max_segment_duration=args.max_segment_duration, max_silence_duration_to_glue=args.max_silence_duration_to_glue)
+    new_segments_data, new_text_data = find_concatenate_segments(data, text, max_segment_duration=args.max_segment_duration, max_silence_duration_to_glue=args.max_silence_duration_to_glue, segments_to_concatenate=None if args.glue_mode=="all" else overlaped_segments)
     
     print(f"New number of segments: {len(new_segments_data)}")
     
