@@ -245,7 +245,12 @@ if __name__ == "__main__":
         nargs="+",
         help="The speaker id associed to unknown speaker",
     )
-
+    parser.add_argument(
+        "--preview_mode",
+        default=False,
+        action="store_true",
+        help="If True, audios are not copied, making it faster and lighter",
+    )
     args = parser.parse_args()
 
     if not args.license and args.private:
@@ -576,31 +581,31 @@ if __name__ == "__main__":
                 d = os.path.dirname(d)
         out_name = f"{corpus_name_lower}_{filename}"
         _out_wav = os.path.join(output_folder, out_name + ".audio" + audio_ext)
-
-        if os.path.exists(_out_wav):
-            if not args.ignore_existing:
-                raise RuntimeError("Conflict on %s" % _out_wav)
-        else:
-            # convert audio to wav
-            if not CONVERT_ALL_WAV_TO_THE_SAME and _wav.endswith(audio_ext):
-                shutil.copyfile(_wav, _out_wav)
+        if not args.preview_mode:
+            if os.path.exists(_out_wav):
+                if not args.ignore_existing:
+                    raise RuntimeError("Conflict on %s" % _out_wav)
             else:
-                cmd = [
-                    "sox",
-                    _wav,
-                    #'-t', 'wav',
-                ]
-                if CONVERT_ALL_WAV_TO_THE_SAME:
-                    cmd += [
-                        "-r",
-                        str(sample_rate),  # 16k
-                        "-b",
-                        str(bit_depth),  # 16
-                        "-c",
-                        str(channels),  # 1/2
+                # convert audio to wav
+                if not CONVERT_ALL_WAV_TO_THE_SAME and _wav.endswith(audio_ext):
+                    shutil.copyfile(_wav, _out_wav)
+                else:
+                    cmd = [
+                        "sox",
+                        _wav,
+                        #'-t', 'wav',
                     ]
-                cmd += [_out_wav]
-                subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+                    if CONVERT_ALL_WAV_TO_THE_SAME:
+                        cmd += [
+                            "-r",
+                            str(sample_rate),  # 16k
+                            "-b",
+                            str(bit_depth),  # 16
+                            "-c",
+                            str(channels),  # 1/2
+                        ]
+                    cmd += [_out_wav]
+                    subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
         # Look for a date
         date = None
@@ -765,7 +770,11 @@ if __name__ == "__main__":
                 json_dump(transcript_base | {"transcripts": transcriptions_raw}, f)
 
         if not os.path.isfile(os.path.join(output_folder, out_name + ".meta.json")):
-            duration = get_audio_duration(_out_wav)
+            
+            if not args.preview_mode:
+                duration = get_audio_duration(_out_wav)
+            else:
+                duration = 0
             with open(os.path.join(output_folder, out_name + ".meta.json"), "w") as f:
                 json_dump(
                     (
