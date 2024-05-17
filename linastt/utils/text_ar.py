@@ -23,9 +23,7 @@ _regex_latin_punctuation = regex_escape(_latin_punctuation)
 _regex_all_punctuation = regex_escape(_all_punctuation)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-directory_path = os.path.join(script_dir, "../../assets")
-
-
+assets_path = os.path.join(script_dir, "../../assets")
 
 def load_json_file(filepath):
     try:
@@ -37,19 +35,14 @@ def load_json_file(filepath):
         print(f"Error loading JSON file '{filepath}': {e}")
         return None
 
-normalization_rules = load_json_file(f'{directory_path}/Arabic_normalization_chars.json')
+normalization_rules = load_json_file(f'{assets_path}/Arabic_normalization_chars.json')
 
-normalize_dialect_words = True  # Set this flag based on your requirement
 normalization_words = None
 
-
-if normalize_dialect_words and normalization_words is None:
-    normalization_words = load_json_file(f'{directory_path}/Tunisian_normalization_words.json')
-
-
 def normalize_tunisan_words(text):
+    global normalization_words
     if normalization_words is None:
-        return text
+        normalization_words = load_json_file(f'{assets_path}/Tunisian_normalization_words.json')
     for key, value in normalization_words.items():
         text = re.sub(r"\b" + re.escape(key) + r"\b", value, text)
     return text
@@ -101,7 +94,7 @@ def convert_punct_to_arabic(text):
 
 
 def normalize_chars(text):
-    regex = re.compile("|".join(map(re.escape, normalization_rules.keys())))
+    regex = re.compile("[" + "".join(map(re.escape, normalization_rules.keys())) + "]")
     text = regex.sub(lambda match: normalization_rules[match.group(0)], text)
     return text
 
@@ -139,7 +132,7 @@ def remove_repeated_chars(word, threshold=2):
 def remove_long_words(text, threshold=15):
     return " ".join(word for word in text.split(" ") if len(word) < threshold)
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar_tn", normalize_dialect_words=True):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar", normalize_dialect_words=False):
     input_line = line
     try:
         if normalize_dialect_words:
@@ -196,7 +189,7 @@ if __name__ == '__main__':
         "keep_latin_chars": args.keep_latin_chars,
         "bw": args.bw,
         "lang": args.language,
-        "normalize_dialect_words": args.normalize_dialect_words,
+        "normalize_dialect_words": normalize_dialect_words,
     }
 
     if len(input_data) == 1 and os.path.isfile(input_data[0]):

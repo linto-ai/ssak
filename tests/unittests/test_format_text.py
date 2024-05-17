@@ -263,53 +263,53 @@ class TestFormatTextArabic(Test):
     def test_format_digits(self):
         
         self.assertEqual(
-            format_text_ar("بعض الأرقام: 01 و 314 و 315.5 و ۰۹ و ۹۰", lang="ar"),
+            format_text_ar("بعض الأرقام: 01 و 314 و 315.5 و ۰۹ و ۹۰"),
             'بعض الأرقام صفر واحد و ثلاثمائة و أربعة عشر و ثلاثمائة و خمسة عشر فاصيله خمسة و صفر تسعة و تسعون'
         )
 
 
         self.assertEqual(
-            format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78", lang="ar", keep_latin_chars=False),
+            format_text_ar("يوجد 10000 شخص ، عنوان IP الخاص بي هو 951.357.123 ، ورقم هاتفي هو 06 12 34 56 78", keep_latin_chars=False),
             'يوجد عشرة آلاف شخص عنوان الخاص بي هو تسعمائة و واحد و خمسون فاصيله ثلاثمائة و سبعة و خمسون فاصيله مائة و ثلاثة و عشرون ورقم هاتفي هو صفر ستة اثنا عشر أربعة و ثلاثون ستة و خمسون ثمانية و سبعون'
         )
                 
         self.assertEqual(
-            format_text_ar("وأغلق بسعر $45.06 للبرميل.", lang="ar"),
+            format_text_ar("وأغلق بسعر $45.06 للبرميل."),
             'وأغلق بسعر دولار خمسة و أربعون فاصيله صفر ستة للبرميل'
         )
 
     def test_symbols_converting(self):
         
         self.assertEqual(
-            format_text_ar("للعام 1435/ 1436هـ" ,lang="ar"),
+            format_text_ar("للعام 1435/ 1436هـ" ),
             'للعام ألف و أربعمائة و خمسة و ثلاثون ألف و أربعمائة و ستة و ثلاثون هجري'
         )
 
         self.assertEqual(
-            format_text_ar("7 ق.م" ,lang="ar"),
+            format_text_ar("7 ق.م" ),
             'سبعة قبل الميلاد'
         )
 
         self.assertEqual(
-            format_text_ar("300¥ = 300$ = 300£ = 300₹", lang="ar"),
+            format_text_ar("300¥ = 300$ = 300£ = 300₹"),
             'ثلاثمائة ين يساوي ثلاثمائة دولار يساوي ثلاثمائة جنيه يساوي ثلاثمائة روبية هندية'
         )
 
     def test_dates(self):
         
         self.assertEqual(
-            format_text_ar("هجري 1437/01/20",lang="ar"),
+            format_text_ar("هجري 1437/01/20"),
             'هجري ألف و أربعمائة و سبعة و ثلاثون محرم عشرون'
         )
         
 
         self.assertEqual(
-            format_text_ar("هجري 1937/01/20",lang="ar"),
+            format_text_ar("هجري 1937/01/20"),
             'هجري عشرون يناير ألف و تسعمائة و سبعة و ثلاثون'
         )
 
         self.assertEqual(
-            format_text_ar("اليوم 22/04/2002",lang="ar"),
+            format_text_ar("اليوم 22/04/2002"),
             'اليوم اثنان و عشرون أبريل ألفان و اثنان'
         )
 
@@ -321,7 +321,7 @@ class TestFormatTextArabic(Test):
     def test_biggest_numbers(self):
         
         self.assertEqual(
-            format_text_ar("-123456789123456789128942", lang="ar"),
+            format_text_ar("-123456789123456789128942"),
             'سالب مائة و ثلاثة و عشرون سكستيليونا و أربعمائة و ستة و خمسون كوينتليونا و سبعمائة و تسعة و ثمانون كوادريليونا و مائة و ثلاثة و عشرون تريليونا و أربعمائة و ستة و خمسون مليارا و سبعمائة و تسعة و ثمانون مليونا و مائة و ثمانية و عشرون ألفا و تسعمائة و اثنان و أربعون'
         )
 
@@ -331,7 +331,7 @@ class TestFormatTextArabic(Test):
         )
 
         self.assertEqual(
-            format_text_ar("-1234567891234567891289425", lang="ar"),
+            format_text_ar("-1234567891234567891289425"),
             'سالب سبتيليون و مئتان و أربعة و ثلاثون سكستيليونا و خمسمائة و سبعة و ستون كوينتليونا و ثمانمائة و واحد و تسعون كوادريليونا و مئتان و أربعة و ثلاثون تريليونا و خمسمائة و سبعة و ستون مليارا و ثمانمائة و واحد و تسعون مليونا و مئتان و تسعة و ثمانون ألفا و أربعمائة و خمسة و عشرون'
         )
 
@@ -349,13 +349,21 @@ class TestFormatTextArabic(Test):
         sentence = "انشا الله  بسبعه عسلامة يسلمك ديجا"
         
         self.assertEqual(
-            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, normalize_tn_words=True),
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, lang="ar_tn", normalize_dialect_words=True),
             'إن شاء الله بسبع عالسلامة يسلمك'
         )
 
         self.assertEqual(
-            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, normalize_tn_words=True),
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, lang="ar_tn", normalize_dialect_words=True),
             'إن شاء الله بسبع عالسلامة يسلمك déjà'
+        )
+    
+    def test_chars_normalization(self):
+        sentence = "بڨداش أﻛ الخبزﻫ"
+        
+        self.assertEqual(
+            format_text_ar(sentence,lang="ar_tn", normalize_dialect_words=True),
+            'بقداش أك الخبزه'
         )
 
     # def test_digit_round_check(self):
