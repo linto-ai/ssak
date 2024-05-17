@@ -19,13 +19,11 @@ if __name__ == "__main__":
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
     parser.add_argument('--language', default="ar", type=str, help="Whether to use 'ar or ar_tn'")
-    parser.add_argument('--normalize_tn_words', help="Whether to Normalize language words", default=False, action="store_true")
+    parser.add_argument('--normalize_dialect_words', help="Whether to Normalize language words", default=False, action="store_true")
     args = parser.parse_args()
 
     input_file = args.input
-    if args.normalize_tn_words:
-        args.language = "ar_tn"
-        
+
     if args.language == "tn":
         args.language = "ar_tn"
 
@@ -65,7 +63,7 @@ if __name__ == "__main__":
                 keep_latin_chars=args.keep_latin_chars,
                 bw=args.bw,
                 lang=args.language,
-                normalize_tn_words=args.normalize_tn_words,
+                normalize_dialect_words=args.normalize_dialect_words
             )
             for subline in line.splitlines():
                 subline = subline.strip()

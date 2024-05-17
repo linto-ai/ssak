@@ -12,7 +12,6 @@ from linastt.utils.text_utils import (
 )
 from lang_trans.arabic import buckwalter as bw
 
-
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-ZÀ-ÖØ-öø-ÿĀ-ž'"  # Latin characters with common diacritics and '
 _arabic_punctuation = "؟!،.؛,\"'-_"
@@ -26,48 +25,38 @@ _regex_all_punctuation = regex_escape(_all_punctuation)
 script_dir = os.path.dirname(os.path.realpath(__file__))
 directory_path = os.path.join(script_dir, "../../assets")
 
-with open(f'{directory_path}/Arabic_normalization_chars.json', 'r', encoding='utf-8') as f:
-        normalization_rules = json.load(f)
 
-with open(f'{directory_path}/Tunisian_normalization_words.json', 'r', encoding='utf-8') as f:
-            normalization_words = json.load(f)
 
-mappings = {
-    "انشا الله": "إن شاء الله",
-    "انشا اله": "إن شاء الله",
-    "انشاء الله": "إن شاء الله",
-    "نشاء الله":"إن شاء الله",
-    "ان شا الل": "إن شاء الله",
-    "ان شاء آلله": "إن شاء الله",
-    "انشاءالله": "إن شاء الله",
-    "ما شالله": "ما شاء الله",
-    "مشا الله": "ما شاء الله",
-    "مشاء الله": "ما شاء الله",
-    "مشا ء الله": "ما شاء الله",
-    "بسم   لله":"بسم الله",
-    "برا فوا": "bravo",
-    "برا فو ا": "bravo",
-    "برميار مان": "première main",
-    "première مان": "première main",
-    "دوزيام مان": "deuxième main",
-    "deuxième مان": "deuxième main",
-    "لي إنتريبرنورس": "les entrepreneurs",
-    "لي ميزون دي سرفيس": "les maisons de services",
-    "لي ميزون دو سرفيس": "les maisons de services",
-    "دو جنوا غوش": "du genou gauche",
-    "ال ثلاث":"الثلاثة",
-}
+def load_json_file(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"JSON file '{filepath}' loaded successfully")
+            return data
+    except Exception as e:
+        print(f"Error loading JSON file '{filepath}': {e}")
+        return None
+
+normalization_rules = load_json_file(f'{directory_path}/Arabic_normalization_chars.json')
+
+normalize_dialect_words = True  # Set this flag based on your requirement
+normalization_words = None
+
+
+if normalize_dialect_words and normalization_words is None:
+    normalization_words = load_json_file(f'{directory_path}/Tunisian_normalization_words.json')
+
 
 def normalize_tunisan_words(text):
-    for key, value in mappings.items():
-        text = re.sub(r"\b" + re.escape(key) + r"\b", value, text)
+    if normalization_words is None:
+        return text
     for key, value in normalization_words.items():
         text = re.sub(r"\b" + re.escape(key) + r"\b", value, text)
     return text
 
 def bw_transliterate(text):
     return bw.transliterate(text)
-    
+
 arabic_diacritics = re.compile("""
                              ّ    | # Tashdid
                              َ    | # Fatha
@@ -99,16 +88,16 @@ def convert_hindi_numbers(text):
     return text
 
 # Convert digit to chars
-def digit2word(text,lang):
+def digit2word(text, lang):
     text = convert_hindi_numbers(text)
     text = cardinal_numbers_to_letters(text, lang=lang)
     return text
 
-
 def convert_punct_to_arabic(text):
-    text = re.sub(";","؛",text)
-    text = re.sub(",","،",text)
+    text = re.sub(";", "؛", text)
+    text = re.sub(",", "،", text)
     return text
+
 
 
 def normalize_chars(text):
@@ -119,29 +108,27 @@ def normalize_chars(text):
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
 
-
 # this function can get only the arabic chars with/without punctuation.
-def get_arabic_only(text,keep_punc=False,keep_latin_chars=False):
-
+def get_arabic_only(text, keep_punc=False, keep_latin_chars=False):
     what_to_keep = _regex_arabic_chars
-    
+
     if keep_punc:
         if keep_latin_chars:
             what_to_keep += _regex_all_punctuation
         else:
             what_to_keep += _regex_arabic_punctuation
-    
+
     if keep_latin_chars:
         what_to_keep += _regex_latin_chars
 
-    return re.sub(r"[^"+what_to_keep+"]+", " ", text)
+    return re.sub(r"[^" + what_to_keep + "]+", " ", text)
 
-_regex_not_arabic_neither_punctuation = r"(?!["+_regex_arabic_chars+"])\w"
-_regex_arabic = r"["+_regex_arabic_chars+"]"
+_regex_not_arabic_neither_punctuation = r"(?![" + _regex_arabic_chars + "])\w"
+_regex_arabic = r"[" + _regex_arabic_chars + "]"
 
 def unglue_arabic_and_latin_chars(line):
-    line = re.sub(r"("+_regex_arabic+")("+_regex_not_arabic_neither_punctuation+")", r"\1 \2", line)
-    line = re.sub(r"("+_regex_not_arabic_neither_punctuation+")("+_regex_arabic+")", r"\1 \2", line)
+    line = re.sub(r"(" + _regex_arabic + ")(" + _regex_not_arabic_neither_punctuation + ")", r"\1 \2", line)
+    line = re.sub(r"(" + _regex_not_arabic_neither_punctuation + ")(" + _regex_arabic + ")", r"\1 \2", line)
     line = re.sub(" {2,}", " ", line)
     return line
 
@@ -150,7 +137,7 @@ def remove_repeated_chars(word, threshold=2):
     return re.sub(pattern, r'\1', word)
 
 def remove_long_words(text, threshold=15):
-    return (" ").join(word for word in text.split(" ") if len(word) < threshold)
+    return " ".join(word for word in text.split(" ") if len(word) < threshold)
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar_tn", normalize_dialect_words=True):
     input_line = line
@@ -184,40 +171,38 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         raise err
     return collapse_whitespace(line)
 
-   
 if __name__ == '__main__':
-
-    import os
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('input', help= " An input file, or an input string", type=str, nargs="+")
-    parser.add_argument('--language', help= "Whether to use 'ar or ar_tn'", type=str, default="ar")
-    parser.add_argument('--normalize_tn_words', help="Whether to Normalize Tunisian words", default = False, action="store_true")
-    parser.add_argument('--keep_punc', help="Whether to keep punctuations", default= False, action="store_true")
-    parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
-    parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
+    parser.add_argument('input', help="An input file, or an input string", type=str, nargs="+")
+    parser.add_argument('--language', help="Whether to use 'ar or ar_tn'", type=str, default="ar")
+    parser.add_argument('--normalize_dialect_words', help="Whether to Normalize Tunisian words", default=False, action="store_true")
+    parser.add_argument('--keep_punc', help="Whether to keep punctuations", default=False, action="store_true")
+    parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default=False, action="store_true")
+    parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default=False, action="store_true")
     args = parser.parse_args()
-        
 
-    if args.normalize_tn_words:
-        args.language = "ar_tn"
-    
+    print(args.normalize_dialect_words)
+
     if args.language == "tn":
         args.language = "ar_tn"
+    
+    normalize_dialect_words = args.normalize_dialect_words
 
-    input = args.input
+
+    input_data = args.input
     kwargs = {
         "keep_punc": args.keep_punc,
         "keep_latin_chars": args.keep_latin_chars,
         "bw": args.bw,
         "lang": args.language,
-        "normalize_tn_words":args.normalize_tn_words,
+        "normalize_dialect_words": args.normalize_dialect_words,
     }
 
-    if len(input) == 1 and os.path.isfile(input[0]):
-        with open(input[0], "r") as f:
+    if len(input_data) == 1 and os.path.isfile(input_data[0]):
+        with open(input_data[0], "r") as f:
             text = f.read()
             for line in text.splitlines():
                 print(format_text_ar(line, **kwargs))
     else:
-        print(format_text_ar(" ".join(input), **kwargs))
+        print(format_text_ar(" ".join(input_data), **kwargs))
