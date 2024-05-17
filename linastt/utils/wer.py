@@ -120,8 +120,8 @@ def compute_wer(refs, preds,
             normalization = normalization[:-1]
 
         normalize_funcs = []
-        if normalization == "ar":
-            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
+        if normalization.startswith("ar"):
+            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True, lang=normalization))
         elif normalization == "ru":
             normalize_funcs.append(lambda x: format_text_ru(x))
         else:
