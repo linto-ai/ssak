@@ -54,8 +54,8 @@ SPECIAL_CHARS = {
     "ar": "".join(func("ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهويىي") for func in [str.upper, str.lower]),
 }
 
-def check_kaldi_dir(dirname, language=None):
-
+def check_kaldi_dir(dirname, language=None, strict_sort=False):
+    strict_sort = "true" if strict_sort else "false"
     tool_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),
         "tools", "kaldi", "utils"
@@ -65,7 +65,7 @@ def check_kaldi_dir(dirname, language=None):
         with open(os.path.join(dirname, "text")) as f:
             texts = dict(parse_line(line) for line in f)
 
-    p = subprocess.Popen([tool_dir + "/fix_data_dir.sh", dirname])
+    p = subprocess.Popen([tool_dir + "/fix_data_dir.sh", dirname, strict_sort])
     p.communicate()
     if p.returncode != 0:
         raise RuntimeError(f"ERROR when running: {tool_dir}/fix_data_dir.sh {dirname}")
@@ -76,7 +76,7 @@ def check_kaldi_dir(dirname, language=None):
         if p.returncode != 0:
             raise RuntimeError("ERROR when running get_utt2dur.sh")
 
-    p = subprocess.Popen([tool_dir + "/validate_data_dir.sh", "--no-feats", dirname])
+    p = subprocess.Popen([tool_dir + "/validate_data_dir.sh", "--no-feats", "" if strict_sort=="true" else "--no-spk-sort", dirname])
     p.communicate()
     if p.returncode != 0:
         raise RuntimeError("ERROR when running validate_data_dir.sh")
@@ -119,6 +119,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Check a kaldi folder')
     parser.add_argument('dirname', help='Input kaldi folder', type=str)
+    parser.add_argument('--strict_sort', default=False, action="store_true", help='If sort on speakers must be equal to sort on utterances')
     args = parser.parse_args()
 
-    check_kaldi_dir(args.dirname)
+    check_kaldi_dir(args.dirname, strict_sort=args.strict_sort)

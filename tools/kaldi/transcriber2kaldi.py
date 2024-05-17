@@ -5,6 +5,7 @@ import re
 import os
 import warnings
 from glob import glob
+from tqdm import tqdm
 
 from linastt.utils.kaldi import check_kaldi_dir
 from linastt.utils.transcriber import read_transcriber
@@ -64,12 +65,18 @@ def transcriber2kaldi_add_file(trs_file, audio_file, output_folder, max_speakers
         for data in alldata:
             if do_ignore_text(data["text"]):
                 continue
+            elif not data["text"].isprintable():
+                warnings.warn(f"Skipping non-printable characters for {data['id']} in text: {data['text']}")
+                continue
+            elif float(data["sTime"])>=float(data["eTime"]):
+                warnings.warn(f"Skipping empty segment for {data['id']}: {data['sTime']}>={data['eTime']} (with text: {data['text']})")
+                continue
             if data["nbrSpk"] > max_speakers:
                 if max_speakers > 1:
-                    warnings.warn("Ignoring segment with %d speakers > %d" % (data["nbrSpk"], max_speakers))
+                    warnings.warn("Skipping segment with %d speakers > %d" % (data["nbrSpk"], max_speakers))
                 continue
             if max_text_length and len(data["text"]) > max_text_length:
-                warnings.warn("Ignoring segment with text of length %d > %d" % (len(data["text"]), max_text_length))
+                warnings.warn("Skipping segment with text of length %d > %d" % (len(data["text"]), max_text_length))
                 continue
             final_list_of_speakers[data["spkId"]] = data["gender"]
             segments_fid.write(data["id"]+" "+basename+" "+data["sTime"]+" "+data["eTime"]+"\n")
@@ -80,37 +87,46 @@ def transcriber2kaldi_add_file(trs_file, audio_file, output_folder, max_speakers
             spk2gender_fid.write(spk_id+" "+re.sub('^[^mf].*','m',gender)+"\n")
 
         wav_fid.write(basename+" sox "+ audio_file +" -t wav -r 16k -b 16 -c 1 - |\n")
-    segments_fid.close()
-    utt2spk_fid.close()
-    text_fid.close()
-    wav_fid.close()
-    spk2gender_fid.close()
 
     assert os.system("sort %s | uniq > %s.tmp" % (spk2gender, spk2gender)) == 0
     assert os.system("mv %s.tmp %s" % (spk2gender, spk2gender)) == 0
 
+def list_files(folder, subfolders=False, extension=None):
+    if subfolders:
+        list_files = []
+        for root, dirs, files in os.walk(folder):
+            root = root[len(folder):]
+            to_add = [os.path.join(root, i) for i in files if (i.lower().endswith(extension) or extension is None)]
+            list_files.extend(to_add)
+        return list_files
+    else:
+        return [os.path.join(folder, i) for i in os.listdir(folder) if (i.lower().endswith(extension) or extension is None)]
 
-def transcriber2kaldi(trs_folder, audio_folder, output_folder, language=None, audio_extensions=[".wav", ".mp3"], **kwargs):
+def transcriber2kaldi(trs_folder, audio_folder, output_folder, language=None, audio_extensions=[".wav", ".mp3"], subfolders=False, function_to_id=None, ignore_missing_audio=False, **kwargs):
 
     if os.path.isdir(output_folder):
         raise RuntimeError(f"Output folder {output_folder} already exists. Please remove it to overwrite.")
 
-    for filename in os.listdir(trs_folder):
-        if not filename.lower().endswith(".trs"): continue
+    for filename in tqdm(list_files(trs_folder, subfolders=subfolders, extension=".trs")):
         basename = os.path.splitext(filename)[0]
+        if function_to_id is not None:
+            basename = function_to_id(basename)
         trs_file = os.path.join(trs_folder, filename)
         audio_files = []
         for audio_extension in audio_extensions:
-            audio_files += glob(os.path.join(audio_folder, basename + case_insensitive(audio_extension)))
+            audio_files += glob(os.path.join(audio_folder, basename + audio_extension))
         if len(audio_files) == 0:
-            raise RuntimeError(f"Audio file not found for {filename} (in {audio_folder})")
+            if not ignore_missing_audio:
+                raise RuntimeError(f"Audio file not found for {filename} (in {audio_folder})")
+            else:
+                warnings.warn(f"Skipping {filename}, audio file not found in {audio_folder}")
+                continue
         audio_file = audio_files[0]
         transcriber2kaldi_add_file(
             trs_file, audio_file, output_folder, **kwargs
         )
 
     check_kaldi_dir(output_folder, language=language)
-
 
 def case_insensitive(s):
     return ''.join(['['+c.upper()+c.lower()+']' if c.isalpha() else c for c in s])
@@ -128,6 +144,9 @@ if __name__ == '__main__':
     parser.add_argument('--remove_extra_speech', default=False, action="store_true", help='Remove extra speech (events, comments, background)')
     parser.add_argument('--max_text_length', default=None, type=int, help='Maximum text length in number of charachers (default: None)')
     parser.add_argument('--language', default="fr", type=str, help='Main language (only for checking the charset and giving warnings)')
+    parser.add_argument('--subfolders', default=False, action="store_true", help='Search for trs files in subfolders')
+    parser.add_argument('--ignore_missing_audio', default=False, action="store_true", help='Ignore missing audio files')
+    parser.add_argument('--audio_extensions', default=[".wav",".mp3"], nargs='+', type=str, help='Audio extensions to look for (default: .wav .mp3)')
     args = parser.parse_args()
 
     if not args.audio_folder:
@@ -148,4 +167,7 @@ if __name__ == '__main__':
         max_text_length=args.max_text_length,
         remove_extra_speech=args.remove_extra_speech,
         language=args.language,
+        subfolders=args.subfolders,
+        ignore_missing_audio=args.ignore_missing_audio,
+        audio_extensions=args.audio_extensions
     )
