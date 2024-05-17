@@ -58,17 +58,12 @@ mappings = {
     "ال ثلاث":"الثلاثة",
 }
 
-def normalize_tunisan_multi_words(text):
+def normalize_tunisan_words(text):
     for key, value in mappings.items():
-        text = re.sub(re.escape(key), value, text)
+        text = re.sub(r"\b" + re.escape(key) + r"\b", value, text)
+    for key, value in normalization_words.items():
+        text = re.sub(r"\b" + re.escape(key) + r"\b", value, text)
     return text
-
-def normalize_tunisan_one_words(text):
-    normalized_text = []
-    for word in text.split():
-        normalized_word = normalization_words.get(word, word)
-        normalized_text.append(normalized_word)
-    return ' '.join(normalized_text)
 
 def bw_transliterate(text):
     return bw.transliterate(text)
@@ -157,12 +152,14 @@ def remove_repeated_chars(word, threshold=2):
 def remove_long_words(text, threshold=15):
     return (" ").join(word for word in text.split(" ") if len(word) < threshold)
 
-def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar_tn", normalize_tn_words=False):
+def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar_tn", normalize_dialect_words=True):
     input_line = line
     try:
-        if normalize_tn_words:
-            line = normalize_tunisan_multi_words(line)
-            line = normalize_tunisan_one_words(line)
+        if normalize_dialect_words:
+            if lang == "ar_tn":
+                line = normalize_tunisan_words(line)
+            else:
+                raise NotImplementedError(f"Normalization of words is not implemented for dialect {lang}")
         line = remove_url(line)
         line = symbols_to_letters(line, lang=lang, lower_case=False)
         line = normalize_arabic_currencies(line, lang=lang)
