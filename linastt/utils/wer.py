@@ -317,6 +317,9 @@ def plot_wer(
     small_hatch=True,
     title=None,
     label_rotation=15,
+    label_fontdict={'weight': 'bold'},
+    ymin=0,
+    ymax=None,
     **kwargs
     ):
     """
@@ -342,6 +345,7 @@ def plot_wer(
 where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
 
     import matplotlib.pyplot as plt
+    plt.clf()
     kwargs_ins = kwargs.copy()
     kwargs_del = kwargs.copy()
     kwargs_sub = kwargs.copy()
@@ -355,28 +359,36 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if sort_best:
         keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
     positions = range(len(keys))
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
-        vals = [get_stat_list(wer_dict[k]) for k in keys]
-        plt.boxplot(vals, positions = positions, whis=100)
     D = [get_stat_average(wer_dict[k], "del") for k in keys]
     I = [get_stat_average(wer_dict[k], "ins") for k in keys]
     S = [get_stat_average(wer_dict[k], "sub") for k in keys]
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     n = 2 if small_hatch else 1
+    
+    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
+        vals = [get_stat_list(wer_dict[k]) for k in keys]
+        plt.boxplot(vals, positions = positions, whis=100)
+        # plt.violinplot(vals, positions = positions, showmedians=True, quantiles=[[0.25, 0.75] for i in range(len(vals))], showextrema=True)
+
     for _, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
         assert abs(w - (d + i + s)) < 0.0001
         do_label = label and _ == 0
         plt.bar([pos], [i], bottom=[d+s], hatch="*"*n, label="Insertion" if do_label else None, **kwargs_ins, **opts)
         plt.bar([pos], [d], bottom=[s], hatch="O"*n, label="Deletion" if do_label else None, **kwargs_del, **opts)
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
-    plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict={'weight': 'bold'}) # , 'size': 'x-large'
+    plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
+    if ymax is None:
+        _, maxi = plt.ylim()
+        plt.ylim(bottom=ymin, top=min(100, maxi))
+    else:
+        plt.ylim(bottom=ymin, top=ymax)
     if legend:
         plt.legend()
     if title:
         plt.title(title)
     if isinstance(show, str):
-        plt.savefig(show)
+        plt.savefig(show, bbox_inches="tight")
     elif show:
         plt.show()
 
