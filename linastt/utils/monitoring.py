@@ -347,28 +347,33 @@ def _name_to_suffix(
 
 
 class Monitoring:
-    def __init__(self, output_folder="", name = "", interval=1):
-        
+    def __init__(self, output_folder="", name = "", interval=1, device=0, show_steps=True):
+        self.device = device
         self.output_folder = output_folder
         if not name:
             self.name = output_folder
         else:
             self.name = name
         self.interval = interval
+        self.show_steps = show_steps
         
-    def finish_step(self, monitoring, step_values):
+    def finish_step(self, monitoring, step_values, step=0, start=0):
         for i in step_values:
             if i not in monitoring:
                 monitoring[i] = []
             monitoring[i].extend(step_values[i])
+        if self.steps:
+            if 'steps' not in monitoring:
+                monitoring['steps'] = []
+            if 'steps_end' not in monitoring:
+                monitoring['steps_end'] = []
+            monitoring['steps'].append(self.steps[step])
+            monitoring['steps_end'].append(time.time()-start)
         return monitoring
 
     def get_hardware_info(self, handle, start, step_monitoring):
         ram_usage = psutil.virtual_memory().used/1024**3
         cpu_usage = psutil.cpu_percent()
-        vram_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        vram_usage = vram_info.used/1024**3
-        gpu_usage = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
         time_point = time.time()-start
         if 'ram_usage' not in step_monitoring:
             step_monitoring['ram_usage'] = []
@@ -378,10 +383,14 @@ class Monitoring:
         step_monitoring['cpu_usage'].append(cpu_usage)
         if 'vram_usage' not in step_monitoring:
             step_monitoring['vram_usage'] = []
-        step_monitoring['vram_usage'].append(vram_usage)
-        if 'gpu_usage' not in step_monitoring:
-            step_monitoring['gpu_usage'] = []
-        step_monitoring['gpu_usage'].append(gpu_usage)
+        if handle:
+            vram_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            vram_usage = vram_info.used/1024**3
+            gpu_usage = pynvml.nvmlDeviceGetUtilizationRates(handle).gpu
+            step_monitoring['vram_usage'].append(vram_usage)
+            if 'gpu_usage' not in step_monitoring:
+                step_monitoring['gpu_usage'] = []
+            step_monitoring['gpu_usage'].append(gpu_usage)
         if 'time_points' not in step_monitoring:
             step_monitoring['time_points'] = []
         step_monitoring['time_points'].append(time_point)
@@ -391,9 +400,22 @@ class Monitoring:
         with open(os.path.join(self.output_folder, 'monitoring.json'), 'w') as f:
             json.dump(monitoring, f, indent=2)
 
-    def plot_hardware(self, values, times, output_folder, ylabel="RAM Usage", lims=None):
+    def plot_hardware(self, values, times, output_folder, ylabel="RAM Usage", lims=None, steps=None):
         plt.clf()
         plt.plot(times, values, color='skyblue')
+        if self.show_steps:
+            if isinstance(steps, dict):
+                positions = list(steps.values())
+                labels = list(steps.keys())
+            else:
+                positions = steps
+                labels = None
+            for i in range(len(positions)-1):
+                plt.axvline(x=positions[i], color='red', linestyle='--')
+            if labels:
+                for i, txt in enumerate(labels):
+                    pos = (positions[i]+positions[i-1])/2 if i>0 else positions[i]/2
+                    plt.text(pos, 0, txt, rotation=0, ha='center', va='top')
         plt.xlabel('Time (s)')
         plt.ylabel(ylabel)
         if lims:
@@ -405,11 +427,13 @@ class Monitoring:
         plt.close()    
        
     def plot_monitoring(self, monitoring, output_folder, handle):
-        vram_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        self.plot_hardware(monitoring['ram_usage'], monitoring['time_points'], output_folder, ylabel="RAM Usage", lims=(0, psutil.virtual_memory().total/1024**3))
-        self.plot_hardware(monitoring['cpu_usage'], monitoring['time_points'], output_folder, ylabel="CPU Usage", lims=(0, 100))
-        self.plot_hardware(monitoring['vram_usage'], monitoring['time_points'], output_folder, ylabel="VRAM Usage", lims=(0, vram_info.total/1024**3))
-        self.plot_hardware(monitoring['gpu_usage'], monitoring['time_points'], output_folder, ylabel="GPU Usage", lims=(0, 100))
+        steps = {monitoring['steps'][i]: monitoring['steps_end'][i] for i in range(len(monitoring['steps']))} if 'steps' in monitoring else None
+        self.plot_hardware(monitoring['ram_usage'], monitoring['time_points'], output_folder, ylabel="RAM Usage", steps=steps, lims=(0, psutil.virtual_memory().total/1024**3))
+        self.plot_hardware(monitoring['cpu_usage'], monitoring['time_points'], output_folder, ylabel="CPU Usage", steps=steps, lims=(0, 100))
+        if handle:
+            vram_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            self.plot_hardware(monitoring['vram_usage'], monitoring['time_points'], output_folder, ylabel="VRAM Usage", steps=steps, lims=(0, vram_info.total/1024**3))
+            self.plot_hardware(monitoring['gpu_usage'], monitoring['time_points'], output_folder, ylabel="GPU Usage", steps=steps, lims=(0, 100))
     
     def plot_bench_total_gpu_usage(folder):
         configs = [i for i in os.listdir(folder) if os.path.isdir(os.path.join(folder, i))]
@@ -430,32 +454,44 @@ class Monitoring:
         
     
     def monitor(self):
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        if self.device!="cpu":
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(self.device)
+        else:
+            handle = None
         if os.path.exists(os.path.join(self.output_folder, 'monitoring.json')):
             with open(os.path.join(self.output_folder, 'monitoring.json'), 'r') as f:
                 monitoring = json.load(f)
             start = time.time() - monitoring['time_points'][-1]
+            if "device" in monitoring and monitoring['device']!=(pynvml.nvmlDeviceGetName(handle) if handle else 'cpu'):
+                raise ValueError("The device used in the monitoring is different from the one specified in the current monitoring")
         else:
-            monitoring = dict()            
+            monitoring = dict()
+            monitoring['device'] = pynvml.nvmlDeviceGetName(handle) if handle else 'cpu' 
             start = time.time()
         step = 0
         step_monitoring = dict()
         while not self.event_stop.is_set():
             if self.event_next.is_set():
                 self.event_next.clear()
-                monitoring = self.finish_step(monitoring, step_monitoring)
+                monitoring = self.finish_step(monitoring, step_monitoring, step, start)
                 self.save_monitoring(monitoring)
                 step_monitoring = dict()
                 step +=1 
             step_monitoring = self.get_hardware_info(handle, start, step_monitoring)
             time.sleep(self.interval)
+        step_monitoring = self.get_hardware_info(handle, start, step_monitoring)
+        monitoring = self.finish_step(monitoring, step_monitoring, step, start)
         monitoring['total_gpu_usage'] = np.trapz(monitoring['gpu_usage'], monitoring['time_points'])/100
         self.save_monitoring(monitoring)
         self.plot_monitoring(monitoring, self.output_folder, handle)
-        pynvml.nvmlShutdown()
+        if handle:
+            pynvml.nvmlShutdown()
     
     def start(self, steps=None):
+        get_num_gpus()
+        self.device = self.device if self.device else 0
+        self.device = ALL_GPU_INDICES[self.device]
         self.event_stop = threading.Event()
         self.event_next = threading.Event()
         self.steps = steps
