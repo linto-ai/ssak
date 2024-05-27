@@ -106,7 +106,7 @@ def get_arabic_only(text, keep_punc=False, keep_latin_chars=False):
 
     if keep_punc:
         if keep_latin_chars:
-            what_to_keep += _regex_all_punctuation + _regex_latin_punctuation
+            what_to_keep += _regex_all_punctuation
         else:
             what_to_keep += _regex_arabic_punctuation
 
@@ -153,7 +153,6 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
         else:
             line = unglue_arabic_and_latin_chars(line)
-            line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)
             line = remove_special_characters(line)
             if not keep_punc:
                 line = remove_punctuations(line, " ")
