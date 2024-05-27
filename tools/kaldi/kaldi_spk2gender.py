@@ -112,9 +112,9 @@ def main(args):
 
     # Example usage
     segment_dict = generate_segment_dict(args.kaldi_dir)
-    kaldi_segment_file = os.path.join(args.kaldi_dir, 'spk2gender')
-    if not os.path.exists(kaldi_segment_file):
-        with open(kaldi_segment_file, "w", encoding='utf-8') as gender_f:
+    kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
+    if not os.path.exists(kaldi_spk2g_file):
+        with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
             for k, _ in segment_dict.items():
                 try:
                     segment_audio, sr = load_segment_audio(segment_dict, k)
