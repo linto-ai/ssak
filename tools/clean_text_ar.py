@@ -18,10 +18,15 @@ if __name__ == "__main__":
     parser.add_argument('--keep_latin_chars', help="Whether to keep latin characters (otherwise, only arabic characters)", default= False, action="store_true")
     parser.add_argument('--bw', help="Whether to transliterate text into buckwalter encoding.", default= False, action="store_true")
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
-
+    parser.add_argument('--language', default="ar", type=str, help="Whether to use 'ar or ar_tn'")
+    parser.add_argument('--normalize_dialect_words', help="Whether to Normalize language words", default=False, action="store_true")
     args = parser.parse_args()
 
     input_file = args.input
+
+    if args.language == "tn":
+        args.language = "ar_tn"
+
     if args.output:
         output_file = args.output
         if os.path.exists(output_file):
@@ -52,10 +57,13 @@ if __name__ == "__main__":
                 words = line.split()
                 assert len(words) >= args.ignore_first, f"Line {line} has less than {args.ignore_first} words"
                 line = " ".join(words[args.ignore_first:])
+
             line = format_text_ar(line,
                 keep_punc=args.keep_punc,
                 keep_latin_chars=args.keep_latin_chars,
-                bw=args.bw
+                bw=args.bw,
+                lang=args.language,
+                normalize_dialect_words=args.normalize_dialect_words
             )
             for subline in line.splitlines():
                 subline = subline.strip()

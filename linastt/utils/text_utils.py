@@ -397,7 +397,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = digitf[:i].lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar", "ar_tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get(lang, {}).get(second,digitf[i+1:])
             else:
@@ -424,7 +424,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     elif len(sfirst) == 4: # 2019/1/1
                         is_date = third > 0 and third < 32 and second > 0 and second < 13 and first > 1000
                         if is_date:
-                            if lang == "ar":
+                            if lang == "ar" or lang == "ar_tn":
                                 is_islamic_date = is_date and first < 1600
                             first, third = third, first
                             sfirst, sthird = sthird, sfirst
@@ -432,7 +432,7 @@ def cardinal_numbers_to_letters(text, lang, verbose=False):
                     pass
             if is_date:
                 first = sfirst.lstrip("0")
-                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar"] and first[-1] in ["1", "2", "3"])
+                use_ordinal = (lang == "ru") or (lang == "fr" and first == "1") or (lang not in ["fr", "ar", "ar_tn"] and first[-1] in ["1", "2", "3"])
                 first = undigit(first, lang=lang, to="ordinal" if use_ordinal else "cardinal")
                 second = _int_to_month.get("ar_islamic" if is_islamic_date else lang, {}).get(int(ssecond), ssecond)
                 use_ordinal = (lang == "ru")
@@ -506,6 +506,7 @@ def roman_numbers_to_letters(text, lang):
             digits = sorted(list(set(digits)), reverse=True,
                             key=lambda x: (len(x), x))
             for s in digits:
+                
                 filtered = re.sub("[a-zèº]", "", s)
                 ordinal = filtered != s
                 digit = roman_to_decimal(filtered)
@@ -593,6 +594,13 @@ def undigit(s, lang, to="cardinal", type="masc_gen", ignore_first_zeros=False):
                 return "half"
             if s == "4":
                 return "quarter"
+        elif lang == "ar_tn" or lang =="ar":
+            if s == "2":
+                return "نصف"
+            if s == "1/3":
+                return "ثلث"
+            if s == "1/4":
+                return "ربع"
         elif lang == "es":
             if s == "2":
                 return "mitad"
@@ -626,7 +634,7 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
     - comma in Arabic
     - avoid overflow error on big numbers
     """
-    if lang == "ar":
+    if lang == "ar" or lang == "ar_tn":
         to = "cardinal" # See https://github.com/savoirfairelinux/num2words/issues/403
     try:
         res = num2words(x, lang=lang, to=to)
@@ -645,6 +653,8 @@ def robust_num2words(x, lang, to="cardinal", orig=""):
         res = res.replace("vingtsième", "vingtième")
     elif lang == "ar":
         res = res.replace(",","فاصيله")
+    elif lang == "ar_tn":
+        res = res.replace(",","فاصل")
     return res
 
 
@@ -821,6 +831,20 @@ _int_to_month = {
         11: "ذو القعدة",
         12: "ذو الحجة",
     },
+    "ar_tn": {
+        1: "جانفي",
+        2: "فيفري",
+        3: "مارس",
+        4: "أفريل",
+        5: "ماي",
+        6: "جوان",
+        7: "جويلية",
+        8: "أوت",
+        9: "سبتمبر",
+        10: "أكتوبر",
+        11: "نوفمبر",
+        12: "ديسمبر",
+    },
     "ru": { # all forms are genetive
         1: "января",
         2: "февраля",
@@ -862,6 +886,14 @@ _punct_to_word = {
         "?": "علامه الاستفهام",
         "!": "علامه التعجب",
     },
+    "ar_tn": {
+        ",": "فاصل",
+        ".": "فاصل", # "نقطه",
+        ";": "نقطه و فاصل",
+        ":": "نقطتين",
+        "?": "علامه الاستفهام",
+        "!": "علامه التعجب",
+    },
     "ru": {
         ",": "запятая",
         ".": "точка",
@@ -875,7 +907,8 @@ _punct_to_word = {
 _minus = {
     "en": "minus",
     "fr": "moins",
-    "ar": "سالب",
+    # "ar": "سالب",
+    # "ar_tn": "ناقس",
     "de": "minus",
     "es": "menos",
     "it": "meno",
