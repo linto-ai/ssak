@@ -11,15 +11,13 @@ from linastt.utils.text_utils import (
     remove_punctuations,
 )
 from lang_trans.arabic import buckwalter as bw
-import string
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-ZÀ-ÖØ-öø-ÿĀ-ž'"  # Latin characters with common diacritics and '
 _arabic_punctuation = "؟!،.؛\"'-_:"
-_latin_punctuation = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
+_latin_punctuation = "!?.,:;" # string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
 _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
 # Need unescape for regex
 _regex_arabic_punctuation = regex_escape(_arabic_punctuation)
-_regex_latin_punctuation = regex_escape(_latin_punctuation)
 _regex_all_punctuation = regex_escape(_all_punctuation)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
