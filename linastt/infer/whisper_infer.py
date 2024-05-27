@@ -82,7 +82,7 @@ def whisper_infer(
                 condition_on_previous_text = condition_on_previous_text,
                 no_speech_threshold = no_speech_threshold, logprob_threshold = logprob_threshold, compression_ratio_threshold = compression_ratio_threshold,
                 without_timestamps = False,
-                initial_prompt = prompt,
+                initial_prompt = prompt if prompt else None,
             )
             # Note: other interesting keys of res are:
             #   "segments": {"start", "end", "seek", "text", "tokens", "temperature", "avg_logprob", "no_speech_prob", "compression_ratio"}
@@ -305,7 +305,7 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", default=0.0, help="temperature to use for sampling", type=float)
     parser.add_argument("--temperature_increment_on_fallback", default=0.0, help="temperature to increase when falling back when the decoding fails to meet either of the thresholds below", type=float)
     parser.add_argument("--condition_on_previous_text", default=False, help="if True, provide the previous output of the model as a prompt for the next window; disabling may make the text inconsistent across windows, but the model becomes less prone to getting stuck in a failure loop", type=str2bool)
-    parser.add_argument("--prompt", default=False, help="Initial prompt to use", type=str)
+    parser.add_argument("--prompt", default=None, help="Initial prompt to use", type=str)
     parser.add_argument('--output', help="Output path (will print on stdout by default)", default = None)
     parser.add_argument('--use_ids', help="Whether to print the id before result", default=False, action="store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)

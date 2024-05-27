@@ -395,7 +395,7 @@ if __name__ == '__main__':
                     rewrite_formatted(output_file_ok_stt, do_unupper_case)
 
         if do_hate and not discarded:
-            hate_score = is_hate_speech(text, lang=lang, return_score=True)
+            hate_score = is_hate_speech(text, lang=lang, return_type="score")
             is_hate = hate_score > 0.5
             if is_hate:
                 print("Hate score", os.path.basename(csv_file), ":", hate_score)

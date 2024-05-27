@@ -171,7 +171,7 @@ def remove_non_speech(audio,
                       **kwargs,
                       ):
     """
-    Remove non-speech segments from audio (using Silero VAD),
+    Remove non-speech segments from audio (using Silero or Auditok, see get_vad_segments),
     glue the speech segments together and return the result along with
     a function to convert timestamps from the new audio to the original audio
     """
