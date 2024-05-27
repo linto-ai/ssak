@@ -11,11 +11,11 @@ from linastt.utils.text_utils import (
     remove_punctuations,
 )
 from lang_trans.arabic import buckwalter as bw
-
+import string
 _regex_arabic_chars = "\u0621-\u063A\u0640-\u064A"
 _regex_latin_chars = "a-zA-ZÀ-ÖØ-öø-ÿĀ-ž'"  # Latin characters with common diacritics and '
-_arabic_punctuation = "؟!،.؛,\"'-_"
-_latin_punctuation = "!?.,:;\"'-_"
+_arabic_punctuation = "؟!،.؛\"'-_:"
+_latin_punctuation = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
 _all_punctuation = "".join(list(set(_latin_punctuation + _arabic_punctuation)))
 # Need unescape for regex
 _regex_arabic_punctuation = regex_escape(_arabic_punctuation)
@@ -29,13 +29,19 @@ def load_json_file(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            print(f"JSON file '{filepath}' loaded successfully")
             return data
-    except Exception as e:
-        print(f"Error loading JSON file '{filepath}': {e}")
-        return None
+    except Exception as err:
+        raise RuntimeError(f"Error loading JSON file '{filepath}'") from err
 
-normalization_rules = load_json_file(f'{assets_path}/Arabic_normalization_chars.json')
+normalization_rules = None
+
+def normalize_chars(text):
+    global normalization_rules
+    if normalization_rules is None:
+        normalization_rules = load_json_file(f'{assets_path}/Arabic_normalization_chars.json')
+    regex = re.compile("[" + "".join(map(re.escape, normalization_rules.keys())) + "]")
+    text = regex.sub(lambda match: normalization_rules[match.group(0)], text)
+    return text
 
 normalization_words = None
 
@@ -91,13 +97,6 @@ def convert_punct_to_arabic(text):
     text = re.sub(",", "،", text)
     return text
 
-
-
-def normalize_chars(text):
-    regex = re.compile("[" + "".join(map(re.escape, normalization_rules.keys())) + "]")
-    text = regex.sub(lambda match: normalization_rules[match.group(0)], text)
-    return text
-
 def remove_url(text):
     return re.sub('http://\S+|https://\S+', " ", text)
 
@@ -107,7 +106,7 @@ def get_arabic_only(text, keep_punc=False, keep_latin_chars=False):
 
     if keep_punc:
         if keep_latin_chars:
-            what_to_keep += _regex_all_punctuation
+            what_to_keep += _regex_all_punctuation + _regex_latin_punctuation
         else:
             what_to_keep += _regex_arabic_punctuation
 
@@ -125,9 +124,10 @@ def unglue_arabic_and_latin_chars(line):
     line = re.sub(" {2,}", " ", line)
     return line
 
-def remove_repeated_chars(word, threshold=2):
-    pattern = r'(.)\1{' + str(threshold) + ',}'
-    return re.sub(pattern, r'\1', word)
+def remove_repeated_ar_chars(word, maximum=2):
+    pattern = '(' + _regex_arabic + r')\1{' + str(maximum) + ',}'
+    return re.sub(pattern, r'\1' * maximum, word)
+
 
 def remove_long_words(text, threshold=15):
     return " ".join(word for word in text.split(" ") if len(word) < threshold)
@@ -147,7 +147,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = remove_arabic_diacritics(line)
         line = normalize_chars(line)
         line = convert_punct_to_arabic(line)
-        line = remove_repeated_chars(line)
+        line = remove_repeated_ar_chars(line)
         line = remove_long_words(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc, keep_latin_chars=keep_latin_chars)

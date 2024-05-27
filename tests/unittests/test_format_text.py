@@ -238,7 +238,7 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            sentence #'في اللغة الإنجليزية ، يمكن للمرء أن يقول Hello world !'
+            sentence # "في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!"
         )
 
         sentence = "؟Jérôme。"
@@ -253,7 +253,7 @@ class TestFormatTextArabic(Test):
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            "؟Jérôme"
+            sentence # "؟Jérôme。"
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
@@ -366,6 +366,13 @@ class TestFormatTextArabic(Test):
             'بقداش أك الخبزه'
         )
 
+    def test_remove_repeated_ar_chars(self):
+        sentence = "صببباح النووووور Meeeerci"
+        
+        self.assertEqual(
+            format_text_ar(sentence, keep_latin_chars=True),
+            'صبباح النوور Meeeerci'
+        )
     # def test_digit_round_check(self):
 
     #     from linastt.utils.language import translate_language
