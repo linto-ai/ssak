@@ -13,28 +13,39 @@ def read_audio_segment(kaldi_folder):
     # Define paths
     segments_file = os.path.join(kaldi_folder, 'segments')
     wav_scp_file = os.path.join(kaldi_folder, 'wav.scp')
+    utt2dur_file = os.path.join(kaldi_folder, 'utt2dur')
 
-    # Read segments file
     segments = {}
-    with open(segments_file, 'r') as seg_f:
-        for line in seg_f:
-            parts = line.strip().split()
-            seg_id = parts[0]
-            start_time = float(parts[2])
-            end_time = float(parts[3])
-            audio_id = parts[1]
-            segments[seg_id] = {'start': start_time, 'end': end_time, 'audio_id': audio_id}
+    wav_scp = {}
+
+    # Read segments file if it exists
+    if os.path.exists(segments_file):
+        with open(segments_file, 'r') as seg_f:
+            for line in seg_f:
+                parts = line.strip().split()
+                seg_id = parts[0]
+                start_time = float(parts[2])
+                end_time = float(parts[3])
+                audio_id = parts[1]
+                segments[seg_id] = {'start': start_time, 'end': end_time, 'audio_id': audio_id}
 
     # Read wav.scp file
-    wav_scp = {}
     with open(wav_scp_file, 'r') as f:
         for line in f:
             parts = line.strip().split()
             audio_id = parts[0]
-            audio_path = parts[2]
+            audio_path = parts[2]  # Assuming audio path is at index 1
             wav_scp[audio_id] = audio_path
 
-    # Get segment details
+    # If segments file doesn't exist, read utt2dur file
+    if not os.path.exists(segments_file) and os.path.exists(utt2dur_file):
+        with open(utt2dur_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                audio_id = parts[0]
+                duration = float(parts[1])
+                segments[audio_id] = {'start': 0, 'end': duration, 'audio_id': audio_id}
+
     return segments, wav_scp
 
 
