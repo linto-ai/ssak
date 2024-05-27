@@ -123,7 +123,7 @@ def main(args):
                     gender_f.write(f'{k} {gender.lower()}\n')
                     gender_f.flush()
                 except Exception as e:
-                    print(f"Error processing segment {k}: {e}")
+                    raise RuntimeError(f"Error processing segment {k}") from e
     else:
         print('WARNING!! File already exists!')
 
