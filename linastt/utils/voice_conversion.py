@@ -22,6 +22,105 @@ import warnings
 # Ignore all warnings
 warnings.simplefilter("ignore")
 
+def create_arg_parser():
+    parser = argparse.ArgumentParser(description="Audio changer using SVC model")
+
+    # paths
+    parser.add_argument(
+        "kaldi_folder",
+        type=str,
+        help="Input Kaldi folder",
+    )
+    parser.add_argument(
+        "model_base_path",
+        type=str,
+        help="Path to the SVC models (the models should be with the same name exist in config.json)",
+    )
+    parser.add_argument(
+        "-o","--output_path",
+        type=str,
+        default=None,
+        help="Output path or directory for the processed audio files",
+    )
+    parser.add_argument(
+        "-ms","--max_spk",
+        type=str,
+        default="1",
+        help="Muximume speakers to use",
+    )
+    parser.add_argument(
+        "-s","--speaker",
+        type=str,
+        default=None,
+        help="speaker to use",
+    )
+    parser.add_argument(
+        "-t","--transpose",
+        type=int,
+        default=0,
+        help="Transpose factor for pitch shifting (default: 0)",
+    )
+    parser.add_argument(
+        "-a","--auto_predict_f0",
+        action="store_true",
+        help="Automatically predict F0 (default: False)",
+    )
+    parser.add_argument(
+        "-cl","--cluster_infer_ratio",
+        type=float,
+        default=0,
+        help="Ratio of clusters to infer from the cluster model (default: 0)",
+    )
+    parser.add_argument(
+        "-ns","--noise_scale",
+        type=float,
+        default=0.4,
+        help="Noise scale for wave synthesis (default: 0.4)",
+    )
+    parser.add_argument(
+        "-f0","--f0_method",
+        type=str,
+        choices=["crepe", "crepe-tiny", "parselmouth", "dio", "harvest"],
+        default="crepe",
+        help="F0 estimation method (default: crepe)",
+    )
+
+    # slice config
+    parser.add_argument(
+        "--db_thresh",
+        type=int,
+        default=-40,
+        help="Decibel threshold for silence detection (default: -40)",
+    )
+    parser.add_argument(
+        "--pad_seconds",
+        type=float,
+        default=0.5,
+        help="Padding duration in seconds for slicing (default: 0.5)",
+    )
+    parser.add_argument(
+        "--chunk_seconds",
+        type=float,
+        default=0.5,
+        help="Chunk duration in seconds for slicing (default: 0.5)",
+    )
+    parser.add_argument(
+        "-ab","--absolute_thresh",
+        action="store_true",
+        help="Use absolute threshold for silence detection (default: False)",
+    )
+
+    parser
+    # device
+    parser.add_argument(
+        "-d","--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device to use for inference (default: cuda if available, else cpu)",
+    )
+
+    return parser
+
 def read_and_generate_segment_dict(kaldi_dir):
     _ , dataframe= kaldi_folder_to_dataset(kaldi_dir, return_format="pandas")
     # print(dataframe)
@@ -69,7 +168,7 @@ def convert_to_int(s):
     else:
         return str(s)
 
-def infer(
+def _convert_voice(
     *,
     input_path: Union[Path, str],
     output_path: Union[Path, str],
@@ -218,106 +317,6 @@ def infer(
         del svc_model
         torch.cuda.empty_cache()
 
-def create_arg_parser():
-    parser = argparse.ArgumentParser(description="Audio inference using SVC model")
-
-    # paths
-    parser.add_argument(
-        "kaldi_folder",
-        type=str,
-        help="Input Kaldi folder",
-    )
-    parser.add_argument(
-        "model_base_path",
-        type=str,
-        help="Path to the SVC models (the models should be with the same name exist in config.json)",
-    )
-    parser.add_argument(
-        "-o","--output_path",
-        type=str,
-        default=None,
-        help="Output path or directory for the processed audio files",
-    )
-    parser.add_argument(
-        "-ms","--max_spk",
-        type=str,
-        default="1",
-        help="Muximume speakers to use",
-    )
-    parser.add_argument(
-        "-s","--speaker",
-        type=str,
-        default=None,
-        help="speaker to use",
-    )
-    parser.add_argument(
-        "-t","--transpose",
-        type=int,
-        default=0,
-        help="Transpose factor for pitch shifting (default: 0)",
-    )
-    parser.add_argument(
-        "-a","--auto_predict_f0",
-        action="store_true",
-        help="Automatically predict F0 (default: False)",
-    )
-    parser.add_argument(
-        "-cl","--cluster_infer_ratio",
-        type=float,
-        default=0,
-        help="Ratio of clusters to infer from the cluster model (default: 0)",
-    )
-    parser.add_argument(
-        "-ns","--noise_scale",
-        type=float,
-        default=0.4,
-        help="Noise scale for wave synthesis (default: 0.4)",
-    )
-    parser.add_argument(
-        "-f0","--f0_method",
-        type=str,
-        choices=["crepe", "crepe-tiny", "parselmouth", "dio", "harvest"],
-        default="crepe",
-        help="F0 estimation method (default: crepe)",
-    )
-
-    # slice config
-    parser.add_argument(
-        "--db_thresh",
-        type=int,
-        default=-40,
-        help="Decibel threshold for silence detection (default: -40)",
-    )
-    parser.add_argument(
-        "--pad_seconds",
-        type=float,
-        default=0.5,
-        help="Padding duration in seconds for slicing (default: 0.5)",
-    )
-    parser.add_argument(
-        "--chunk_seconds",
-        type=float,
-        default=0.5,
-        help="Chunk duration in seconds for slicing (default: 0.5)",
-    )
-    parser.add_argument(
-        "-ab","--absolute_thresh",
-        action="store_true",
-        help="Use absolute threshold for silence detection (default: False)",
-    )
-
-    parser
-    # device
-    parser.add_argument(
-        "-d","--device",
-        type=str,
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        help="Device to use for inference (default: cuda if available, else cpu)",
-    )
-
-    return parser
-
-
 if __name__ == "__main__":
    
    # Create argument parser
@@ -326,7 +325,7 @@ if __name__ == "__main__":
     max_spk = convert_to_int(args.max_spk)
 
     # Call the infer function with parsed arguments
-    infer(
+    _convert_voice(
         input_path=args.kaldi_folder,
         output_path=args.output_path,
         model_base_path=args.model_base_path,
