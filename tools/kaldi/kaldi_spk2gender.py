@@ -1,86 +1,40 @@
 import numpy as np
-import kaldiio
-
+from linastt.utils.audio import load_audio
+from linastt.utils.dataset import kaldi_folder_to_dataset
 import torch
-import torchaudio
-from transformers import AutoConfig, Wav2Vec2FeatureExtractor, Wav2Vec2Processor
-from utils.models_gender import HubertForSpeechClassification
-
+from transformers import AutoConfig, Wav2Vec2FeatureExtractor
+from src.models import HubertForSpeechClassification
+from tqdm import tqdm
 import os
 import argparse
+import warnings
 
-def read_audio_segment(kaldi_folder):
-    # Define paths
-    segments_file = os.path.join(kaldi_folder, 'segments')
-    wav_scp_file = os.path.join(kaldi_folder, 'wav.scp')
-    utt2dur_file = os.path.join(kaldi_folder, 'utt2dur')
+# Ignore all warnings
+warnings.simplefilter("ignore")
 
+
+def read_and_generate_segment_dict(kaldi_dir):
+    _ , dataframe= kaldi_folder_to_dataset(kaldi_dir, return_format="pandas")
     segments = {}
-    wav_scp = {}
-
-    # Read segments file if it exists
-    if os.path.exists(segments_file):
-        with open(segments_file, 'r') as seg_f:
-            for line in seg_f:
-                parts = line.strip().split()
-                seg_id = parts[0]
-                start_time = float(parts[2])
-                end_time = float(parts[3])
-                audio_id = parts[1]
-                segments[seg_id] = {'start': start_time, 'end': end_time, 'audio_id': audio_id}
-
-    # Read wav.scp file
-    with open(wav_scp_file, 'r') as f:
-        for line in f:
-            parts = line.strip().split()
-            audio_id = parts[0]
-            audio_path = parts[2]  # Assuming audio path is at index 1
-            wav_scp[audio_id] = audio_path
-
-    # If segments file doesn't exist, read utt2dur file
-    if not os.path.exists(segments_file) and os.path.exists(utt2dur_file):
-        with open(utt2dur_file, 'r') as f:
-            for line in f:
-                parts = line.strip().split()
-                audio_id = parts[0]
-                duration = float(parts[1])
-                segments[audio_id] = {'start': 0, 'end': duration, 'audio_id': audio_id}
-
-    return segments, wav_scp
-
-
-def generate_segment_dict(kaldi_folder):
-    segments, wav_scp = read_audio_segment(kaldi_folder)
     segment_dict = {}
-    for seg_id, seg_info in segments.items():
-        start_time = seg_info['start']
-        end_time = seg_info['end']
-        audio_id = seg_info['audio_id']
-        audio_path = wav_scp.get(audio_id)
-        if audio_path:
-            segment_dict[seg_id] = {'start': start_time, 'end': end_time, 'wave_path': audio_path}
-        else:
-            print("Warning: Audio file not found for segment ID:", seg_id)
+    for _, row in dataframe.iterrows():
+        audio_id = os.path.basename(row['path']).split(".")[0]
+        seg_id = row['ID']
+        start_time = row['start']
+        end_time = row['end']
+        audio_path = row['path']
+        segments.setdefault(audio_id, []).append({'seg_id':seg_id,'start': start_time, 'end': end_time, "path":audio_path})
+    for audio_id, segment_list in segments.items():
+        segment_dict[audio_id] = {}
+        for segment in segment_list:
+            seg_id = segment['seg_id']
+            segment_dict[audio_id][seg_id] = {
+                'start': segment['start'],
+                'end': segment['end'],
+                'wave_path': segment["path"]
+            }
     return segment_dict
 
-
-def load_segment_audio(segment_dict, segment_id):
-    seg_info = segment_dict.get(segment_id)
-    if seg_info:
-        audio_path = seg_info['wave_path']
-        if os.path.exists(audio_path):
-            start_time = seg_info['start']
-            end_time = seg_info['end']
-            waveform, sample_rate = torchaudio.load(audio_path)
-            start_sample = int(start_time * sample_rate)
-            end_sample = int(end_time * sample_rate)
-            segment_waveform = waveform[:, start_sample:end_sample]
-            return segment_waveform.squeeze().numpy(), sample_rate
-        else:
-            print("Warning: Audio file not found for segment ID:", segment_id)
-    else:
-        print("Warning: Segment ID not found:", segment_id)
-    return None, None
 
 def predict(waveform, sample_rate, feature_extractor, model, config):
     inputs = feature_extractor(waveform, sampling_rate=sample_rate, return_tensors="pt", padding=True)
@@ -111,21 +65,32 @@ def main(args):
     model = HubertForSpeechClassification.from_pretrained(model_name_or_path).to(device)
 
     # Example usage
-    segment_dict = generate_segment_dict(args.kaldi_dir)
-    kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
-    if not os.path.exists(kaldi_spk2g_file):
-        with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
-            for k, _ in segment_dict.items():
-                try:
-                    segment_audio, sr = load_segment_audio(segment_dict, k)
-                    output = predict(segment_audio, sr, feature_extractor, model, config)
-                    gender =  output['Label']
-                    gender_f.write(f'{k} {gender.lower()}\n')
-                    gender_f.flush()
-                except Exception as e:
-                    raise RuntimeError(f"Error processing segment {k}") from e
-    else:
-        print('WARNING!! File already exists!')
+    try:
+        wave_segments = read_and_generate_segment_dict(args.kaldi_dir)
+        kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
+        if not os.path.exists(kaldi_spk2g_file):
+            with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
+                for _, seg_info_dict in tqdm(wave_segments.items(), desc="Processing Waves", unit="wave"):
+                    for segment_id, seg_info in seg_info_dict.items():
+                        try:
+                            audio_path = seg_info['wave_path']
+                            
+                            if os.path.exists(audio_path):
+                                start_time = seg_info['start']
+                                end_time = seg_info['end']
+                                waveform = load_audio(audio_path, start = start_time, end = end_time)
+                                output = predict(waveform, 16000, feature_extractor, model, config)
+                                gender =  output['Label']
+                                gender_f.write(f'{segment_id} {gender.lower()}\n')
+                                gender_f.flush()
+                            else:
+                                raise RuntimeError(f'Audio path {audio_path} is not exist!!!!') 
+                        except Exception as e:
+                            print(f"Error processing segment {segment_id}: {e}")
+        else:
+            print('WARNING!! File already exists!')
+    except:
+        pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gender prediction for audio segments.")

@@ -15,9 +15,11 @@ Levenshtein
 librosa
 loralib
 matplotlib==3.7.4
+noisereduce
 git+https://github.com/hedhoud/num2words.git
 onnxruntime
 openai-whisper
+pedalboard
 peft
 psutil
 praat-textgrids
@@ -30,6 +32,7 @@ pyctcdecode
 pypi-kenlm
 python-magic
 python-slugify
+so-vits-svc-fork
 soxbindings
 tensorboard
 text2num
