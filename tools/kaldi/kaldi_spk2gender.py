@@ -3,7 +3,7 @@ from linastt.utils.audio import load_audio
 from linastt.utils.dataset import kaldi_folder_to_dataset
 import torch
 from transformers import AutoConfig, Wav2Vec2FeatureExtractor
-from src.models import HubertForSpeechClassification
+from linastt.utils.models_gender import HubertForSpeechClassification 
 from tqdm import tqdm
 import os
 import argparse
