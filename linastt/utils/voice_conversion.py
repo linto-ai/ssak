@@ -180,12 +180,7 @@ def _convert_voice(
     absolute_thresh: bool = False,
     device: Union[str, torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ):
-    board = Pedalboard([
-                NoiseGate(threshold_db=-30, ratio=1.5, release_ms=250),
-                Compressor(threshold_db=-15, ratio=2.5),
-                LowShelfFilter(cutoff_frequency_hz=400, gain_db=10, q=1),
-                Gain(gain_db=10)
-            ])
+
     if isinstance(input_path, str):
         input_path = Path(input_path)
     if isinstance(audio_output_path, str):
@@ -219,22 +214,27 @@ def _convert_voice(
     for spk in selected_speaker_models:
         speaker_model_path = Path(model_base_path) / spk
         file_paths = glob.glob(str(speaker_model_path / "G_*.pth"))
+        kmeans_file = glob.glob(str(speaker_model_path / "kmeans*.pt"))
+
         if not file_paths:
             print(f"No model files found for speaker: {spk}")
             continue
 
         latest_model_path = max(file_paths, key=os.path.getmtime)
         latest_model_path = Path(latest_model_path)
+        latest_kmeans_path = max(kmeans_file, key=os.path.getmtime) if kmeans_file else None
         config_path = latest_model_path.parent / "config.json"
-
-        models[spk] = {"model_path": latest_model_path, "config_path": config_path}
+        cluster_model_path = Path(latest_kmeans_path) if latest_kmeans_path else None
+        models[spk] = {"model_path": latest_model_path, "config_path": config_path, "cluster_model_path": cluster_model_path}
+    
+    
     
     svc_models = {}
     for spk, paths in models.items():
         svc_model = Svc(
             net_g_path=paths['model_path'].as_posix(),
             config_path=paths['config_path'].as_posix(),
-            cluster_model_path=None,
+            cluster_model_path= cluster_model_path.as_posix() if cluster_model_path else None,
             device=device,
             )    
         svc_models[spk] = svc_model
@@ -243,7 +243,7 @@ def _convert_voice(
         kf_basename = os.path.basename(input_path)
         file_path = Path(input_path)
         kaldi_parent_folder = file_path.parent
-        kaldi_output = kaldi_parent_folder / f"{kf_basename}_augmented"
+        kaldi_output = kaldi_parent_folder / f"{kf_basename}_svc"
 
     os.makedirs(kaldi_output, exist_ok=True)
 
@@ -280,12 +280,9 @@ def _convert_voice(
                         segments.write(f'{seg_id_with_prefix} {wave_id} {start_time} {end_time}\n')
                         utt2dur.write(f'{seg_id_with_prefix} {duration}\n')
 
-                        waveform = load_audio(audio_path, start=start_time, end=end_time, sample_rate=random_svc_model.target_sample)                    
-                        reduced_noise = nr.reduce_noise(y=waveform, sr=random_svc_model.target_sample)
-                        effected = board(reduced_noise, random_svc_model.target_sample)
-                        
+                        waveform = load_audio(audio_path, start=start_time, end=end_time, sample_rate=random_svc_model.target_sample)                                            
                         audio = random_svc_model.infer_silence(
-                            effected,
+                            waveform,
                             speaker=random_spk,
                             transpose=transpose,
                             auto_predict_f0=auto_predict_f0,
@@ -313,7 +310,7 @@ def _convert_voice(
                     if audio_output_path is None:
                         file_path = Path(audio_path)
                         audio_folder = file_path.parent
-                        audio_output_path = audio_folder.with_name("audio_augmented")
+                        audio_output_path = audio_folder.with_name("audio_svc")
                         audio_output_path.mkdir(parents=True, exist_ok=True)
                     else:
                         os.makedirs(audio_output_path, exist_ok=True)
