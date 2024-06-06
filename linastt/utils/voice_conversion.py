@@ -5,13 +5,12 @@ from typing import Literal, Union
 
 import argparse
 import numpy as np
-import soundfile
+import soundfile as sf
 import torch
 from linastt.utils.dataset import kaldi_folder_to_dataset
 from linastt.utils.audio import load_audio
-from so_vits_svc_fork.inference.core import Svc
-from pedalboard import Pedalboard, NoiseGate, Compressor, LowShelfFilter, Gain
-import noisereduce as nr
+from so_vits_svc_fork.inference.core import Svc, split_silence
+import so_vits_svc_fork.f0
 import glob
 from tqdm import tqdm
 import warnings
@@ -111,6 +110,19 @@ def create_arg_parser():
         action="store_true",
         help="Use absolute threshold for silence detection (default: False)",
     )
+    parser.add_argument(
+        '--voice_change_mode', 
+        choices=['per_chunk', 'per_segment'], 
+        default='per_chunk', 
+        help='Mode of voice change (per_chunk or per_segment)'
+        )
+    parser.add_argument(
+        '--max_chunk_seconds', 
+        type=int, 
+        default=40, 
+        help='Mode of voice change (per_chunk or per_segment)'
+        )
+    
     # device
     parser.add_argument(
         "-d", "--device",
@@ -161,13 +173,68 @@ def convert_to_int(s):
     else:
         return str(s)
 
+def _get_speakers(speaker: str, model_base_path: Path) -> list:
+    if speaker is None:
+        speakers = find_speakers(model_base_path)
+    else:
+        speakers = [speaker]
+    return speakers
+
+def _select_speakers(speakers: list, max_spk: Union[str, int]) -> list:
+    if not speakers:
+        print("The speaker list is empty!")
+        return []
+
+    if isinstance(max_spk, str) and max_spk.lower() == "all":
+        return speakers
+    if isinstance(max_spk, int) and max_spk == 1:
+        return random.sample(speakers, 1)
+    if isinstance(max_spk, int) and max_spk >= len(speakers):
+        return speakers
+    if isinstance(max_spk, int):
+        return random.sample(speakers, max_spk)
+    
+    print(f"Invalid max_spk value: {max_spk}")
+    return []
+
+def _load_svc_models(speakers: list, model_base_path: Path, device: torch.device) -> dict:
+    models = {}
+    for spk in speakers:
+        speaker_model_path = Path(model_base_path) / spk
+        file_paths = glob.glob(str(speaker_model_path / "G_*.pth"))
+        kmeans_file = glob.glob(str(speaker_model_path / "kmeans*.pt"))
+
+        if not file_paths:
+            print(f"No model files found for speaker: {spk}")
+            continue
+
+        latest_model_path = Path(max(file_paths, key=os.path.getmtime))
+        latest_kmeans_path = Path(max(kmeans_file, key=os.path.getmtime)) if kmeans_file else None
+        config_path = speaker_model_path / "config.json"
+        models[spk] = {
+            "model_path": latest_model_path,
+            "config_path": config_path,
+            "cluster_model_path": latest_kmeans_path
+        }
+
+    svc_models = {}
+    for spk, paths in models.items():
+        svc_model = Svc(
+            net_g_path=paths['model_path'].as_posix(),
+            config_path=paths['config_path'].as_posix(),
+            cluster_model_path=paths['cluster_model_path'].as_posix() if paths['cluster_model_path'] else None,
+            device=device,
+        )
+        svc_models[spk] = svc_model
+    return svc_models
+
 def _convert_voice(
     *,
     input_path: Union[Path, str],
     model_base_path: Union[Path, str],
     kaldi_output: Union[Path, str],
     audio_output_path: Union[Path, str],
-    max_spk: Union[str, int]=1,
+    max_spk: Union[str, int] = 1,
     speaker: str,
     transpose: int = 0,
     auto_predict_f0: bool = False,
@@ -178,7 +245,9 @@ def _convert_voice(
     pad_seconds: float = 0.5,
     chunk_seconds: float = 0.5,
     absolute_thresh: bool = False,
-    device: Union[str, torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device: Union[str, torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    voice_change_mode: Literal["per_chunk", "per_segment"] = "per_chunk",
+    max_chunk_seconds: int = 0
 ):
 
     if isinstance(input_path, str):
@@ -188,62 +257,16 @@ def _convert_voice(
     if isinstance(kaldi_output, str):
         kaldi_output = Path(kaldi_output)
 
-    if speaker is None:
-        _speaker = find_speakers(model_base_path)
-        _speaker = list(_speaker)
-    else:
-        _speaker = [speaker]
-        max_spk = 1
-    if not _speaker:
-        print("The _speaker list is empty!")
-        return
-
-    if isinstance(max_spk, str) and max_spk.lower() == "all":
-        selected_speaker_models = _speaker
-    elif isinstance(max_spk, int) and max_spk == 1:
-        selected_speaker_models = random.sample(_speaker, 1)
-    elif isinstance(max_spk, int) and max_spk >= len(_speaker):
-        selected_speaker_models = _speaker
-    elif isinstance(max_spk, int):
-        selected_speaker_models = random.sample(_speaker, max_spk)
-    else:
-        print(f"Invalid max_spk value: {max_spk}")
-        return
+    speakers = _get_speakers(speaker, model_base_path)
+    selected_speaker_models = _select_speakers(speakers, max_spk)
     print(f"Chosen SPK :{selected_speaker_models}")
-    models = {}
-    for spk in selected_speaker_models:
-        speaker_model_path = Path(model_base_path) / spk
-        file_paths = glob.glob(str(speaker_model_path / "G_*.pth"))
-        kmeans_file = glob.glob(str(speaker_model_path / "kmeans*.pt"))
-
-        if not file_paths:
-            print(f"No model files found for speaker: {spk}")
-            continue
-
-        latest_model_path = max(file_paths, key=os.path.getmtime)
-        latest_model_path = Path(latest_model_path)
-        latest_kmeans_path = max(kmeans_file, key=os.path.getmtime) if kmeans_file else None
-        config_path = latest_model_path.parent / "config.json"
-        cluster_model_path = Path(latest_kmeans_path) if latest_kmeans_path else None
-        models[spk] = {"model_path": latest_model_path, "config_path": config_path, "cluster_model_path": cluster_model_path}
-    
-    
-    
-    svc_models = {}
-    for spk, paths in models.items():
-        svc_model = Svc(
-            net_g_path=paths['model_path'].as_posix(),
-            config_path=paths['config_path'].as_posix(),
-            cluster_model_path= cluster_model_path.as_posix() if cluster_model_path else None,
-            device=device,
-            )    
-        svc_models[spk] = svc_model
+    svc_models = _load_svc_models(selected_speaker_models, model_base_path, device)
 
     if kaldi_output is None:
         kf_basename = os.path.basename(input_path)
         file_path = Path(input_path)
         kaldi_parent_folder = file_path.parent
-        kaldi_output = kaldi_parent_folder / f"{kf_basename}_svc"
+        kaldi_output = kaldi_parent_folder / f"{kf_basename}_augmented"
 
     os.makedirs(kaldi_output, exist_ok=True)
 
@@ -256,9 +279,12 @@ def _convert_voice(
                 open(f'{kaldi_output}/utt2dur', 'w', encoding='utf-8') as utt2dur:
             
             wave_segments = read_and_generate_segment_dict(input_path.as_posix())
+
             for wave_id, seg_info_dict in tqdm(wave_segments.items(), desc="Processing Waves", unit="wave"):
                 concat_audio = None
-                for segment_id, seg_info in seg_info_dict.items():
+                audio_path = None
+                waveform = None
+                for segment_id, seg_info in tqdm(seg_info_dict.items(), desc="Processing Segments", unit="segment") if voice_change_mode == "per_segment" else seg_info_dict.items():
                     random_spk = random.choice(list(svc_models.keys()))
                     random_svc_model = svc_models[random_spk]
                     try:
@@ -280,51 +306,121 @@ def _convert_voice(
                         segments.write(f'{seg_id_with_prefix} {wave_id} {start_time} {end_time}\n')
                         utt2dur.write(f'{seg_id_with_prefix} {duration}\n')
 
-                        waveform = load_audio(audio_path, start=start_time, end=end_time, sample_rate=random_svc_model.target_sample)                                            
-                        audio = random_svc_model.infer_silence(
-                            waveform,
-                            speaker=random_spk,
-                            transpose=transpose,
-                            auto_predict_f0=auto_predict_f0,
-                            cluster_infer_ratio=cluster_infer_ratio,
-                            noise_scale=noise_scale,
-                            f0_method=f0_method,
-                            db_thresh=db_thresh,
-                            pad_seconds=pad_seconds,
-                            chunk_seconds=chunk_seconds,
-                            absolute_thresh=absolute_thresh,
-                            max_chunk_seconds=duration,
-                        )
-                        
-                        if concat_audio is None:
-                            concat_audio = audio
-                        else:
-                            concat_audio = np.concatenate((concat_audio, audio))
-    
+                        if voice_change_mode == "per_segment":
+
+                            waveform = load_audio(audio_path, start=start_time, end=end_time, sample_rate=random_svc_model.target_sample)                                            
+                            audio = random_svc_model.infer_silence(
+                                waveform,
+                                speaker=random_spk,
+                                transpose=transpose,
+                                auto_predict_f0=auto_predict_f0,
+                                cluster_infer_ratio=cluster_infer_ratio,
+                                noise_scale=noise_scale,
+                                f0_method=f0_method,
+                                db_thresh=db_thresh,
+                                pad_seconds=pad_seconds,
+                                chunk_seconds=chunk_seconds,
+                                absolute_thresh=absolute_thresh,
+                                max_chunk_seconds=duration,
+                            )
+                            
+                            if concat_audio is None:
+                                concat_audio = audio
+                            else:
+                                concat_audio = np.concatenate((concat_audio, audio))
+
                     except Exception as e:
                         print(f"Failed to process {segment_id}")
                         print(e)
                         continue
+
+                if voice_change_mode == "per_chunk":
+                    waveform = load_audio(audio_path, sample_rate=44100)
+                    if len(waveform.shape) > 1:
+                        waveform = waveform.T  # Swap axes if the audio is stereo.
+                    
+                    max_chunk_seconds = max_chunk_seconds if max_chunk_seconds > 0 else 40
+
+                    # Ensure chunk_seconds is an integer and greater than zero
+                    chunk_length_min = chunk_length_min = (
+                                        int(
+                                            min(
+                                                44100 / so_vits_svc_fork.f0.f0_min * 20 + 1,
+                                                chunk_seconds * 44100,
+                                            )
+                                        )
+                                        // 2
+                                    )
+
+                    chunks = split_silence(
+                        waveform,
+                        top_db=-db_thresh,
+                        frame_length=chunk_length_min * 2,
+                        hop_length=chunk_length_min,
+                        ref=1 if absolute_thresh else np.max,
+                        max_chunk_length=int(max_chunk_seconds * 44100),
+                    )
+                    for chunk in chunks:
+                        random_spk = random.choice(list(svc_models.keys()))
+                        random_svc_model = svc_models[random_spk]
+
+                        if not chunk.is_speech:  # Assuming chunk has an is_speech attribute
+                            audio_chunk_infer = np.zeros_like(chunk.audio)
+                        else:
+                            # pad
+                            pad_len = int(44100 * pad_seconds)
+                            audio_chunk_pad = np.concatenate(
+                                [
+                                    np.zeros([pad_len], dtype=np.float32),
+                                    chunk.audio,
+                                    np.zeros([pad_len], dtype=np.float32),
+                                ]
+                            )
+                            audio_chunk_pad_infer_tensor, _ = random_svc_model.infer(
+                                    random_spk,
+                                    transpose,
+                                    audio_chunk_pad,
+                                    cluster_infer_ratio=cluster_infer_ratio,
+                                    auto_predict_f0=auto_predict_f0,
+                                    noise_scale=noise_scale,
+                                    f0_method=f0_method,
+                                )
+                            audio_chunk_pad_infer = audio_chunk_pad_infer_tensor.cpu().numpy()
+                            pad_len = int(random_svc_model.target_sample * pad_seconds)
+                            cut_len_2 = (len(audio_chunk_pad_infer) - len(chunk.audio)) // 2
+                            audio_chunk_infer = audio_chunk_pad_infer[
+                                cut_len_2 : cut_len_2 + len(chunk.audio)
+                            ]
+                            torch.cuda.empty_cache()
+
+                        if concat_audio is None:
+                            concat_audio = audio_chunk_infer
+                        else:
+                            concat_audio = np.concatenate([concat_audio, audio_chunk_infer])
+                    concat_audio = concat_audio[: waveform.shape[0]]        
                 
                 if concat_audio is not None:
                     if audio_output_path is None:
                         file_path = Path(audio_path)
                         audio_folder = file_path.parent
-                        audio_output_path = audio_folder.with_name("audio_svc")
+                        audio_output_path = audio_folder.with_name("audio_augmented")
                         audio_output_path.mkdir(parents=True, exist_ok=True)
                     else:
                         os.makedirs(audio_output_path, exist_ok=True)
                     
                     output_file_path = audio_output_path / f"{wave_id}.wav"
                     wav_scp.write(f'{wave_id} sox {output_file_path} -t wav -r 16k -b 16 -c 1 - |\n')
-                    soundfile.write(output_file_path, concat_audio, svc_model.target_sample)
+                    sf.write(output_file_path, concat_audio, random_svc_model.target_sample)
     finally:
-        del svc_model
+        del random_svc_model
         torch.cuda.empty_cache()
+
+
 
 if __name__ == "__main__":
     parser = create_arg_parser()
     args = parser.parse_args()
+    
     max_spk = convert_to_int(args.max_spk)
 
     _convert_voice(
@@ -343,5 +439,7 @@ if __name__ == "__main__":
         pad_seconds=args.pad_seconds,
         chunk_seconds=args.chunk_seconds,
         absolute_thresh=args.absolute_thresh,
-        device=args.device
+        device=args.device,
+        voice_change_mode=args.voice_change_mode,
+        max_chunk_seconds=args.max_chunk_seconds
     )
