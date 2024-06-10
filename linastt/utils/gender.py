@@ -280,7 +280,6 @@ def predict_gender(
     inputs = feature_extractor(waveform, sampling_rate=sample_rate, return_tensors="pt", padding=True)
     if device != "cpu":
         inputs = inputs.to(device)
-    inputs = {key: inputs[key] for key in inputs}
 
     with torch.no_grad():
         logits = net_model(**inputs).logits
