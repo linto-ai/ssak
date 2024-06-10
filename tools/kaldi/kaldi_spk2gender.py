@@ -1,6 +1,7 @@
 import numpy as np
 from linastt.utils.audio import load_audio
 from linastt.utils.dataset import kaldi_folder_to_dataset
+from linastt.utils.kaldi import check_kaldi_dir
 import torch
 from transformers import AutoConfig, Wav2Vec2FeatureExtractor
 from linastt.utils.models_gender import HubertForSpeechClassification 
@@ -85,6 +86,7 @@ def main(args):
                         gender_f.flush()
                     else:
                         raise RuntimeError(f'Audio path {audio_path} is not exist!!!!') 
+        check_kaldi_dir(args.kaldi_dir)
     else:
         print('WARNING!! File already exists!')
 
