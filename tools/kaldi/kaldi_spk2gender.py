@@ -7,30 +7,50 @@ from linastt.utils.gender import predict_gender
 from tqdm import tqdm
 import os
 import argparse
-import warnings
+import numpy as np
 
 # Ignore all warnings
+# import warnings
 # warnings.simplefilter("ignore")
 
 def main(args):
 
-    # Example usage
+    # Check output file does not exist
     kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
     if os.path.exists(kaldi_spk2g_file):
         print('WARNING!! File already exists!')
         return
 
-    with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
-        stats, dataset = kaldi_folder_to_dataset(args.kaldi_dir, online=True)
-        for sample in tqdm(dataset, desc="Processing audio segments", total=stats["samples"]):
-            segment_id = sample["ID"]
-            audio_path = sample['path']
-            start = sample['start']
-            end = sample['end']
-            waveform = load_audio(audio_path, start=start, end=end)
-            gender = predict_gender(waveform, device=args.device, model=args.model_path, output_type="best")
-            gender_f.write(f'{segment_id} {gender.lower()}\n')
-            gender_f.flush()
+    # Read speakers
+    utt2spk_file = os.path.join(args.kaldi_dir, 'utt2spk')
+    if not os.path.exists(utt2spk_file):
+        raise RuntimeError('ERROR!! File not found: utt2spk')
+    utt2spk = {}
+    with open(utt2spk_file, "r", encoding='utf-8') as utt2spk_f:
+        for line in utt2spk_f:
+            fields = line.strip().split()
+            assert len(fields) == 2
+            utt, spk = fields
+            utt2spk[utt] = spk
+
+    spk2gender = {}
+    stats, dataset = kaldi_folder_to_dataset(args.kaldi_dir, online=True)
+    for sample in tqdm(dataset, desc="Processing audio segments", total=stats["samples"]):
+        utt = sample["ID"]
+        assert utt in utt2spk, f"Speaker not found for utterance {utt}"
+        spk = utt2spk[utt]
+        audio_path = sample['path']
+        start = sample['start']
+        end = sample['end']
+        waveform = load_audio(audio_path, start=start, end=end)
+        gender = predict_gender(waveform, device=args.device, model=args.model_path, output_type="scores")
+        spk2gender[spk] = spk2gender.get(spk, []) + [gender["m"]]
+
+    with open(kaldi_spk2g_file, "w", encoding='utf-8') as f:
+        for spk, m_scores in spk2gender.items():
+            m_score = np.mean(m_scores)
+            gender = "m" if m_score > 0.5 else "f"
+            f.write(f"{spk} {gender}\n")
 
     check_kaldi_dir(args.kaldi_dir)
         
