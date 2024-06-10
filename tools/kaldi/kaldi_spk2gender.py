@@ -44,12 +44,17 @@ def main(args):
         end = sample['end']
         waveform = load_audio(audio_path, start=start, end=end)
         gender = predict_gender(waveform, device=args.device, model=args.model_path, output_type="scores")
-        spk2gender[spk] = spk2gender.get(spk, []) + [gender["m"]]
+        # Weight scores by (clipped) duration of the utterance
+        weight = min(10, waveform.size / 16_000)
+        m_score, f_score = gender["m"], gender["f"]
+        spk2gender[spk] = spk2gender.get(spk, []) + [(m_score * weight, f_score * weight)]
 
     with open(kaldi_spk2g_file, "w", encoding='utf-8') as f:
-        for spk, m_scores in spk2gender.items():
-            m_score = np.mean(m_scores)
-            gender = "m" if m_score > 0.5 else "f"
+        for spk, scores in spk2gender.items():
+            m_scores, f_scores = zip(*scores)
+            m_score = sum(m_scores)
+            f_score = sum(f_scores)
+            gender = "m" if m_score > f_score else "f"
             f.write(f"{spk} {gender}\n")
 
     check_kaldi_dir(args.kaldi_dir)
