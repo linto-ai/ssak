@@ -11,33 +11,9 @@ import argparse
 import warnings
 
 # Ignore all warnings
-warnings.simplefilter("ignore")
+# warnings.simplefilter("ignore")
 
-
-def read_and_generate_segment_dict(kaldi_dir):
-    _ , dataframe= kaldi_folder_to_dataset(kaldi_dir, return_format="pandas")
-    segments = {}
-    segment_dict = {}
-    for _, row in dataframe.iterrows():
-        audio_id = os.path.basename(row['path']).split(".")[0]
-        seg_id = row['ID']
-        start_time = row['start']
-        end_time = row['end']
-        audio_path = row['path']
-        segments.setdefault(audio_id, []).append({'seg_id':seg_id,'start': start_time, 'end': end_time, "path":audio_path})
-    for audio_id, segment_list in segments.items():
-        segment_dict[audio_id] = {}
-        for segment in segment_list:
-            seg_id = segment['seg_id']
-            segment_dict[audio_id][seg_id] = {
-                'start': segment['start'],
-                'end': segment['end'],
-                'wave_path': segment["path"]
-            }
-    return segment_dict
-
-
-def predict(waveform, feature_extractor, model, config, device="cpu", sample_rate=16_000):
+def predict_gender(waveform, feature_extractor, model, config, device="cpu", sample_rate=16_000):
     inputs = feature_extractor(waveform, sampling_rate=sample_rate, return_tensors="pt", padding=True)
     if device != "cpu":
         inputs = inputs.to(device)
@@ -68,27 +44,25 @@ def main(args):
     model = HubertForSpeechClassification.from_pretrained(model_name_or_path).to(device)
 
     # Example usage
-    wave_segments = read_and_generate_segment_dict(args.kaldi_dir)
     kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
-    if not os.path.exists(kaldi_spk2g_file):
-        with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
-            for _, seg_info_dict in tqdm(wave_segments.items(), desc="Processing audio segments", unit="segment"):
-                for segment_id, seg_info in seg_info_dict.items():
-                    audio_path = seg_info['wave_path']
-                    
-                    if os.path.exists(audio_path):
-                        start_time = seg_info['start']
-                        end_time = seg_info['end']
-                        waveform = load_audio(audio_path, start = start_time, end = end_time)
-                        output = predict(waveform, feature_extractor, model, config, device=device)
-                        gender =  output['Label']
-                        gender_f.write(f'{segment_id} {gender.lower()}\n')
-                        gender_f.flush()
-                    else:
-                        raise RuntimeError(f'Audio path {audio_path} is not exist!!!!') 
-        check_kaldi_dir(args.kaldi_dir)
-    else:
+    if os.path.exists(kaldi_spk2g_file):
         print('WARNING!! File already exists!')
+        return
+
+    with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
+        stats, dataset = kaldi_folder_to_dataset(args.kaldi_dir, online=True)
+        for sample in tqdm(dataset, desc="Processing audio segments", total=stats["samples"]):
+            segment_id = sample["ID"]
+            audio_path = sample['path']
+            start = sample['start']
+            end = sample['end']
+            waveform = load_audio(audio_path, start=start, end=end)
+            output = predict_gender(waveform, feature_extractor, model, config, device=device)
+            gender =  output['Label']
+            gender_f.write(f'{segment_id} {gender.lower()}\n')
+            gender_f.flush()
+    check_kaldi_dir(args.kaldi_dir)
+        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gender prediction for audio segments.")
