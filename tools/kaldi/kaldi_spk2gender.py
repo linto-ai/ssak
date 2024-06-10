@@ -36,8 +36,10 @@ def read_and_generate_segment_dict(kaldi_dir):
     return segment_dict
 
 
-def predict(waveform, sample_rate, feature_extractor, model, config):
+def predict(waveform, feature_extractor, model, config, device="cpu", sample_rate=16_000):
     inputs = feature_extractor(waveform, sampling_rate=sample_rate, return_tensors="pt", padding=True)
+    if device != "cpu":
+        inputs = inputs.to(device)
     inputs = {key: inputs[key] for key in inputs}
 
     with torch.no_grad():
@@ -65,39 +67,33 @@ def main(args):
     model = HubertForSpeechClassification.from_pretrained(model_name_or_path).to(device)
 
     # Example usage
-    try:
-        wave_segments = read_and_generate_segment_dict(args.kaldi_dir)
-        kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
-        if not os.path.exists(kaldi_spk2g_file):
-            with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
-                for _, seg_info_dict in tqdm(wave_segments.items(), desc="Processing Waves", unit="wave"):
-                    for segment_id, seg_info in seg_info_dict.items():
-                        try:
-                            audio_path = seg_info['wave_path']
-                            
-                            if os.path.exists(audio_path):
-                                start_time = seg_info['start']
-                                end_time = seg_info['end']
-                                waveform = load_audio(audio_path, start = start_time, end = end_time)
-                                output = predict(waveform, 16000, feature_extractor, model, config)
-                                gender =  output['Label']
-                                gender_f.write(f'{segment_id} {gender.lower()}\n')
-                                gender_f.flush()
-                            else:
-                                raise RuntimeError(f'Audio path {audio_path} is not exist!!!!') 
-                        except Exception as e:
-                            print(f"Error processing segment {segment_id}: {e}")
-        else:
-            print('WARNING!! File already exists!')
-    except:
-        pass
+    wave_segments = read_and_generate_segment_dict(args.kaldi_dir)
+    kaldi_spk2g_file = os.path.join(args.kaldi_dir, 'spk2gender')
+    if not os.path.exists(kaldi_spk2g_file):
+        with open(kaldi_spk2g_file, "w", encoding='utf-8') as gender_f:
+            for _, seg_info_dict in tqdm(wave_segments.items(), desc="Processing audio segments", unit="segment"):
+                for segment_id, seg_info in seg_info_dict.items():
+                    audio_path = seg_info['wave_path']
+                    
+                    if os.path.exists(audio_path):
+                        start_time = seg_info['start']
+                        end_time = seg_info['end']
+                        waveform = load_audio(audio_path, start = start_time, end = end_time)
+                        output = predict(waveform, feature_extractor, model, config, device=device)
+                        gender =  output['Label']
+                        gender_f.write(f'{segment_id} {gender.lower()}\n')
+                        gender_f.flush()
+                    else:
+                        raise RuntimeError(f'Audio path {audio_path} is not exist!!!!') 
+    else:
+        print('WARNING!! File already exists!')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gender prediction for audio segments.")
+    parser.add_argument("kaldi_dir", type=str,
+                        help="Path to the directory containing Kaldi data.")
     parser.add_argument("--model_path", type=str, default="m3hrdadfi/hubert-base-persian-speech-gender-recognition",
                         help="Path to the pretrained model or its name.")
-    parser.add_argument("--kaldi_dir", type=str, default=None,
-                        help="Path to the directory containing Kaldi data.")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu",
                         help="Device to run the model on (cpu or cuda).")
     args = parser.parse_args()
