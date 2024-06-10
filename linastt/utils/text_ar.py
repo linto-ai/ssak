@@ -63,8 +63,15 @@ def normalize_tunisan_words(text):
     pattern = re.compile(r'\b(' + '|'.join(map(re.escape, normalization_words.keys())) + r')\b', re.UNICODE)
     return pattern.sub(lambda match: normalization_words[match.group(0)], text)
 
+# to transliterate arabi into bw 
 def bw_transliterate(text):
     return bw.transliterate(text)
+
+# This removes the apostrophes and hyphens that are not part of words
+def remove_outer_apostrophes_and_hyphens(text):
+    pattern = r"(?<!\w)[\'-]|[\'-](?!\w)"  # Regular expression to match apostrophes or hyphens not inside words
+    cleaned_text = re.sub(pattern, '', text)
+    return cleaned_text
 
 def remove_arabic_diacritics(text):
     return re.sub(arabic_diacritics, '', text)
@@ -111,6 +118,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = normalize_arabic_currencies(line, lang=lang)
         line = digit2word(line, lang=lang)
         line = remove_arabic_diacritics(line)
+        line = remove_outer_apostrophes_and_hyphens(line)
         line = normalize_chars(line)
         line = convert_punct_to_arabic(line)
         line = remove_repeated_ar_chars(line)
