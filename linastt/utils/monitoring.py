@@ -10,7 +10,6 @@ import threading
 import json
 import numpy as np
 import sys
-import matplotlib.pyplot as plt
 
 
 import logging
@@ -356,7 +355,7 @@ class MyThread(threading.Thread):
             
             
 class Monitoring:
-    def __init__(self, output_folder="", name = "", interval=0.25, device=0, show_steps=True):
+    def __init__(self, output_folder="", name = "", interval=0.25, device=0, show_steps=True, plot_monitoring=True):
         self.device = device
         self.output_folder = output_folder
         if not name:
@@ -365,6 +364,9 @@ class Monitoring:
             self.name = name
         self.interval = interval
         self.show_steps = show_steps
+        self.will_plot_monitoring = plot_monitoring
+        if self.will_plot_monitoring:
+            import matplotlib.pyplot as plt
         
     def finish_step(self, monitoring, step_values, step=0, start=0):
         for i in step_values:
@@ -441,14 +443,18 @@ class Monitoring:
             monitoring = self.finish_step(monitoring, step_monitoring, step, start)
             monitoring['total_gpu_usage'] = np.trapz(monitoring['gpu_usage'], monitoring['time_points'])/100
             self.save_monitoring(monitoring)
-            self.plot_monitoring(monitoring, self.output_folder, handle)
+            if self.will_plot_monitoring:
+                self.plot_monitoring(monitoring, self.output_folder, handle)
         if handle:
             pynvml.nvmlShutdown()
     
     def start(self, steps=None):
-        get_num_gpus()
         self.device = self.device if self.device else 0
-        self.device = ALL_GPU_INDICES[self.device]
+        if self.device=="cuda":
+            self.device = 0
+        if self.device!="cpu":
+            get_num_gpus()
+            self.device = ALL_GPU_INDICES[self.device]
         self.event_stop = threading.Event()
         self.event_next = threading.Event()
         self.event_error = threading.Event()

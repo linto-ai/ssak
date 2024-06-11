@@ -113,7 +113,7 @@ def compute_wer(refs, preds,
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+        from linastt.utils.text import format_text_latin, collapse_whitespace
 
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
@@ -124,8 +124,10 @@ def compute_wer(refs, preds,
 
         normalize_funcs = []
         if normalization == "ar":
+            from linastt.utils.text import format_text_ar
             normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
         elif normalization == "ru":
+            from linastt.utils.text import format_text_ru
             normalize_funcs.append(lambda x: format_text_ru(x))
         else:
             normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
