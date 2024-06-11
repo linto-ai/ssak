@@ -175,7 +175,6 @@ def remove_non_speech(audio,
     glue the speech segments together and return the result along with
     a function to convert timestamps from the new audio to the original audio
     """
-
     if isinstance(audio, str):
         (audio, sample_rate) = load_audio(audio, sample_rate=None,
                                           return_format="torch", mono=False, verbose=verbose)
@@ -194,7 +193,10 @@ def remove_non_speech(audio,
     if verbose:
         print(segments)
 
-    audio_speech = torch.cat([audio[..., s:e] for s, e in segments], dim=-1)
+    if not isinstance(audio, torch.Tensor): 
+        audio_speech = np.concatenate([audio[..., s:e] for s, e in segments], axis=-1)
+    else:
+        audio_speech = torch.cat([audio[..., s:e] for s, e in segments], dim=-1)
     
     if len(audio.shape) == 1:
         audio_speech = audio_speech.reshape(-1)
@@ -223,8 +225,8 @@ def remove_non_speech(audio,
         else:
             plt.show()
 
-    if not isinstance(audio, torch.Tensor):
-        audio_speech = audio_speech.numpy()
+    # if not isinstance(audio, torch.Tensor):
+    #     audio_speech = audio_speech.numpy()
 
     return audio_speech, lambda t, t2 = None: convert_timestamps(segments, t, t2)
 

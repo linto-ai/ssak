@@ -320,6 +320,9 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
+    show_boxplot=True,
+    show_axisnames=True,
+    x_axisname=None,
     **kwargs
     ):
     """
@@ -365,7 +368,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     n = 2 if small_hatch else 1
     
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
+    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1 and show_boxplot:
         vals = [get_stat_list(wer_dict[k]) for k in keys]
         plt.boxplot(vals, positions = positions, whis=100)
         # plt.violinplot(vals, positions = positions, showmedians=True, quantiles=[[0.25, 0.75] for i in range(len(vals))], showextrema=True)
@@ -385,6 +388,10 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
         plt.legend()
+    if show_axisnames:
+        plt.ylabel("WER")
+        if x_axisname:
+            plt.xlabel(x_axisname)
     if title:
         plt.title(title)
     if isinstance(show, str):
