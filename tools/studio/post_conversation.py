@@ -11,6 +11,7 @@ from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.misc import hashmd5
 from linastt.utils.format_transcription import to_linstt_transcription
+from linastt.utils.format_diarization import to_linstt_diarization
 
 ####################
 # Conversation Manager 
@@ -289,7 +290,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("audio", type=str, help="Audio file")
-    parser.add_argument("transcription", type=str, help="File with transcription", default=None, nargs="?")
+    parser.add_argument("annotations", type=str, help="File with transcription or diarization results", default=None, nargs="?")
     parser.add_argument("-n", "--name", type=str, help="Name of the conversation", default=None)
     parser.add_argument("-t", "--tag", type=str, help="Tag for the conversation (or list of tags if seperated by commas)", default=None)
     parser.add_argument("-e", "-u", "--email", "--username", type=str, help="Email of the Conversation Manager account (can also be passed with environment variable CM_EMAIL)", default=None)
@@ -300,8 +301,9 @@ if __name__ == "__main__":
     parser.add_argument("--new", action="store_true", help="Do not post if the conversation already exists")
     parser_stt = parser.add_argument_group('Options to run transcription when no transcription is provided')
     parser_stt.add_argument('--transcription_server', type=str, help='Transcription server',
+        default="https://alpha.api.linto.ai/stt-french-whisper-v3",
         # default="https://alpha.api.linto.ai/stt-french-generic",
-        default="https://api.linto.ai/stt-french-generic",
+        # default="https://api.linto.ai/stt-french-generic",
     )
     parser_stt.add_argument('--num_spearkers', type=int, help='Number of speakers', default= None)
     parser_stt.add_argument('--convert_numbers', default = True, action='store_true', help='Convert numbers to text')
@@ -322,36 +324,56 @@ if __name__ == "__main__":
             raise ValueError("No CM password given. Please set CM_PASSWD environment variable, or use option -p.")
 
     default_name = os.path.splitext(os.path.basename(args.audio))[0]
-    if not args.transcription:
-        default_name += " - LinSTT"
+
+    annotations = args.annotations
+    is_diarization = False
+    if isinstance(annotations, str):
+        extension = os.path.splitext(annotations)[1]
+        if extension in [".rttm"]:
+            is_diarization = True
+        elif extension == ".json":
+            try:
+                with open(annotations, "r", encoding="utf8") as f:
+                    tmp = json.load(f)
+                is_diarization = "speakers" in tmp
+            except:
+                pass
+    transcription = annotations if not is_diarization else None
+    diarization = to_linstt_diarization(annotations) if is_diarization else None
+
+    if not transcription:
+        default_name += " - STT " + os.path.basename(args.transcription_server)
     
-        args.transcription = linstt_transcribe(args.audio,
+        transcription = linstt_transcribe(args.audio,
             transcription_server=args.transcription_server,
-            diarization=args.num_spearkers,
+            diarization=diarization if is_diarization else args.num_spearkers,
             convert_numbers=args.convert_numbers,
             diarization_service_name=args.diarization_service_name,
             verbose=args.verbose,
         )
         if args.verbose:
             print("\nTranscription results:")
-            print(json.dumps(args.transcription, indent=2, ensure_ascii=False))
+            print(json.dumps(transcription, indent=2, ensure_ascii=False))
 
     else:
 
-        if os.path.isfile(args.transcription):
-            default_name += " - " + os.path.splitext(os.path.basename(args.transcription))[0].replace(default_name, "")
-            with open(args.transcription, "r", encoding="utf8") as f:
+        if os.path.isfile(transcription):
+            default_name += " - " + os.path.splitext(os.path.basename(transcription))[0].replace(default_name, "")
+            with open(transcription, "r", encoding="utf8") as f:
                 try:
-                    args.transcription = json.load(f)
+                    transcription = json.load(f)
                 except:
-                    raise ValueError(f"Transcription file {args.transcription} is not a valid json file.")
+                    raise ValueError(f"Transcription file {transcription} is not a valid json file.")
         else:
             try:
-                args.transcription = json.loads(args.transcription)
+                transcription = json.loads(transcription)
             except json.decoder.JSONDecodeError:
-                raise ValueError(f"Transcription file {args.transcription} not found, and not a valid json string.")
-    
-    args.transcription = to_linstt_transcription(args.transcription)
+                raise ValueError(f"Transcription '{transcription[:100]}' : file not found, and not a valid json string.")
+
+    if is_diarization:
+        default_name += " - diarize " + os.path.basename(annotations)
+
+    transcription = to_linstt_transcription(transcription)
 
     name=args.name if args.name else default_name
 
@@ -388,7 +410,7 @@ if __name__ == "__main__":
 
     cm_import(
         args.audio,
-        args.transcription,
+        transcription,
         name=name,
         tags=[t for t in args.tag.split(",") if t] if args.tag else [],
         url=args.url,
