@@ -25,7 +25,7 @@ def linstt_transcribe(
         diarization_service_name=DIARIZATION_SERVICES["simple"],
         force_16k = False,
         convert_numbers=True,
-        punctuation=None,
+        punctuation=True,
         diarization=False,
         return_raw=True,
         wordsub={},
@@ -57,9 +57,6 @@ def linstt_transcribe(
         timeout_first (float|int|None): Timeout in seconds for the transcription of the first audio segment.
         ping_interval (float|int): Interval in seconds between two pings to the http server.
     """
-    if punctuation is None:
-        # Hack for default value
-        punctuation = "whisper" not in transcription_server
     assert os.path.isfile(audio_file), f"File {audio_file} does not exist."
     if not timeout:
         timeout = float("inf")

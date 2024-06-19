@@ -10,7 +10,7 @@ import re
 from linastt.utils.curl import curl_post, curl_get, curl_delete
 from linastt.utils.linstt import linstt_transcribe
 from linastt.utils.misc import hashmd5
-from linastt.utils.format_transcription import to_linstt_transcription
+from linastt.utils.format_transcription import to_linstt_transcription, shorten_transcription
 from linastt.utils.format_diarization import to_linstt_diarization
 
 ####################
@@ -43,7 +43,7 @@ def cm_import(
 
     organizationId = cm_get_organization(url, email, password, verbose=verbose)
 
-    result = curl_post(
+    kargs = [
         url + f"/api/organizations/{organizationId}/conversations/import?type=transcription",
         {
             "transcription": transcription,
@@ -60,13 +60,20 @@ def cm_import(
                                     'enableNormalization': has_digit(transcription)},
             "description": f"Audio: {os.path.basename(audio_file)} / Transcription: {hashmd5(transcription)} / Import: {datestr}",
             "membersRight": "0",
-        },
+        }
+    ]
+    kwargs = dict(
         headers=[f"Authorization: Bearer {token}"],
         verbose="short" if verbose else False,
     )
+    result = curl_post(*kargs, **kwargs)
+
+    # # The following is a failed trial of workaround, when curl inputs are too big. Using shell comand instead of pycurl does not work.
+    # if result.get("message") == "Transcription is not a valid json":
+    #     print("WARNING: pycurl failed, retrying with curl command line.")
+    #     result = curl_post(*kargs, use_shell_command=True, **kwargs)
 
     assert "message" in result, f"'message' not found in response: {result}"
-
     assert result["message"] == "Conversation imported", f"Error when posting conversation: {result}"
 
     print("\n"+result["message"])
@@ -299,6 +306,8 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose mode")
     parser.add_argument("-o", "--overwrite", action="store_true", help="Overwrite existing conversations with the same name")
     parser.add_argument("--new", action="store_true", help="Do not post if the conversation already exists")
+    parser.add_argument("--shorten_transcription", action="store_true", help="Shorten the transcription results, by using ellipsis (...) in long segments.")
+    
     parser_stt = parser.add_argument_group('Options to run transcription when no transcription is provided')
     parser_stt.add_argument('--transcription_server', type=str, help='Transcription server',
         default="https://alpha.api.linto.ai/stt-french-whisper-v3",
@@ -323,7 +332,8 @@ if __name__ == "__main__":
         if not args.password:
             raise ValueError("No CM password given. Please set CM_PASSWD environment variable, or use option -p.")
 
-    default_name = os.path.splitext(os.path.basename(args.audio))[0]
+    base_filename = os.path.splitext(os.path.basename(args.audio))[0]
+    default_name = base_filename
 
     annotations = args.annotations
     is_diarization = False
@@ -342,7 +352,7 @@ if __name__ == "__main__":
     diarization = to_linstt_diarization(annotations) if is_diarization else None
 
     if not transcription:
-        default_name += " - STT " + os.path.basename(args.transcription_server)
+        default_name += " | STT " + os.path.basename(args.transcription_server).replace("stt", "").strip(" _-")
     
         transcription = linstt_transcribe(args.audio,
             transcription_server=args.transcription_server,
@@ -358,7 +368,7 @@ if __name__ == "__main__":
     else:
 
         if os.path.isfile(transcription):
-            default_name += " - " + os.path.splitext(os.path.basename(transcription))[0].replace(default_name, "")
+            default_name += " | " + os.path.splitext(os.path.basename(transcription))[0].replace(base_filename, "").strip(" _-")
             with open(transcription, "r", encoding="utf8") as f:
                 try:
                     transcription = json.load(f)
@@ -371,9 +381,11 @@ if __name__ == "__main__":
                 raise ValueError(f"Transcription '{transcription[:100]}' : file not found, and not a valid json string.")
 
     if is_diarization:
-        default_name += " - diarize " + os.path.basename(annotations)
+        default_name += " | diar. " + os.path.splitext(os.path.basename(annotations))[0].replace(base_filename, "").strip(" _-")
 
-    transcription = to_linstt_transcription(transcription)
+    transcription = to_linstt_transcription(transcription, include_confidence=False) # Confidence score not needed in LinTO Studio
+    if args.shorten_transcription:
+        transcription = shorten_transcription(transcription)
 
     name=args.name if args.name else default_name
 
