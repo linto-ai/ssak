@@ -345,17 +345,45 @@ def _name_to_suffix(
         suffix += f" {name}"
     return suffix
 
-class MyThread(threading.Thread):
+class MonitoringThread(threading.Thread):
     def run(self):
         try:
-            super(MyThread, self).run()
+            super(MonitoringThread, self).run()
         except Exception as e:
-            print("Error:", e, file=sys.stderr)
+            print("ERROR in Monitoring Thread:", e, file=sys.stderr)
             sys.exit(1)
             
             
 class Monitoring:
-    def __init__(self, output_folder="", name = "", interval=0.25, device=0, show_steps=True, plot_monitoring=True):
+    """
+    This class is used to monitor the hardware usage of the machine while running a script.
+    Args:
+        output_folder: str
+            The folder where the monitoring will be saved
+        name: str
+            The name of the monitoring (TODO: not used yet)
+        interval: float
+            The interval (in seconds) at which the monitoring will be done
+        device: str or int
+            The device to monitor (can be "cpu" or "cuda" or the index of the GPU)
+        plot_monitoring: bool
+            If True, the monitoring will be plotted
+        show_steps_in_plots: bool
+            If True, the steps will be shown in the plots
+    
+    Example usage:
+        
+        ```python
+        monitor = Monitoring(output_folder="test", interval=0.2, device="cpu", plot_monitoring=True, show_steps_in_plots=True)
+        monitor.start(steps=[str(i) for i in range(10)])
+        for i in range(10):
+            time.sleep(1)
+            monitor.next()
+        monitor.stop()
+        ```
+    """
+    
+    def __init__(self, output_folder="", name = "", interval=0.25, device="cuda", plot_monitoring=True, show_steps_in_plots=True):
         self.device = device
         self.output_folder = output_folder
         if not name:
@@ -363,12 +391,12 @@ class Monitoring:
         else:
             self.name = name
         self.interval = interval
-        self.show_steps = show_steps
+        self.show_steps = show_steps_in_plots
         self.will_plot_monitoring = plot_monitoring
         if self.will_plot_monitoring:
             import matplotlib.pyplot as plt
         
-    def finish_step(self, monitoring, step_values, step=0, start=0):
+    def _finish_step(self, monitoring, step_values, step=0, start=0):
         for i in step_values:
             if i not in monitoring:
                 monitoring[i] = []
@@ -382,7 +410,7 @@ class Monitoring:
             monitoring['steps_end'].append(time.time()-start)
         return monitoring
 
-    def get_hardware_info(self, handle, start, step_monitoring):
+    def _get_hardware_info(self, handle, start, step_monitoring):
         ram_usage = psutil.virtual_memory().used/1024**3
         cpu_usage = psutil.cpu_percent()
         time_point = time.time()-start
@@ -407,11 +435,11 @@ class Monitoring:
         step_monitoring['time_points'].append(time_point)
         return step_monitoring
 
-    def save_monitoring(self, monitoring):
+    def _save_monitoring(self, monitoring):
         with open(os.path.join(self.output_folder, 'monitoring.json'), 'w') as f:
             json.dump(monitoring, f, indent=2)
         
-    def monitor(self):
+    def _monitor(self):
         if self.device!="cpu":
             pynvml.nvmlInit()
             handle = pynvml.nvmlDeviceGetHandleByIndex(self.device)
@@ -432,25 +460,32 @@ class Monitoring:
         while not self.event_stop.is_set() and not self.event_error.is_set():
             if self.event_next.is_set():
                 self.event_next.clear()
-                monitoring = self.finish_step(monitoring, step_monitoring, step, start)
-                self.save_monitoring(monitoring)
+                monitoring = self._finish_step(monitoring, step_monitoring, step, start)
+                self._save_monitoring(monitoring)
                 step_monitoring = dict()
                 step +=1 
-            step_monitoring = self.get_hardware_info(handle, start, step_monitoring)
+            step_monitoring = self._get_hardware_info(handle, start, step_monitoring)
             time.sleep(self.interval)
         if not self.event_error.is_set():
-            step_monitoring = self.get_hardware_info(handle, start, step_monitoring)
-            monitoring = self.finish_step(monitoring, step_monitoring, step, start)
+            step_monitoring = self._get_hardware_info(handle, start, step_monitoring)
+            monitoring = self._finish_step(monitoring, step_monitoring, step, start)
             monitoring['total_gpu_usage'] = np.trapz(monitoring['gpu_usage'], monitoring['time_points'])/100
-            self.save_monitoring(monitoring)
+            self._save_monitoring(monitoring)
             if self.will_plot_monitoring:
                 self.plot_monitoring(monitoring, self.output_folder, handle)
         if handle:
             pynvml.nvmlShutdown()
     
     def start(self, steps=None):
+        """
+        Start the monitoring (in a separate thread)
+        
+        Args:
+            steps: list of str
+                List of steps to monitor
+        """
         self.device = self.device if self.device else 0
-        if self.device=="cuda":
+        if self.device=="cuda" or self.device=="gpu":
             self.device = 0
         if self.device!="cpu":
             get_num_gpus()
@@ -459,16 +494,22 @@ class Monitoring:
         self.event_next = threading.Event()
         self.event_error = threading.Event()
         self.steps = steps
-        self.monitoring_thread = MyThread(target=self.monitor)
+        self.monitoring_thread = MonitoringThread(target=self._monitor)
         self.monitoring_thread.start()
     
     def next(self):
         """
-        Checkpoint the monitoring 
+        Checkpoint the monitoring and goes to the next step
         """
         self.event_next.set()
     
     def stop(self, error=False):
+        """
+        Stop the monitoring. 
+        args:
+            error: bool
+                If error is True, the monitoring will stop without saving
+        """
         if error:
             self.event_error.set()
         else:
@@ -476,6 +517,7 @@ class Monitoring:
         self.monitoring_thread.join()
         
     def plot_hardware(self, values, times, output_folder, ylabel="RAM Usage", lims=None, steps=None):
+        import matplotlib.pyplot as plt
         plt.clf()
         plt.plot(times, values, color='skyblue')
         if self.show_steps:
@@ -511,6 +553,7 @@ class Monitoring:
             self.plot_hardware(monitoring['gpu_usage'], monitoring['time_points'], output_folder, ylabel="GPU Usage", steps=steps, lims=(0, 100))
     
     def plot_bench_total_gpu_usage(input_folder, output_folder=None, configs=None, title="Total GPU Usage for Different Benchmarks"):
+        import matplotlib.pyplot as plt
         if not output_folder:
             output_folder = input_folder
         if not configs:
@@ -529,5 +572,15 @@ class Monitoring:
             plt.text(v + 1, i, str(round(v,1)), fontweight = 'bold', va='center')
         plt.xlabel('Number of seconds at 100% GPU Usage')
         # plt.xticks(rotation=45, ha='right')
-        plt.savefig(os.path.join(output_folder, 'total_gpu_usage.png'), bbox_inches="tight")
+        plt.title(title)
+        plt.savefig(os.path.join(output_folder, title.replace(' ','_')+".png"), bbox_inches="tight")
         plt.close()
+        
+if __name__ == "__main__":
+    monitor = Monitoring(output_folder="test", name="test", interval=0.25, device="cpu", show_steps_in_plots=True, plot_monitoring=True)
+    monitor.start(steps=[str(i) for i in range(10)])
+    for i in range(10):
+        time.sleep(1)
+        monitor.next()
+    monitor.stop()
+    

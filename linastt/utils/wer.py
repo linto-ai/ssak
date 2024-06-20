@@ -383,19 +383,20 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
     plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
+    plt.yticks(fontsize=label_fontdict['size'])
     if ymax is None:
         _, maxi = plt.ylim()
         plt.ylim(bottom=ymin, top=min(100, maxi))
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
-        plt.legend()
+        plt.legend(fontsize=label_fontdict['size'])
     if show_axisnames:
-        plt.ylabel("WER")
+        plt.ylabel("WER (%)", fontsize=label_fontdict['size'])
         if x_axisname:
-            plt.xlabel(x_axisname)
+            plt.xlabel(x_axisname, fontsize=label_fontdict['size'])
     if title:
-        plt.title(title)
+        plt.title(title, fontsize=label_fontdict['size'])
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
