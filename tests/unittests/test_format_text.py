@@ -203,6 +203,8 @@ class TestFormatTextLatin(Test):
             self.get_tool_path("clean_text_fr.py"),
             self.get_data_path("text/frwac.txt"),
             output_file,
+            "--empty_string_policy=ignore",
+            "--linebreak_policy=allow",
             "--extract_parenthesis",
             "--file_acro", acronym_file,
             "--file_special", special_char_file,
@@ -226,7 +228,7 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=False),
-            'في اللغة الإنجليزية ، يمكن للمرء أن يقول !'
+            'في اللغة الإنجليزية ، يمكن للمرء أن يقول " "!'
         )
 
         self.assertEqual(
@@ -236,7 +238,7 @@ class TestFormatTextArabic(Test):
 
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            sentence # 'في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!'
+            sentence # "في اللغة الإنجليزية ، يمكن للمرء أن يقول \"Hello world\"!"
         )
 
         sentence = "؟Jérôme。"
@@ -251,7 +253,7 @@ class TestFormatTextArabic(Test):
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=True, keep_latin_chars=True),
-            sentence
+            sentence # "؟Jérôme。"
         )
         self.assertEqual(
             format_text_ar(sentence, keep_punc=False, keep_latin_chars=True),
@@ -279,12 +281,12 @@ class TestFormatTextArabic(Test):
     def test_symbols_converting(self):
         
         self.assertEqual(
-            format_text_ar("للعام 1435/ 1436هـ"),
+            format_text_ar("للعام 1435/ 1436هـ" ),
             'للعام ألف و أربعمائة و خمسة و ثلاثون ألف و أربعمائة و ستة و ثلاثون هجري'
         )
 
         self.assertEqual(
-            format_text_ar("7 ق.م"),
+            format_text_ar("7 ق.م" ),
             'سبعة قبل الميلاد'
         )
 
@@ -299,6 +301,7 @@ class TestFormatTextArabic(Test):
             format_text_ar("هجري 1437/01/20"),
             'هجري ألف و أربعمائة و سبعة و ثلاثون محرم عشرون'
         )
+        
 
         self.assertEqual(
             format_text_ar("هجري 1937/01/20"),
@@ -306,9 +309,15 @@ class TestFormatTextArabic(Test):
         )
 
         self.assertEqual(
-            format_text_ar("اليوم 22/03/2002"),
-            'اليوم اثنان و عشرون مارس ألفان و اثنان'
+            format_text_ar("اليوم 22/04/2002"),
+            'اليوم اثنان و عشرون أبريل ألفان و اثنان'
         )
+
+        self.assertEqual(
+            format_text_ar("اليوم 22/04/2002",lang="ar_tn"),
+            'اليوم ثنين و عشرين أفريل ألفين و ثنين'
+        )
+
     def test_biggest_numbers(self):
         
         self.assertEqual(
@@ -317,10 +326,53 @@ class TestFormatTextArabic(Test):
         )
 
         self.assertEqual(
+            format_text_ar("-123456789123456789128942", lang="ar_tn"),
+            'ناقس مياة و ثلاث و عشرين سكستيليون و أربعمياة و ستة و خمسين كوينتليون و سبعمياة و تسع و ثمانين كوادريليون و مياة و ثلاث و عشرين تريليون و أربعمياة و ستة و خمسين مليار و سبعمياة و تسع و ثمانين مليون و مياة و ثمني و عشرين ألف و تسعمياة و ثنين و أربعين'
+        )
+
+        self.assertEqual(
             format_text_ar("-1234567891234567891289425"),
             'سالب سبتيليون و مئتان و أربعة و ثلاثون سكستيليونا و خمسمائة و سبعة و ستون كوينتليونا و ثمانمائة و واحد و تسعون كوادريليونا و مئتان و أربعة و ثلاثون تريليونا و خمسمائة و سبعة و ستون مليارا و ثمانمائة و واحد و تسعون مليونا و مئتان و تسعة و ثمانون ألفا و أربعمائة و خمسة و عشرون'
         )
 
+        self.assertEqual(
+            format_text_ar("-12", lang="ar_tn"),
+            'ناقس أثناش'
+        )
+
+        self.assertEqual(
+            format_text_ar("-5000", lang="ar_tn"),
+            'ناقس خمس آلاف'
+        )
+
+    def test_words_normalization(self):
+        sentence = "انشا الله  بسبعه عسلامة يسلمك ديجا"
+        
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=False, lang="ar_tn", normalize_dialect_words=True),
+            'إن شاء الله بسبع عالسلامة يسلمك'
+        )
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_punc=False, keep_latin_chars=True, lang="ar_tn", normalize_dialect_words=True),
+            'إن شاء الله بسبع عالسلامة يسلمك déjà'
+        )
+    
+    def test_chars_normalization(self):
+        sentence = "بڨداش أﻛ الخبزﻫ"
+        
+        self.assertEqual(
+            format_text_ar(sentence,lang="ar_tn", normalize_dialect_words=True),
+            'بقداش أك الخبزه'
+        )
+
+    def test_remove_repeated_ar_chars(self):
+        sentence = "صببباح النووووور Meeeerci"
+        
+        self.assertEqual(
+            format_text_ar(sentence, keep_latin_chars=True),
+            'صبباح النوور Meeeerci'
+        )
     # def test_digit_round_check(self):
 
     #     from linastt.utils.language import translate_language

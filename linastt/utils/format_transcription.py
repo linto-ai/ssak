@@ -34,6 +34,7 @@ def to_linstt_transcription(transcription,
     filter_out_segment_text_func=None, # filter_out_segment_text_whisper_hallucinations,
     warn_if_missing_words=True,
     verbose=False,
+    include_confidence=True,
     ):
 
     if isinstance(transcription, str):
@@ -66,13 +67,18 @@ def to_linstt_transcription(transcription,
     # LinTO transcription service
     if "transcription_result" in transcription:
 
-        if filter_out_segment_text_func:
+        if filter_out_segment_text_func or not include_confidence:
             has_filtered = False
             new_segments = []
             for seg in transcription["segments"]:
-                if filter_out_segment_text_func(seg["segment"]) or filter_out_segment_text_func(seg["raw_segment"]):
+                if filter_out_segment_text_func and (filter_out_segment_text_func(seg["segment"]) or filter_out_segment_text_func(seg["raw_segment"])):
                     has_filtered = True
                     continue
+                if not include_confidence:
+                    seg.pop("confidence", None)
+                    for i, word in enumerate(seg.get("words", [])):
+                        if "conf" in word:
+                            word.pop("conf")
                 new_segments.append(seg)
             if has_filtered:
                 text = " ".join([seg["segment"] for seg in new_segments])
@@ -194,7 +200,7 @@ def to_linstt_transcription(transcription,
                     print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
                 continue
 
-            for k in "speaker_id",:
+            for k in "speaker_id", "speaker", :
                 if k in seg:
                     seg["spk"] = seg.pop(k)
                     break
@@ -219,7 +225,7 @@ def to_linstt_transcription(transcription,
         return {
             "transcription_result": text,
             "raw_transcription": text,
-            "confidence": round(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]) if len(transcription["segments"]) else 0, 3),
+            "confidence": format_confidence(np.mean([np.exp(seg.get("avg_logprob", 0)) for seg in transcription["segments"]]) if len(transcription["segments"]) else 0),
             "segments": [
                 {
                     "spk_id": seg.get("spk"),
@@ -229,12 +235,14 @@ def to_linstt_transcription(transcription,
                     "raw_segment": seg["text"].strip(),
                     "segment": seg["text"].strip(),
                     "words": [
-                        {
+                        ({
                             "word": word["text"],
                             "start": format_timestamp(word["start"]),
                             "end": format_timestamp(word["end"]),
-                            "conf": word.get("confidence", 1),
-                        } for word in seg.get(word_key, [])
+                        } | ({
+                            "conf": format_confidence(word.get("confidence", 1)),
+                        } if include_confidence else {}))
+                        for word in seg.get(word_key, [])
                     ]
                 } for seg in transcription["segments"]
             ]
@@ -261,12 +269,13 @@ def to_linstt_transcription(transcription,
                     "raw_segment": text,
                     "segment": text,
                     "words": [
-                        {
+                        ({
                             "word": word["word"],
                             "start": format_timestamp(word["start"]),
                             "end": format_timestamp(word["end"]),
-                            "conf": word["conf"],
-                        } for word in words
+                        } | ({
+                            "conf": format_confidence(word.get("conf", 1)),
+                        } if include_confidence else {})) for word in words
                     ]
                 }
             ]
@@ -309,6 +318,9 @@ def format_timestamp(t):
         assert min(t) == max(t), f"Got unexpected list of timestamps: {t}"
         return format_timestamp(min(t))
     return round(t, 2)
+
+def format_confidence(c):
+    return round(c, 2)
 
 def read_text_grid(file,
     word_tag = "S-token",
@@ -567,3 +579,78 @@ if __name__ == "__main__":
             raise RuntimeError(f"Could not convert {x}")
         with open(y, "w", encoding="utf-8") as f:
             json.dump(transcription, f, indent=2, ensure_ascii=False)
+
+
+def shorten_transcription(transcription, max_num_words=16):
+    transcription = fuse_speaker_turns(transcription)
+    max_num_words_start = max_num_words // 2
+    max_num_words_end = (max_num_words - max_num_words_start) - 1 # -1 for "..."
+    new_transcription = {}
+    new_full_text = ""
+    new_segments = []
+    for segment in transcription["segments"]:
+        text = segment["segment"]
+        words = segment["words"]
+        if len(words) <= max_num_words:
+            new_segments.append(segment)
+            new_full_text += text + " "
+            continue
+        new_text = ""
+        new_segment = segment.copy()
+        new_segment.pop("words")
+        new_words = []
+        has_added_ellipsis = False
+        for i, word in enumerate(words):
+            if i >= max_num_words_start and i < len(words) - max_num_words_end:
+                # word in the middle
+                if not has_added_ellipsis:
+                    has_added_ellipsis = True
+                    ellipsis = {"word": "…", "start": word["start"], "end": word["end"]}
+                    if "conf" in word:
+                        ellipsis["conf"] = word["conf"]
+                    new_text += ellipsis["word"] + " "
+                    new_words.append(ellipsis)
+                else:
+                    # Update end time
+                    new_words[-1]["end"] = word["end"]
+            else:
+                # TODO: use original text for that (in case there is punctuation in between)
+                new_text += word["word"] + " "
+                new_words.append(word)
+        new_text = new_text.strip()
+        new_segment["segment"] = new_text
+        new_segment["raw_segment"] = new_text
+        new_segment["words"] = new_words
+        new_segments.append(new_segment)
+        new_full_text += new_text + " "
+    new_full_text = new_full_text.strip()
+
+    new_transcription["transcription_result"] = new_full_text
+    new_transcription["raw_transcription"] = new_full_text
+    new_transcription["segments"] = new_segments
+
+    if "confidence" in transcription:
+        new_transcription["confidence"] = transcription["confidence"]
+        
+    return new_transcription
+
+
+def fuse_speaker_turns(transcription):
+    new_segments = []
+    current_segment = None
+    for segment in transcription["segments"]:
+        if current_segment is None:
+            current_segment = segment
+        elif current_segment["spk_id"] == segment["spk_id"]:
+            current_segment["end"] = segment["end"]
+            current_segment["duration"] = segment["end"] - current_segment["start"]
+            current_segment["raw_segment"] += " " + segment["raw_segment"]
+            current_segment["segment"] += " " + segment["segment"]
+            current_segment["words"] += segment["words"]
+        else:
+            new_segments.append(current_segment)
+            current_segment = segment
+    if current_segment is not None:
+        new_segments.append(current_segment)
+    transcription["segments"] = new_segments
+    return transcription
