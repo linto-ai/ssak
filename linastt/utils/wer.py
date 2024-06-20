@@ -113,7 +113,7 @@ def compute_wer(refs, preds,
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+        from linastt.utils.text import format_text_latin, collapse_whitespace
 
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
@@ -124,8 +124,10 @@ def compute_wer(refs, preds,
 
         normalize_funcs = []
         if normalization.startswith("ar"):
+            from linastt.utils.text import format_text_ar
             normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True, lang=normalization))
         elif normalization == "ru":
+            from linastt.utils.text import format_text_ru
             normalize_funcs.append(lambda x: format_text_ru(x))
         else:
             normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
@@ -320,6 +322,9 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
+    show_boxplot=True,
+    show_axisnames=True,
+    x_axisname=None,
     **kwargs
     ):
     """
@@ -365,7 +370,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     n = 2 if small_hatch else 1
     
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
+    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1 and show_boxplot:
         vals = [get_stat_list(wer_dict[k]) for k in keys]
         plt.boxplot(vals, positions = positions, whis=100)
         # plt.violinplot(vals, positions = positions, showmedians=True, quantiles=[[0.25, 0.75] for i in range(len(vals))], showextrema=True)
@@ -378,15 +383,20 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
     plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
+    plt.yticks(fontsize=label_fontdict['size'])
     if ymax is None:
         _, maxi = plt.ylim()
         plt.ylim(bottom=ymin, top=min(100, maxi))
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
-        plt.legend()
+        plt.legend(fontsize=label_fontdict['size'])
+    if show_axisnames:
+        plt.ylabel("WER (%)", fontsize=label_fontdict['size'])
+        if x_axisname:
+            plt.xlabel(x_axisname, fontsize=label_fontdict['size'])
     if title:
-        plt.title(title)
+        plt.title(title, fontsize=label_fontdict['size'])
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
