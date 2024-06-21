@@ -15,11 +15,9 @@ Levenshtein
 librosa
 loralib
 matplotlib==3.7.4
-noisereduce
 git+https://github.com/hedhoud/num2words.git
 onnxruntime
 openai-whisper
-pedalboard
 peft
 psutil
 praat-textgrids
