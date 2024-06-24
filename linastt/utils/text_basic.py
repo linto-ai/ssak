@@ -12,7 +12,7 @@ def remove_parenthesis(text):
 def regex_escape(text):
     return re.escape(text)
 
-_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛' + '—'
+_punctuation_strong = string.punctuation + "。，！？：”、…" + '؟،؛' + '—' + "«°»×‹›•“–‘″‘"
 _punctuation = "".join(c for c in _punctuation_strong if c not in ["-", "'"])
 
 _punctuation_strong_regex = r"["+regex_escape(_punctuation_strong)+"]"

@@ -10,6 +10,7 @@ from linastt.utils.text_utils import (
     remove_special_characters,
     collapse_whitespace,
     remove_punctuations,
+    format_special_characters,
 )
 from lang_trans.arabic import buckwalter as bw
 
@@ -124,7 +125,6 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = normalize_arabic_currencies(line, lang=lang)
         line = digit2word(line, lang=lang)
         line = remove_arabic_diacritics(line)
-        line = remove_outer_apostrophes_and_hyphens(line)
         line = normalize_chars(line)
         line = convert_punct_to_arabic(line)
         line = remove_repeated_ar_chars(line)
@@ -132,8 +132,10 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc)
         else:
+            line = remove_outer_apostrophes_and_hyphens(line)
             line = unglue_arabic_and_latin_chars(line)
             line = remove_special_characters(line)
+            line = format_special_characters(line, remove_ligatures=True)
             if not keep_punc:
                 line = remove_punctuations(line, " ")
         if bw:
