@@ -25,6 +25,10 @@ _regex_all_punctuation = re.escape(_all_punctuation)
 _regex_not_arabic_neither_punctuation = re.compile(r"(?![" + _regex_arabic_chars + "])\w")
 _regex_arabic = re.compile(r"[" + _regex_arabic_chars + "]")
 
+def is_arabic(word):
+    # Use the regular expression to check if the word is Arabic
+    return bool(_regex_arabic.match(word))
+
 arabic_diacritics = re.compile("""
                              ّ    | # Tashdid
                              َ    | # Fatha
@@ -106,8 +110,10 @@ def remove_repeated_ar_chars(word, maximum=2):
     pattern = '(' + _regex_arabic.pattern + r')\1{' + str(maximum) + ',}'
     return re.sub(pattern, r'\1' * maximum, word)
 
-def remove_long_words(text, threshold=15):
-    return " ".join(word for word in text.split() if len(word) < threshold)
+def remove_long_arabic_words(text, threshold=15):
+    words = text.split()
+    filtered_words = [word for word in words if not is_arabic(word) or (is_arabic(word) and len(word) < threshold)]
+    return " ".join(filtered_words)
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar", normalize_dialect_words=False):
     try:
@@ -122,7 +128,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = normalize_chars(line)
         line = convert_punct_to_arabic(line)
         line = remove_repeated_ar_chars(line)
-        line = remove_long_words(line)
+        line = remove_long_arabic_words(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc)
         else:
