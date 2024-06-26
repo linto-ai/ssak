@@ -10,6 +10,7 @@ import asyncio
 from linastt.utils.curl import curl_post, curl_get
 from linastt.utils.text_basic import collapse_whitespace
 from linastt.utils.format_diarization import to_linstt_diarization
+from linastt.utils.linstt_transcription_result import TranscriptionResult
 
 DIARIZATION_SERVICES = {
     "pybk": "stt-diarization-pybk",
@@ -34,7 +35,6 @@ def linstt_transcribe(
         timeout_first = 3600 * 24,
         ping_interval = 1,
         delete_temp_files = True,
-        transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
     ):
     """
     Transcribe an audio file using the linstt service.
@@ -148,11 +148,6 @@ def linstt_transcribe(
                 verbose=verbose,
             )
 
-            # Ugly 1/2
-            if not os.path.isdir(transcription_service_src):
-                raise RuntimeError(f"Directory {transcription_service_src} does not exist.")
-            sys.path.append(transcription_service_src)
-            from transcriptionservice.transcription.transcription_result import TranscriptionResult
             try:
                 combined = TranscriptionResult([(result, 0.)])
                 combined.setDiarizationResult(diarization)
@@ -244,11 +239,6 @@ def linstt_transcribe(
                     words.append(word)
             result = {"words": words}
 
-            # Ugly 2/2
-            if not os.path.isdir(transcription_service_src):
-                raise RuntimeError(f"Directory {transcription_service_src} does not exist.")
-            sys.path.append(transcription_service_src)
-            from transcriptionservice.transcription.transcription_result import TranscriptionResult
             try:
                 combined = TranscriptionResult([(result, 0.)])
                 combined.setDiarizationResult(explicitDiarization)

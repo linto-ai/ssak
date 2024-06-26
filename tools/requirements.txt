@@ -6,7 +6,8 @@ google-ngram-downloader
 words2num
 openpyxl
 # proxy_randomizer
-pycurl
+# pycurl 7.45.3 can provoke an error pycurl.error: (77, 'error setting certificate file: /etc/ssl/certs/ca-certificates.crt')
+pycurl==7.45.2
 pymupdf # fitz
 python-slugify
 pytube
