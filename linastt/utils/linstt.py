@@ -2,6 +2,7 @@ import time
 import os
 import sys
 import shutil
+import re
 
 import subprocess
 import json
@@ -26,7 +27,7 @@ def linstt_transcribe(
         diarization_service_name=DIARIZATION_SERVICES["simple"],
         force_16k = False,
         convert_numbers=True,
-        punctuation=True,
+        punctuation=None,
         diarization=False,
         return_raw=True,
         wordsub={},
@@ -61,6 +62,8 @@ def linstt_transcribe(
     if not timeout:
         timeout = float("inf")
     assert timeout > 0, f"Timeout must be > 0, got {timeout}"
+    if punctuation is None:
+        punctuation = "whisper" not in transcription_server.lower()
 
     token = None # cm_get_token("https://convos.linto.ai/cm-api", email, password, verbose=verbose)
 
@@ -148,12 +151,9 @@ def linstt_transcribe(
                 verbose=verbose,
             )
 
-            try:
-                combined = TranscriptionResult([(result, 0.)])
-                combined.setDiarizationResult(diarization)
-                output = combined.final_result()
-            finally:
-                sys.path.pop(-1)
+            combined = TranscriptionResult([(result, 0.)])
+            combined.setDiarizationResult(diarization)
+            output = combined.final_result()
 
         else:
 
@@ -235,18 +235,32 @@ def linstt_transcribe(
             
             words = []
             for segment in output["segments"]:
+                text = segment["raw_segment"]
+                end = 0
                 for word in segment["words"]:
+                    start = re.search(r"\b" + re.escape(word["word"]) + r"\b", text[end:], re.IGNORECASE)
+                    assert start, f"Word {word['word']} not found in {text[end:]}"
+                    start = start.start() + end
+                    if start > end:
+                        suffix = text[end:start].rstrip(" ")
+                        if suffix:
+                            words[-1]["word"] += suffix
+                    end = start + len(word["word"])
                     words.append(word)
-            result = {"words": words}
+            start = len(text)
+            if start > end:
+                suffix = text[end:start].rstrip(" ")
+                if suffix:
+                    words[-1]["word"] += suffix
 
-            try:
-                combined = TranscriptionResult([(result, 0.)])
-                combined.setDiarizationResult(explicitDiarization)
-                output = combined.final_result()
+            result = {
+                "text": output["transcription_result"],
+                "words": words
+            }
 
-            finally:
-                sys.path.pop(-1)
-
+            combined = TranscriptionResult([(result, 0.)])
+            combined.setDiarizationResult(explicitDiarization)
+            output = combined.final_result()
 
     for fn in to_be_deleted:
         os.remove(fn)
