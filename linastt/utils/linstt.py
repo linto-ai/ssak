@@ -238,8 +238,8 @@ def linstt_transcribe(
                 text = segment["raw_segment"]
                 end = 0
                 for word in segment["words"]:
-                    start = re.search(r"\b" + re.escape(word["word"]) + r"\b", text[end:], re.IGNORECASE)
-                    assert start, f"Word {word['word']} not found in {text[end:]}"
+                    start = re.search(re.escape(word["word"]), text[end:], re.IGNORECASE)
+                    assert start, f"Word '{word['word']}' not found in '{text[end:]}'"
                     start = start.start() + end
                     if start > end:
                         suffix = text[end:start].rstrip(" ")
