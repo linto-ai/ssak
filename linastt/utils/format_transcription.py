@@ -200,7 +200,7 @@ def to_linstt_transcription(transcription,
                     print(f"WARNING: removing segment with duration {format_timestamp(seg['end'])-format_timestamp(seg['start'])}" )
                 continue
 
-            for k in "speaker_id", "speaker", :
+            for k in "speaker_id", "speaker", "spk_id", :
                 if k in seg:
                     seg["spk"] = seg.pop(k)
                     break

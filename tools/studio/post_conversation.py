@@ -349,7 +349,7 @@ if __name__ == "__main__":
             except:
                 pass
     transcription = annotations if not is_diarization else None
-    diarization = to_linstt_diarization(annotations) if is_diarization else None
+    diarization = to_linstt_diarization(annotations, remove_overlaps=True) if is_diarization else None
 
     if not transcription:
         default_name += " | STT " + os.path.basename(args.transcription_server).replace("stt", "").strip(" _-")

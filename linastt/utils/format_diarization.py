@@ -32,7 +32,7 @@ def import_rttm_line(line, sep):
 
 
 def read_rttm(input_rttm, output_json):
-    result = import_rttm(input_rttm)        
+    input = import_rttm(input_rttm)        
     _,recname= os.path.split(input_rttm)
     recname = os.path.splitext(recname)[0]
     linto_result = {}
@@ -40,7 +40,7 @@ def read_rttm(input_rttm, output_json):
     _speakers = {}
     seg_id = 1
     
-    for (ID, start, duration, spk_id, EXTRA) in result:
+    for (ID, start, duration, spk_id, EXTRA) in input:
         
         segment = {}
         segment["seg_begin"] = round(start, 3)
@@ -100,7 +100,14 @@ def conform_result(linto_result):
 
 
 
-def to_linstt_diarization(input):
+def to_linstt_diarization(input, remove_overlaps=False):
+
+    if remove_overlaps:
+        return remove_diarization_overlaps(
+            to_linstt_diarization(
+                input,
+                remove_overlaps=False)
+            )
 
     if isinstance(input, str):
         # Filename
@@ -119,6 +126,104 @@ def to_linstt_diarization(input):
         
     raise NotImplementedError(f"Cannot process input of type {type(input)}")
 
+
+def remove_diarization_overlaps(input):
+    new_segments = []
+    previous_start = 0
+    previous_end = 0
+    for segment in sorted(input["segments"], key=lambda x: (x["seg_begin"], x["seg_end"])):
+        start = segment["seg_begin"]
+        end = segment["seg_end"]
+        assert start >= 0, f"Negative start time {start}"
+        assert end >= start, f"Negative duration {end-start}"
+        if end == start:
+            print("Warning: got zero duration segment")
+            continue
+
+        also_add = None
+        # assert start > previous_start, f"Got start {start} <= previous_start {previous_start}"
+        if start < previous_end:
+            if start <= new_segments[-1]["seg_begin"]:
+                # TODO: rather takes a middle point rather than removing the segment
+                new_segments.pop(-1)
+            else:
+                new_segments[-1]["seg_end"] = start
+            if end < previous_end:
+                also_add = {
+                    "seg_begin": end,
+                    "seg_end": previous_end,
+                    "spk_id": new_segments[-1]["spk_id"]
+                }
+                start = end
+                end = previous_end
+
+        previous_end = end
+        previous_start = start
+        new_segments.append(segment)
+        if also_add is not None:
+            new_segments.append(also_add)
+
+    # Add segment id and collect speakers
+    for seg_id, segment in enumerate(new_segments):
+        seg_id += 1
+        segment["seg_id"] = seg_id
+
+    # TODO: we could update speaker stats as well
+
+    return {
+        "segments": sorted(new_segments, key=lambda x: (x["seg_begin"], x["seg_end"])),
+        "speakers": input["speakers"]
+    }
+
+def json2rttm(input, output_rttm, channel=1, prefix_speaker="", recname="FOO"):
+        
+    rttm_line = "SPEAKER {} {} {} {} <NA> <NA> {} <NA> <NA>\n"
+
+    possible_keys_start = ["seg_begin", "start"]
+    possible_keys_end = ["seg_end", "end"]
+    key_start = None
+    key_end = None
+    has_given_warning_about_overlap = False
+
+    with open(output_rttm, "w") as fp:
+        previous_end = 0
+        previous_start = 0
+        for seg in input["segments"]:
+            # Look for start and end keys
+            if key_start is None:
+                for k in possible_keys_start:
+                    if k in seg:
+                        key_start = k
+                        break
+                assert key_start is not None, f"Could not find start key in {seg.keys()} (among {possible_keys_start})"
+            if key_end is None:
+                for k in possible_keys_end:
+                    if k in seg:
+                        key_end = k
+                        break
+                assert key_end is not None, f"Could not find end key in {seg.keys()} (among {possible_keys_end})"
+
+            # Collect segment information
+            start = seg[key_start]
+            end = seg[key_end]
+            assert end >= start, f"Got negative duration: {start=}, {end=}"
+            duration = end - start
+            label = seg["spk_id"]
+            if prefix_speaker:
+                label = prefix_speaker + label
+
+
+            if start < previous_end and not has_given_warning_about_overlap:
+                has_given_warning_about_overlap = True
+                print(f"Warning: Got overlapping segments")
+            assert start >= previous_start, f"Got start {start} <= previous_start {previous_start}"
+            previous_end = end
+            previous_start = start
+
+            start = f"{start:.3f}"
+            duration = f"{duration:.3f}"
+            line = rttm_line.format(recname, channel, start, duration, label)
+            fp.write(line)
 
 if __name__ == "__main__":
 
@@ -155,6 +260,9 @@ if __name__ == "__main__":
     for input_rttm, output_json in inputs:
         print("Converting", input_rttm, "to", output_json, "...")
         output = to_linstt_diarization(input_rttm)
-        with open(output_json, "w") as fp:
-            json.dump(output, fp, indent=2)
+        if output_json.endswith(".rttm"):
+            json2rttm(output, output_json, recname=os.path.splitext(os.path.basename(input_rttm))[0])
+        else:
+            with open(output_json, "w") as fp:
+                json.dump(output, fp, indent=2)
 
