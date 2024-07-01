@@ -31,7 +31,7 @@ def create_arg_parser():
     parser.add_argument(
         "model_base_path",
         type=str,
-        help="Path to the SVC model file",
+        help="Path to the SVC models. To train so-vits-svc you can visit their GitHub: https://github.com/voicepaw/so-vits-svc-fork",
     )
     parser.add_argument(
         "-ok", "--kaldi_output",
