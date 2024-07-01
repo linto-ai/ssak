@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 import random
-from typing import Literal, Union
+from typing import Literal, Union, List
 
 import argparse
 import numpy as np
@@ -174,29 +174,31 @@ def convert_to_int(s):
     else:
         return str(s)
 
-def _get_speakers(speaker: str, model_base_path: Path) -> list:
-    if speaker is None:
-        speakers = find_speakers(model_base_path)
-    else:
-        speakers = [speaker]
-    return speakers
-
-def _select_speakers(speakers: list, max_spk: Union[str, int]) -> list:
+def _select_speakers(speakers: List[str], max_spk: Union[str, int]) -> List[str]:
     if not speakers:
         print("The speaker list is empty!")
         return []
-
     if isinstance(max_spk, str) and max_spk.lower() == "all":
         return speakers
-    if isinstance(max_spk, int) and max_spk == 1:
-        return random.sample(speakers, 1)
-    if isinstance(max_spk, int) and max_spk >= len(speakers):
-        return speakers
     if isinstance(max_spk, int):
+        if max_spk == 1:
+            return random.sample(speakers, 1)
+        if max_spk >= len(speakers):
+            return speakers
         return random.sample(speakers, max_spk)
     
     print(f"Invalid max_spk value: {max_spk}")
     return []
+
+def _get_speakers(speaker: str, model_base_path: Path) -> List[str]:
+    if speaker is None:
+        speakers = find_speakers(model_base_path)
+    elif "," in speaker:
+        speakers = speaker.split(",")
+        speakers = [spk.strip() for spk in speakers]
+    else:
+        speakers = [speaker]
+    return speakers
 
 def _load_svc_models(speakers: list, model_base_path: Path, device: torch.device) -> dict:
     models = {}
