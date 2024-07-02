@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 import random
@@ -134,6 +133,31 @@ def create_arg_parser():
 
     return parser
 
+def get_initials(names: list) -> str:
+    initials = {}
+    result = []
+
+    for name in names:
+        if "_" in name:
+            parts = name.split("_")
+            initial = parts[0][0] + parts[1][0] if len(parts) > 1 else parts[0][0]
+        else:
+            initial = name[:2]
+
+        # Check for duplicate initials
+        if initial in initials:
+            # Append the next character to resolve the conflict
+            current_length = len(initials[initial])
+            initials[initial].append(name[current_length])
+            # Update the result for all conflicting initials
+            for idx in initials[initial]:
+                result[idx] = result[idx] + name[current_length]
+        else:
+            initials[initial] = [len(result)]
+            result.append(initial)
+
+    return "_".join(result)
+
 def read_and_generate_segment_dict(kaldi_dir):
     _, dataframe = kaldi_folder_to_dataset(kaldi_dir, return_format="pandas")
     segments = {}
@@ -262,12 +286,14 @@ def _convert_voice(
 
         speakers = _get_speakers(speaker, model_base_path)
         selected_speaker_models = _select_speakers(speakers, max_spk)
+        spkname_or_len = get_initials(selected_speaker_models) 
+
         print(f"\nChosen SPK :{selected_speaker_models}\n")
         svc_models = _load_svc_models(selected_speaker_models, model_base_path, device)
 
         if kaldi_output is None:
             kf_basename = input_path.stem
-            kaldi_output = input_path.parent / f"{kf_basename}_augmented"
+            kaldi_output = input_path.parent / f"{kf_basename}_augmented_{spkname_or_len}"
 
         os.makedirs(kaldi_output, exist_ok=True)
 
@@ -310,7 +336,7 @@ def _convert_voice(
                         if audio_output_path is None:
                             audio_file_path = Path(audio_path)
                             audio_folder = audio_file_path.parent
-                            audio_output_path = audio_folder.with_name("audio_augmented")
+                            audio_output_path = audio_folder.with_name(f"audio_augmented_{spkname_or_len}")
                         audio_output_path.mkdir(parents=True, exist_ok=True)
                         
                         output_file_path = audio_output_path / f"{wave_id}.wav"
