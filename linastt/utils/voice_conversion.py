@@ -286,14 +286,14 @@ def _convert_voice(
 
         speakers = _get_speakers(speaker, model_base_path)
         selected_speaker_models = _select_speakers(speakers, max_spk)
-        spkname_or_len = get_initials(selected_speaker_models) 
+        spkname = get_initials(selected_speaker_models) 
 
         print(f"\nChosen SPK :{selected_speaker_models}\n")
         svc_models = _load_svc_models(selected_speaker_models, model_base_path, device)
 
         if kaldi_output is None:
             kf_basename = input_path.stem
-            kaldi_output = input_path.parent / f"{kf_basename}_augmented_{spkname_or_len}"
+            kaldi_output = input_path.parent / f"{kf_basename}_augmented_{spkname}"
 
         os.makedirs(kaldi_output, exist_ok=True)
 
@@ -320,7 +320,7 @@ def _convert_voice(
                         if audio_path is None or not os.path.exists(audio_path):
                             raise ValueError(f"Invalid or missing audio path for segment {segment_id}")
                         
-                        seg_id_with_prefix = f"augmented_{segment_id}"
+                        seg_id_with_prefix = f"{spkname}_augmented_{segment_id}"
                         
                         text_segment = seg_info["text"]
                         start_time = seg_info['start']
@@ -336,7 +336,7 @@ def _convert_voice(
                         if audio_output_path is None:
                             audio_file_path = Path(audio_path)
                             audio_folder = audio_file_path.parent
-                            audio_output_path = audio_folder.with_name(f"audio_augmented_{spkname_or_len}")
+                            audio_output_path = audio_folder.with_name(f"audio_augmented_{spkname}")
                         audio_output_path.mkdir(parents=True, exist_ok=True)
                         
                         output_file_path = audio_output_path / f"{wave_id}.wav"
