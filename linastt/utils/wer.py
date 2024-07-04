@@ -30,7 +30,7 @@ def compute_wer(refs, preds,
                 character_level=False,
                 use_percents=False,
                 alignment=False,
-                include_correct_in_alignement=True,
+                include_correct_in_alignement=False,
                 words_list=None,
                 words_blacklist=None,
                 replacements_ref=None,
@@ -123,9 +123,9 @@ def compute_wer(refs, preds,
             normalization = normalization[:-1]
 
         normalize_funcs = []
-        if normalization == "ar":
+        if normalization.startswith("ar"):
             from linastt.utils.text import format_text_ar
-            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
+            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True, lang=normalization))
         elif normalization == "ru":
             from linastt.utils.text import format_text_ru
             normalize_funcs.append(lambda x: format_text_ru(x))

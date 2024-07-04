@@ -133,7 +133,9 @@ def get_model_vocab(model):
         labels_dict = dict((v,k) for k,v in processor.tokenizer.get_vocab().items())
         labels = [labels_dict[i] for i in range(len(labels_dict))]
         labels = [l if l!="|" else " " for l in labels]
-        blank_id = labels.index("<pad>")
+        blank_id = labels.index("<pad>") if "<pad>" in labels else labels.index("[PAD]") if "[PAD]" in labels else -1
+        if blank_id == -1:
+            raise ValueError("Neither <pad> nor [PAD] found in labels")
         return labels, blank_id
 
     elif model_type == ModelType.TORCHAUDIO:
