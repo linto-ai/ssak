@@ -5,6 +5,7 @@ import numpy as np
 import re
 import os
 import csv
+from linastt.utils.compute_alignment_metrics import compute_alignment_metrics
 
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
@@ -24,50 +25,25 @@ def parse_text_with_ids(file_name):
 def parse_text_without_ids(file_name):
     return dict(enumerate([normalize_line(l) for l in open(file_name,'r',encoding='utf-8').readlines()]))
 
-def compute_wer(refs, preds,
-                use_ids=False,
-                normalization=None,
-                character_level=False,
-                use_percents=False,
-                alignment=False,
-                include_correct_in_alignement=False,
-                words_list=None,
-                words_blacklist=None,
-                replacements_ref=None,
-                replacements_pred=None,
-                details_words_list=False,
-                ):
-    """
-    Compute WER between two files.
-    :param refs: path to the reference file, or dictionary {"id": "text..."}, or list of texts
-    :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
-                  Must be of the same type as refs.
-    :param use_ids: (for files) whether reference and prediction files includes id as a first field
-    :param normalization: None or a language code ("fr", "ar", ...).
-        Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
-    :param alignment: if True, print alignment information. If string, write alignment information to the file.
-    :param include_correct_in_alignement: whether to include correct words in the alignment
-    :param words_list: list of words to focus on
-    :param words_blacklist: list of words to exclude all the examples where the reference include such a word
-    :param replacements_ref: dictionary of replacements to perform in the reference
-    :param replacements_pred: dictionary of replacements to perform in the hypothesis
-    :param details_words_list: whether to output information about words that are well recognized (among the specified words_list)
-    """
-    # Open the test dataset human translation file
+def prepare_list(refs, preds, correction_pred=None, use_ids=False, normalization=None, replacements_ref=None, replacements_pred=None, words_blacklist=None, words_list=None):
     if isinstance(refs, str):
         assert os.path.isfile(refs), f"Reference file {refs} doesn't exist"
         assert isinstance(preds, str) and os.path.isfile(preds), f"Prediction file {preds} doesn't exist"
         if use_ids:
             refs = parse_text_with_ids(refs)
             preds = parse_text_with_ids(preds)
+            if correction_pred:
+                correction_pred = parse_text_with_ids(correction_pred)
         else:
             refs = parse_text_without_ids(refs)
             preds = parse_text_without_ids(preds)
+            if correction_pred:
+                correction_pred = parse_text_without_ids(correction_pred)
 
     if isinstance(refs, dict):
         assert isinstance(preds, dict)
-
-        # Reconstruct two lists of pred/ref with the intersection of ids
+        if correction_pred:
+            assert isinstance(correction_pred, dict)
         ids = [id for id in refs.keys() if id in preds]
 
         if len(ids) == 0:
@@ -82,6 +58,8 @@ def compute_wer(refs, preds,
 
         refs = [refs[id] for id in ids]
         preds = [preds[id] for id in ids]
+        if correction_pred:
+            correction_pred = [correction_pred[id] for id in ids]
 
     assert isinstance(refs, list)
     assert isinstance(preds, list)
@@ -94,6 +72,8 @@ def compute_wer(refs, preds,
                 if re.search(r"\b" + w + r"\b", refs[i]):
                     del refs[i]
                     del preds[i]
+                    if correction_pred:
+                        del correction_pred[i]
                     break
 
     # Replacements BEFORE normalization
@@ -111,6 +91,12 @@ def compute_wer(refs, preds,
             for i, pred in enumerate(preds):
                 if k in pred:
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
+
+    if correction_pred:
+        for k, v in replacements_ref.items():
+            for i, cor in enumerate(correction_pred):
+                if k in cor:
+                    correction_pred[i] = re.sub(r"\b" + k + r"\b", v, correction_pred[i])
 
     if normalization:
         from linastt.utils.text import format_text_latin, collapse_whitespace
@@ -157,6 +143,8 @@ def compute_wer(refs, preds,
 
         refs = [normalize_func(ref) for ref in refs]
         preds = [normalize_func(pred) for pred in preds]
+        if correction_pred:
+            correction_pred = [normalize_func(cor) for cor in correction_pred]
         if words_list:
             words_list = [normalize_func(w) for w in words_list]
             words_list = [w for w in words_list if w]
@@ -180,8 +168,28 @@ def compute_wer(refs, preds,
                 for i, pred in enumerate(preds):
                     if k in pred:
                         preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
+        if correction_pred:
+            for k, v in replacements_ref.items():
+                for i, cor in enumerate(correction_pred):
+                    if k in cor:
+                        correction_pred[i] = re.sub(r"\b" + k + r"\b", v, correction_pred[i])
 
+    return refs, preds, correction_pred, words_list
 
+def compute_wer(refs, preds,
+                use_ids=False,
+                normalization=None,
+                character_level=False,
+                use_percents=False,
+                alignment=False,
+                include_correct_in_alignement=False,
+                words_list=None,
+                words_blacklist=None,
+                replacements_ref=None,
+                replacements_pred=None,
+                details_words_list=False,
+                ):
+    refs, preds, _, words_list = prepare_list(refs, preds, None, use_ids, normalization, replacements_ref, replacements_pred, words_blacklist, words_list)
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
     # Calculate WER for the whole corpus
@@ -200,7 +208,6 @@ def compute_wer(refs, preds,
         )
     else:
         measures = jiwer.compute_measures(refs, preds)
-
     extra = {}
     if alignment:
         with open(alignment, 'w+') if isinstance(alignment, str) else open("/dev/stdout", "w") as f:
@@ -259,7 +266,6 @@ def compute_wer(refs, preds,
 
     hits_score -= hits_bias
     count = hits_score + del_score + sub_score
-
     scale = 100 if use_percents else 1
 
     if count == 0: # This can happen if all references are empty
@@ -309,6 +315,26 @@ def str2bool(string):
     else:
         raise ValueError(f"Expected True or False")
 
+
+def compare_corrections(refs, preds, correction_preds, use_ids=False, normalization=None, character_level=False, replacements_ref=None, replacements_pred=None, words_blacklist=None, words_list=None):
+    refs, preds, correction_preds, words_list = prepare_list(refs, preds, correction_preds, use_ids, normalization, replacements_ref, replacements_pred, words_blacklist, words_list)
+    refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
+    refs, correction_preds, hits_bias_corr = ensure_not_empty_reference(refs, correction_preds, character_level)
+
+    correction_preds = ["" if pred is None else pred for pred in correction_preds]
+    orig_output = compute_alignment_metrics(refs, preds, correction_preds)
+
+   
+    return {
+        'subs_removed': orig_output.subs_removed_pct,
+        'dels_removed': orig_output.dels_removed_pct,
+        'ins_removed': orig_output.ins_removed_pct,
+        'subs_added': orig_output.subs_added_pct,
+        'dels_added': orig_output.dels_added_pct,
+        'ins_added': orig_output.ins_added_pct,
+        'wer_removed': orig_output.wer_removed_pct,
+        'wer_added': orig_output.wer_added_pct,
+    }
 
 def plot_wer(
     wer_dict,
@@ -382,7 +408,6 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [d], bottom=[s], hatch="O"*n, label="Deletion" if do_label else None, **kwargs_del, **opts)
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
     plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
-    # plt.title(f"{len(wer)} values")
     plt.yticks(fontsize=label_fontdict['size'])
     if ymax is None:
         _, maxi = plt.ylim()
@@ -440,19 +465,22 @@ if __name__ == "__main__":
     parser.add_argument('--replacements', help="Files with list of replacements to perform in both reference and hypothesis", default=None)
     parser.add_argument('--replacements_ref', help="Files with list of replacements to perform in references only", default=None)
     parser.add_argument('--replacements_pred', help="Files with list of replacements to perform in predicions only", default=None)
+    parser.add_argument('--corrections', help="File with corrected predictions to measure correction effectiveness", type=str, default=None)
     args = parser.parse_args()
 
     target_test = args.references
     target_pred = args.predictions
+    correction_pred = args.corrections
 
     if not os.path.isfile(target_test):
         assert not os.path.isfile(target_pred), f"File {target_pred} exists but {target_test} doesn't"
         if " " not in target_test and " " not in target_pred:
-            # Assume file instead of isolated word
             assert os.path.isfile(target_test), f"File {target_test} doesn't exist"
             assert os.path.isfile(target_pred), f"File {target_pred} doesn't exist"
         target_test = [target_test]
         target_pred = [target_pred]
+        if correction_pred:
+            correction_pred = [correction_pred]
 
     words_list = None
     if args.words_list:
@@ -506,23 +534,103 @@ if __name__ == "__main__":
         details_words_list = eval(details_words_list.title())
     use_ids = args.use_ids
 
-    result = compute_wer(
-        target_test, target_pred,
-        use_ids=use_ids,
-        normalization=args.norm,
-        character_level=args.char,
-        alignment=alignment,
-        include_correct_in_alignement=args.include_correct_in_alignement,
-        words_list=words_list,
-        words_blacklist=words_blacklist,
-        replacements_ref=replacements_ref,
-        replacements_pred=replacements_pred,
-        details_words_list=details_words_list,
+    if args.corrections:
+
+        result_initial = compute_wer(
+            target_test, correction_pred,
+            use_ids=use_ids,
+            normalization=args.norm,
+            character_level=args.char,
+            alignment=alignment,
+            include_correct_in_alignement=args.include_correct_in_alignement,
+            words_list=words_list,
+            words_blacklist=words_blacklist,
+            replacements_ref=replacements_ref,
+            replacements_pred=replacements_pred,
+            details_words_list=details_words_list,
         )
-    line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
-        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
-    if "word_err" in result:
-        line = f" {word_list_name} err: {result['word_err'] * 100:.2f} % |" + line
-    print('-' * len(line))
-    print(line)
-    print('-' * len(line))
+
+        result_correction = compute_wer(
+            target_test, target_pred,
+            use_ids=use_ids,
+            normalization=args.norm,
+            character_level=args.char,
+            alignment=alignment,
+            include_correct_in_alignement=args.include_correct_in_alignement,
+            words_list=words_list,
+            words_blacklist=words_blacklist,
+            replacements_ref=replacements_ref,
+            replacements_pred=replacements_pred,
+            details_words_list=details_words_list,
+        )
+
+    else:
+
+        result_initial = compute_wer(
+            target_test, target_pred,
+            use_ids=use_ids,
+            normalization=args.norm,
+            character_level=args.char,
+            alignment=alignment,
+            include_correct_in_alignement=args.include_correct_in_alignement,
+            words_list=words_list,
+            words_blacklist=words_blacklist,
+            replacements_ref=replacements_ref,
+            replacements_pred=replacements_pred,
+            details_words_list=details_words_list,
+        )
+
+    line_initial = ' {}ER (initial): {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
+        "C" if args.char else "W", result_initial['wer'] * 100, result_initial['del'] * 100, result_initial['ins'] * 100, result_initial['sub'] * 100, result_initial['count'])
+    if "word_err" in result_initial:
+        line_initial = f" {word_list_name} err: {result_initial['word_err'] * 100:.2f} % |" + line_initial
+
+    if args.corrections:
+        line_correction = ' {}ER (correction): {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
+            "C" if args.char else "W", result_correction['wer'] * 100, result_correction['del'] * 100, result_correction['ins'] * 100, result_correction['sub'] * 100, result_correction['count'])
+        if "word_err" in result_correction:
+            line_correction = f" {word_list_name} err: {result_correction['word_err'] * 100:.2f} % |" + line_correction
+
+        print('Metrics before correction model:')
+        print('-' * len(line_correction))
+        print(line_correction)
+        print('-' * len(line_correction))
+        print('-' * len(line_initial))
+        print('Metrics after correction model:')
+
+    print('-' * len(line_initial))
+    print(line_initial)
+    print('-' * len(line_initial))
+
+    if correction_pred:
+        correction_result = compare_corrections(
+            target_test, 
+            target_pred, 
+            correction_pred, 
+            use_ids=use_ids, 
+            normalization=args.norm, 
+            character_level=args.char,
+            replacements_ref=replacements_ref, 
+            replacements_pred=replacements_pred, 
+            words_blacklist=words_blacklist, 
+            words_list=words_list
+        )
+
+        Removed_result = ' Corrections removed: WER : - {:.2f} [ deletions: - {:.2f} % | insertions: - {:.2f} % | substitutions: - {:.2f} % ]'.format(
+        correction_result['wer_removed'] * 100, correction_result['dels_removed'] * 100, correction_result['ins_removed'] * 100, correction_result['subs_removed'] * 100    )
+        
+
+        Added_result = ' Corrections added: WER : + {:.2f} [ deletions: + {:.2f} % | insertions: + {:.2f} % | substitutions: + {:.2f} % ]'.format(
+        correction_result['wer_added'] * 100,correction_result['dels_added'] * 100, correction_result['ins_added'] * 100, correction_result['subs_added'] * 100,
+    )
+        print('Metrics difference between initial and correction model:')
+        print("Removed : ")
+        print('-' * len(Removed_result))
+        print(Removed_result)
+        print('-' * len(Removed_result))
+        print("Added : ")
+        print('-' * len(Added_result))
+        print(Added_result)
+        print('-' * len(Added_result))
+
+
