@@ -25,7 +25,34 @@ def parse_text_with_ids(file_name):
 def parse_text_without_ids(file_name):
     return dict(enumerate([normalize_line(l) for l in open(file_name,'r',encoding='utf-8').readlines()]))
 
-def prepare_list(refs, preds, correction_pred=None, use_ids=False, normalization=None, replacements_ref=None, replacements_pred=None, words_blacklist=None, words_list=None):
+def prepare_list(refs, 
+                 preds, 
+                 correction_pred=None, 
+                 use_ids=False, 
+                 normalization=None, 
+                 replacements_ref=None, 
+                 replacements_pred=None, 
+                 words_blacklist=None, 
+                 words_list=None
+                 ):
+    """
+    Prepare and preprocess lists of references, predictions, and optionally corrected predictions for comparison.
+
+    Args:
+        refs (str or list or dict): Reference sentences or path to the reference file.
+        preds (str or list or dict): Prediction sentences or path to the prediction file.
+        correction_pred (str or list or dict, optional): Corrected prediction sentences or path to the correction prediction file (default None).
+        use_ids (bool, optional): Indicates whether to use IDs for matching references and predictions (default False).
+        normalization (str, optional): Normalization method to apply to texts (default None).
+        replacements_ref (dict, optional): Specific replacements to apply to references before and after normalization (default None).
+        replacements_pred (dict, optional): Specific replacements to apply to predictions before and after normalization (default None).
+        words_blacklist (list, optional): List of words to exclude from the analysis (default None).
+        words_list (list, optional): Specific words to include in the analysis (default None).
+
+    Returns:
+        tuple: Processed references, predictions, corrected predictions, and words list.
+    """
+    
     if isinstance(refs, str):
         assert os.path.isfile(refs), f"Reference file {refs} doesn't exist"
         assert isinstance(preds, str) and os.path.isfile(preds), f"Prediction file {preds} doesn't exist"
@@ -316,7 +343,37 @@ def str2bool(string):
         raise ValueError(f"Expected True or False")
 
 
-def compare_corrections(refs, preds, correction_preds, use_ids=False, normalization=None, character_level=False, replacements_ref=None, replacements_pred=None, words_blacklist=None, words_list=None):
+def compare_corrections(refs, 
+                        preds, 
+                        correction_preds, 
+                        use_ids=False, 
+                        normalization=None,
+                        character_level=False, 
+                        replacements_ref=None, 
+                        replacements_pred=None,
+                        words_blacklist=None, 
+                        words_list=None
+                        ):
+    
+    """
+    Compare corrections made to a series of predictions against reference sentences and calculate performance metrics.
+
+    Args:
+        refs (list): List of reference sentences.
+        preds (list): List of initial predictions.
+        correction_preds (list): List of corrected predictions.
+        use_ids (bool): Indicates if identifiers are used (default False).
+        normalization (callable): Normalization function to apply to texts (default None).
+        character_level (bool): Indicates if the analysis is done at the character level (default False).
+        replacements_ref (dict): Specific replacements to apply to references (default None).
+        replacements_pred (dict): Specific replacements to apply to predictions (default None).
+        words_blacklist (list): List of words to exclude from the analysis (default None).
+        words_list (list): Specific words to include in the analysis (default None).
+
+    Returns:
+        dict: Dictionary containing the percentages of substitutions, deletions, and insertions removed and added,
+              as well as the corresponding Word Error Rates (WER).
+    """
     refs, preds, correction_preds, words_list = prepare_list(refs, preds, correction_preds, use_ids, normalization, replacements_ref, replacements_pred, words_blacklist, words_list)
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
     refs, correction_preds, hits_bias_corr = ensure_not_empty_reference(refs, correction_preds, character_level)
