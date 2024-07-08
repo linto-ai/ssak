@@ -216,6 +216,22 @@ def compute_wer(refs, preds,
                 replacements_pred=None,
                 details_words_list=False,
                 ):
+    """
+    Compute WER between two files.
+    :param refs: path to the reference file, or dictionary {"id": "text..."}, or list of texts
+    :param preds: path to the prediction file, or dictionary {"id": "text..."}, or list of texts.
+                  Must be of the same type as refs.
+    :param use_ids: (for files) whether reference and prediction files includes id as a first field
+    :param normalization: None or a language code ("fr", "ar", ...).
+        Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)
+    :param alignment: if True, print alignment information. If string, write alignment information to the file.
+    :param include_correct_in_alignement: whether to include correct words in the alignment
+    :param words_list: list of words to focus on
+    :param words_blacklist: list of words to exclude all the examples where the reference include such a word
+    :param replacements_ref: dictionary of replacements to perform in the reference
+    :param replacements_pred: dictionary of replacements to perform in the hypothesis
+    :param details_words_list: whether to output information about words that are well recognized (among the specified words_list)
+    """
     refs, preds, _, words_list = prepare_list(refs, preds, None, use_ids, normalization, replacements_ref, replacements_pred, words_blacklist, words_list)
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
