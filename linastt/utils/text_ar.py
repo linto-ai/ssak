@@ -118,8 +118,6 @@ def remove_long_arabic_words(text, threshold=15):
 
 def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang="ar", normalize_dialect_words=False):
     try:
-        if normalize_dialect_words and lang == "ar_tn":
-            line = normalize_tunisan_words(line)
         line = remove_url(line)
         line = symbols_to_letters(line, lang=lang, lower_case=False)
         line = normalize_arabic_currencies(line, lang=lang)
@@ -129,6 +127,8 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         line = convert_punct_to_arabic(line)
         line = remove_repeated_ar_chars(line)
         line = remove_long_arabic_words(line)
+        if normalize_dialect_words and lang == "ar_tn":
+            line = normalize_tunisan_words(line)
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc)
         else:
