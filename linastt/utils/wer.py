@@ -212,7 +212,10 @@ def compute_wer(refs, preds,
             #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
             # s = re.sub(r"(REF: |HYP: )([^\n]+)", add_separator, s)
             f.write(s)
-            extra = {"alignment": s}
+            extra = {
+                "alignment": s,
+                "raw_alignement": output,
+            }
 
     if words_list:
         n_total = 0
@@ -281,6 +284,87 @@ def compute_wer(refs, preds,
         'sub': (float(sub_score) * scale/ count),
         'count': count,
     } | extra
+
+def compute_wer_differences(refs, preds1, preds2, **kwargs):
+    """
+    Compute the difference of WER between two predictions and the reference.
+    """
+    kwargs["alignment"] = True
+    out1 = compute_wer(refs, preds1, **kwargs)
+    out2 = compute_wer(refs, preds2, **kwargs)
+
+    def collect_errors(out):
+        data = out["raw_alignement"]
+        alignments = data.alignments
+        hypotheses = data.hypotheses
+        references = data.references
+        dels = []
+        ins = []
+        subs = []
+        for alignement, hyp, ref in zip(alignments, hypotheses, references):
+            dels.append(set())
+            ins.append([])
+            subs.append(set())
+            for chunk in alignement:
+                if chunk.type == "insert":
+                    # An insertion is characterized by the inserted word(s)
+                    for i in range(chunk.hyp_start_idx, chunk.hyp_end_idx):
+                        ins[-1].append(hyp[chunk.hyp_start_idx])
+                elif chunk.type == "delete":
+                    # An deletion is characterized by the indices of the deleted word(s) -> unique
+                    for i in range(chunk.ref_start_idx, chunk.ref_end_idx):
+                        dels[-1].add(i)
+                elif chunk.type == "substitute":
+                    # A substitution is characterized by the indices of the substituted word(s) -> unique
+                    len_hyp = chunk.hyp_end_idx - chunk.hyp_start_idx
+                    len_ref = chunk.ref_end_idx - chunk.ref_start_idx
+                    assert len_hyp == len_ref
+                    for i in range(chunk.ref_start_idx, chunk.ref_end_idx):
+                        subs[-1].add(i)
+                else:
+                    assert chunk.type == "equal"
+        return dels, ins, subs
+
+    dels1, ins1, subs1 = collect_errors(out1)
+    dels2, ins2, subs2 = collect_errors(out2)
+
+    def count_differences(set1, set2):
+        if isinstance(set1, list):
+            # This is a quick approximation
+            # (the correct implementation would be to removed common elements one by one and count the rest)
+            return count_differences(set(set1), set(set2))
+        elif isinstance(set1, set):
+            return {
+                "removed": len(set1 - set2),
+                "added": len(set2 - set1),
+            }
+        else:
+            raise ValueError(f"Invalid type {type(set1)}")
+        
+    def count_differences_batch(list1, list2):
+        assert len(list1) == len(list2)
+        res = {}
+        for s1, s2 in zip(list1, list2):
+            diff = count_differences(s1, s2)
+            for k, v in diff.items():
+                if k not in res:
+                    res[k] = 0
+                res[k] += v
+        return res
+        
+    count = out1["count"]
+    assert count == out2["count"]
+
+    res = {}
+    for what, o1, o2 in [
+        ("del", dels1, dels2),
+        ("ins", ins1, ins2),
+        ("sub", subs1, subs2),
+    ]:
+        diffs = count_differences_batch(o1, o2)
+        for k, v in diffs.items():
+            res[what + "_" + k] = v / count
+    return res
 
 
 def ensure_not_empty_reference(refs, preds, character_level):
