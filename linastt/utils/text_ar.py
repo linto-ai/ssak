@@ -156,6 +156,7 @@ def format_text_ar(line, keep_punc=False, keep_latin_chars=True, bw=False, lang=
         if not keep_latin_chars:
             line = get_arabic_only(line, keep_punc=keep_punc)
         else:
+            line = line.lower()
             line = remove_outer_apostrophes_and_hyphens(line)
             line = unglue_arabic_and_latin_chars(line)
             line = remove_special_characters(line)
