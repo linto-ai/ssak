@@ -321,7 +321,7 @@ def _convert_voice(
                             raise ValueError(f"Invalid or missing audio path for segment {segment_id}")
                         
                         seg_id_with_prefix = f"{spkname}_augmented_{segment_id}"
-                        
+                        wave_id_sp=f"{spkname}_{wave_id}"
                         text_segment = seg_info["text"]
                         start_time = seg_info['start']
                         end_time = seg_info['end']
@@ -330,7 +330,7 @@ def _convert_voice(
                         text.write(f'{seg_id_with_prefix} {text_segment}\n')
                         utt2spk.write(f'{seg_id_with_prefix} {seg_id_with_prefix}\n')
                         spk2utt.write(f'{seg_id_with_prefix} {seg_id_with_prefix}\n')
-                        segments.write(f'{seg_id_with_prefix} {wave_id} {start_time} {end_time}\n')
+                        segments.write(f'{seg_id_with_prefix} {wave_id_sp} {start_time} {end_time}\n')
                         utt2dur.write(f'{seg_id_with_prefix} {duration}\n')
                         
                         if audio_output_path is None:
@@ -339,7 +339,7 @@ def _convert_voice(
                             audio_output_path = audio_folder.with_name(f"audio_augmented_{spkname}")
                         audio_output_path.mkdir(parents=True, exist_ok=True)
                         
-                        output_file_path = audio_output_path / f"{wave_id}.wav"
+                        output_file_path = audio_output_path / f"{wave_id_sp}.wav"
 
                         if voice_change_mode == "per_segment":
 
@@ -434,7 +434,7 @@ def _convert_voice(
                     concat_audio = concat_audio[: waveform.shape[0]]        
                 
                 if concat_audio is not None:
-                    wav_scp.write(f'{wave_id} sox {output_file_path} -t wav -r 16000 -b 16 -c 1 - |\n')
+                    wav_scp.write(f'{spkname}_{wave_id} sox {output_file_path} -t wav -r 16000 -b 16 -c 1 - |\n')
                     sf.write(output_file_path, concat_audio, random_svc_model.target_sample)
     
     except Exception as ex:
