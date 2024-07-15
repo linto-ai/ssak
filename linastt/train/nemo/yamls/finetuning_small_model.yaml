@@ -14,7 +14,7 @@ model:
   skip_nan_grad: false
 
   train_ds:
-    manifest_filepath: datasets/nemo_dataset/LesVocaux_manifest.json
+    manifest_filepath: sets/train.json
     sample_rate: ${model.sample_rate}
     batch_size: 32 # you may increase batch_size if your memory allows
     shuffle: false
@@ -31,7 +31,7 @@ model:
     bucketing_batch_size: null
 
   validation_ds:
-    manifest_filepath: datasets/nemo_dataset/LesVocaux_manifest.json
+    manifest_filepath: sets/validation.json
     sample_rate: ${model.sample_rate}
     batch_size: 64
     shuffle: false
@@ -40,7 +40,7 @@ model:
     pin_memory: true
 
   test_ds:
-    manifest_filepath: null
+    manifest_filepath: sets/test.json
     sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false
@@ -54,7 +54,7 @@ model:
 
   tokenizer: # use for spe/bpe based tokenizer models
     update_tokenizer: true
-    dir: tokenizer/tokenizer_spe_bpe_v256  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    dir: tokenizer/tokenizer_spe_bpe_v512  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
     type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   spec_augment:
@@ -66,7 +66,7 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-7
+    lr: 1e-6
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 0.001

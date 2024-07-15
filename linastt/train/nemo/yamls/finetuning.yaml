@@ -6,13 +6,13 @@ init_from_pretrained_model: "nvidia/parakeet-ctc-0.6b" # path to nemo model
 model:
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
-  log_prediction: true # enables logging sample predictions in the output during training
+  log_prediction: false # enables logging sample predictions in the output during training
   rnnt_reduction: 'mean_volume'
   skip_nan_grad: false
 
   train_ds:
     # manifest_filepath: datasets/nemo_data/manifest_LesVocaux.json
-    manifest_filepath: datasets/nemo_dataset/common_voice_6_1/fr/validation/validation_manifest_clean.json
+    manifest_filepath: sets/train.json
     sample_rate: ${model.sample_rate}
     batch_size: 4 # you may increase batch_size if your memory allows
     shuffle: true
@@ -29,8 +29,7 @@ model:
     bucketing_batch_size: null
 
   validation_ds:
-    # manifest_filepath: datasets/nemo_data/manifest_LesVocaux.json
-    manifest_filepath: datasets/nemo_dataset/common_voice_6_1/fr/test/test_manifest_clean.json
+    manifest_filepath: sets/validation.json
     sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false
@@ -52,8 +51,8 @@ model:
     labels: null # example list config: \[' ', 'a', 'b', 'c'\]
 
   tokenizer: # use for spe/bpe based tokenizer models
-    update_tokenizer: true
-    dir: tokenizer/tokenizer_spe_bpe_v1024  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    update_tokenizer: false
+    dir: tokenizer/tokenizer_spe_bpe_v512  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
     type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   spec_augment:
@@ -65,7 +64,7 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-4
+    lr: 1e-5
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
@@ -81,7 +80,7 @@ model:
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 5
+  max_epochs: 10
   max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
@@ -97,6 +96,7 @@ trainer:
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   benchmark: false # needs to be false for models with variable-length speech input as it slows down training
+  fast_dev_run: false
 
 
 exp_manager:
