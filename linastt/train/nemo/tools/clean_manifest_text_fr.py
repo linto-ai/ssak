@@ -4,6 +4,12 @@ from linastt.utils.text_latin import format_text_latin
 from linastt.utils.kaldi import check_kaldi_dir
 import shutil
 import json
+import re
+
+def remove_odd_chars(text):
+    from corrections import _corrections_caracteres_speciaux_fr
+    for reg, replacement in _corrections_caracteres_speciaux_fr:
+        text = re.sub(reg, replacement, text)
 
 def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=False, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
@@ -50,6 +56,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
                 fid_special_chars = fid_special_char,
                 remove_suspicious_entry = remove_suspicious_entry,
             )
+            
             if line['text'][-1]=='"' and line['text'][0]=='"':
                 line['text'] = line['text'][1:-1]
             num_dumps = 0
