@@ -16,8 +16,10 @@ if __name__=="__main__":
     parser.add_argument('--train', help="Train split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.8)
     parser.add_argument('--validation', help="Dev split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
     parser.add_argument('--test', help="Test split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
-    
     args = parser.parse_args()
+    if args.train+args.validation+args.test!=1:
+        logger.error("Train, validation and test ratios must sum to 1")
+        raise ValueError
     input_file = args.input
     if not os.path.exists(input_file):
         logger.error(f"Non-existing file {input_file}")
@@ -38,7 +40,7 @@ if __name__=="__main__":
     if len(remaining)>0:
         logger.info(f"Found {len(remaining)} rows with no sets defined, splitting them using ratios arguments")
         train, remaining = train_test_split(remaining, test_size=1-args.train, random_state=args.seed)
-        dev, test = train_test_split(remaining, test_size=args.test/(args.test+args.dev), random_state=args.seed)
+        dev, test = train_test_split(remaining, test_size=args.test/(args.test+args.validation), random_state=args.seed)
         splits['train'].extend(train)
         splits['validation'].extend(dev)
         splits['test'].extend(test)

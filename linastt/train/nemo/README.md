@@ -35,11 +35,11 @@ python tools/clean_manifest_text_fr.py datasets/nemo_dataset/common_voice_6_1/fr
 ## Tokenizer
 
 ```
-python /home/abert/Linagora/NeMo/scripts/tokenizers/process_asr_text_tokenizer.py --manifest datasets/nemo_dataset/manifest_LesVocaux.json --data_root tokenizer --vocab_size 1024 --tokenizer "spe" --log
-python tools/process_asr_text_tokenizer.py --manifest datasets/nemo_dataset/common_voice_6_1/fr/validation/validation_mozilla-foundation_common_voice_6_1_manifest.json,datasets/nemo_dataset/common_voice_6_1/fr/test/test_mozilla-foundation_common_voice_6_1_manifest.json --data_root tokenizer --vocab_size 1024 --tokenizer "spe" --log
-
+python /home/abert/Linagora/NeMo/scripts/tokenizers/process_asr_text_tokenizer.py --manifest datasets/nemo_dataset/manifest_LesVocaux.json --data_root tokenizer --vocab_size 1024 --tokenizer "spe" --spe_split_digits --log
+python tools/process_asr_text_tokenizer.py --manifest datasets/nemo_dataset/common_voice_6_1/fr/validation/validation_mozilla-foundation_common_voice_6_1_manifest.json,datasets/nemo_dataset/common_voice_6_1/fr/test/test_mozilla-foundation_common_voice_6_1_manifest.json --data_root tokenizer --vocab_size 1024 --spe_split_digits --tokenizer "spe" --log
 ```
 
 Create a tokenizer based on the manifest file
 - vocab_size = 1024 for parakeet on HuggingFace
+
 
