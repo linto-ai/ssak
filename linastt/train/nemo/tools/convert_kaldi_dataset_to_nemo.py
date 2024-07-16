@@ -5,15 +5,17 @@ import os
 from dataclasses import dataclass
 from linastt.utils.text_latin import format_text_latin
 import torchaudio
+import logging
 from unidecode import unidecode
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 def get_args():
     parser = argparse.ArgumentParser(description="Convert Kaldi dataset to Nemo format")
     parser.add_argument("kaldi_dataset", type=str)
     parser.add_argument("output_dir", type=str)
-    parser.add_argument("--train_ratio", type=float, default=0.8)
-    parser.add_argument("--dev_ratio", type=float, default=0.1)
-    parser.add_argument("--test_ratio", type=float, default=0.1)
     return parser.parse_args()
 
 def audio_checks(audio_path, new_folder):
@@ -50,13 +52,15 @@ class kaldiDatasetRow:
     end: float
 
 class kaldiDataset:
-    def __init__(self, input_dir, name=None, new_folder=None, skip_audio_checks=False):
+    def __init__(self, input_dir, name=None, new_folder=None, skip_audio_checks=True):
         if name:
             self.name = name
         else:
             if input_dir.endswith("/"):
                 input_dir = input_dir[:-1]
-            _, self.name = os.path.split(input_dir)
+            prefix, self.name = os.path.split(input_dir)
+            if self.name in ["train", "dev", "validation", "test"]:
+                self.name = f"{os.path.split(prefix)[1]}_{self.name}".replace(".","-")
         texts = dict()
         with open(os.path.join(input_dir, "text"), encoding="utf-8") as f:
             text_lines = f.readlines()
@@ -67,16 +71,28 @@ class kaldiDataset:
         with open(os.path.join(input_dir, "wav.scp")) as f:
             for line in f.readlines():
                 line = line.strip().split()
-                wavs[line[0]] = line[1]
+                if line[1] == "sox":
+                    wavs[line[0]] = line[2]
+                else:
+                    wavs[line[0]] = line[1]
         self.dataset = []
-        with open(os.path.join(input_dir, "segments")) as f:
+        file = "segments"
+        if not os.path.exists(os.path.join(input_dir, "segments")):
+            file = "wav.scp"
+        with open(os.path.join(input_dir, file)) as f:
             for line in tqdm(f.readlines()):
                 line = line.strip().split()
-                start, end = round(float(line[2]), 3), round(float(line[3]), 3)
-                duration = round(end - start, 3)
+                if file=="segments":
+                    start, end = round(float(line[2]), 3), round(float(line[3]), 3)
+                    duration = round(end - start, 3)
+                    wav_path = wavs[line[1]]
+                else:
+                    wav_path = wavs[line[0]]
+                    infos = torchaudio.info(wav_path)
+                    duration = infos.num_frames / infos.sample_rate
+                    start, end = 0, duration
                 normalized_text = format_text_latin(texts[line[0]])
                 # normalized_text = unidecode(normalized_text)
-                wav_path = wavs[line[1]]
                 if not skip_audio_checks:
                     wav_path = audio_checks(wav_path, os.path.join(new_folder, self.name+"_wavs"))
                 self.dataset.append(kaldiDatasetRow(id=line[0], raw_text=texts[line[0]], wav_path=wav_path, duration=duration, normalized_text=normalized_text, start=start, end=end))
@@ -96,14 +112,24 @@ class kaldiDataset:
 def kaldi_to_nemo(kaldi_dataset, output_dir, normalize_text=True):
     os.makedirs(output_dir, exist_ok=True)
     file = f"manifest_{kaldi_dataset.name}.json" if kaldi_dataset.name else "manifest.json"
+    logger.info(f"Writing to {os.path.join(output_dir, file)}")
+    if os.path.exists(os.path.join(output_dir, file)):
+        new_old_name= os.path.join(output_dir, file).replace(".json", "_old.json")
+        os.rename(os.path.join(output_dir, file), new_old_name)
+        logger.warning(f"File {os.path.join(output_dir, file)} already exists. Replacing it, old file kept in {new_old_name}...")
     with open(os.path.join(output_dir, file), "w", encoding="utf-8") as f:
         for row in tqdm(kaldi_dataset):
             row_data = {"audio_filepath": row.wav_path, "offset": row.start, "duration": row.duration, "text": row.normalized_text if normalize_text else row.raw_text}
             json.dump(row_data, f, ensure_ascii=False)
             f.write("\n")
 
+def convert(kaldi_input_dataset, output_dir):
+    logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to Nemo format")
+    kaldi_dataset = kaldiDataset(kaldi_input_dataset, new_folder=output_dir)
+    kaldi_to_nemo(kaldi_dataset, output_dir)
+    logger.info(f"Conversion complete")
+
 if __name__=="__main__":
     args = get_args()
-    kaldi_dataset = kaldiDataset(args.kaldi_dataset, new_folder=args.output_dir)
-    kaldi_to_nemo(kaldi_dataset, args.output_dir)
+    convert(args.kaldi_dataset, args.output_dir)
 
