@@ -16,6 +16,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="Convert Kaldi dataset to Nemo format")
     parser.add_argument("kaldi_dataset", type=str)
     parser.add_argument("output_dir", type=str)
+    parser.add_argument("--output_wav_dir", type=str, default=None)
     return parser.parse_args()
 
 def audio_checks(audio_path, new_folder):
@@ -25,6 +26,8 @@ def audio_checks(audio_path, new_folder):
     else:
         raise ValueError("New folder must be specified for audio conversion")
     if not os.path.exists(new_path):
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file {audio_path} does not exist")
         infos = torchaudio.info(audio_path)
         if infos.num_channels != 1 or infos.sample_rate != 16000:
             waveform, original_sample_rate = torchaudio.load(audio_path)
@@ -124,14 +127,14 @@ def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
             json.dump(row_data, f, ensure_ascii=False)
             f.write("\n")
 
-def convert(kaldi_input_dataset, output_dir):
-    kaldi_dataset = kaldiDataset(kaldi_input_dataset, new_folder=output_dir)
+def convert(kaldi_input_dataset, output_dir, new_audio_folder=None):
+    kaldi_dataset = kaldiDataset(kaldi_input_dataset, new_folder=new_audio_folder if new_audio_folder else output_dir)
     file = kaldi_dataset.get_output_file(output_dir)
     if os.path.exists(file):
         logger.warning(f"File {file} already exists. Abording conversion to NeMo...")
         return
     logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to NeMo format")
-    kaldi_dataset.load()
+    kaldi_dataset.load(skip_audio_checks=False)
     logger.info(f"Writing to {file}")
     os.makedirs(output_dir, exist_ok=True)
     kaldi_to_nemo(kaldi_dataset, file)
@@ -139,5 +142,5 @@ def convert(kaldi_input_dataset, output_dir):
 
 if __name__=="__main__":
     args = get_args()
-    convert(args.kaldi_dataset, args.output_dir)
+    convert(args.kaldi_dataset, args.output_dir, args.output_wav_dir)
 

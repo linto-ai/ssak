@@ -12,6 +12,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Merge manifest files')
     parser.add_argument('inputs', help="Input files", type=str, nargs='+')
     parser.add_argument('output', help="Output file", type=str)
+    parser.add_argument("--output_wav_dir", type=str, default=None)
     args = parser.parse_args()
     input_files = args.inputs
     if len(input_files) == 1:
@@ -26,5 +27,5 @@ if __name__=="__main__":
         if not os.path.isdir(input_folder):
             logger.error(f"File {input_folder} is not a directory")
             raise NotADirectoryError
-        convert(input_folder, args.output)
+        convert(input_folder, args.output, args.output_wav_dir)
     logger.info(f"Finished converting datasets from {input_files} to {args.output}")
