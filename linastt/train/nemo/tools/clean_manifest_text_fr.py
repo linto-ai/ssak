@@ -5,6 +5,10 @@ from linastt.utils.kaldi import check_kaldi_dir
 import shutil
 import json
 import re
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def remove_odd_chars(text):
     from corrections import _corrections_caracteres_speciaux_fr
@@ -44,7 +48,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
     fid_special_char = open(file_special_char, "a", encoding="utf-8") if file_special_char else None
 
     try:
-        for line in tqdm(gen, total=num_lines):
+        for line in tqdm(gen, total=num_lines, desc=f"Cleaning text {input}"):
             full_line = line
             line = json.loads(line)
             line['text'] = format_text_latin(line['text'],
@@ -74,6 +78,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
             fout.close()
         if hasattr(gen, "close"):
             gen.close()
+    l
 
 
 if __name__ == "__main__":
