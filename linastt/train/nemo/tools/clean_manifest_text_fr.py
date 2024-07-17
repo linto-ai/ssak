@@ -78,7 +78,6 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
             fout.close()
         if hasattr(gen, "close"):
             gen.close()
-    l
 
 
 if __name__ == "__main__":
