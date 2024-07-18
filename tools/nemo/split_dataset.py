@@ -13,18 +13,19 @@ if __name__=="__main__":
     
     parser.add_argument('input', help="Input file", type=str)
     parser.add_argument('output', help="Output folder to save splits", type=str)
+    parser.add_argument('--split_on_speaker', help="NOT IMPLEMENTED : Split on speaker for the data where the info is available", action='store_true')
     parser.add_argument('--seed', help="Seed for random split", type=int, default=42)
     parser.add_argument('--train', help="Train split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.8)
     parser.add_argument('--validation', help="Dev split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
     parser.add_argument('--test', help="Test split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
     args = parser.parse_args()
-    if round(args.train+args.validation+args.test, 2)<=1:
-        raise ValueError("Train, validation and test ratios must be between 0 and 1")
-    elif not 0<round(args.train, 2)<=1:
+    if round(args.train+args.validation+args.test, 2)>1.0:
+        raise ValueError(f"Train, validation and test ratios must be between 0 and 1 (current {args.train}+{args.validation}+{args.test})")
+    elif not 0<round(args.train, 2)<=1.0:
         raise ValueError("Train ratio must be 0<X<=1")
-    elif not 0<round(args.validation, 2)<1:
+    elif not 0<round(args.validation, 2)<1.0:
         raise ValueError("Validation ratio must be 0<X<1")
-    elif not 0<=round(args.test, 2)<1:
+    elif not 0<=round(args.test, 2)<1.0:
         raise ValueError("Test ratio must be 0<=X<1")
     input_file = args.input
     if not os.path.exists(input_file):
