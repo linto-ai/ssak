@@ -22,10 +22,8 @@ if __name__=="__main__":
     data = []
     for input_folder in tqdm(input_files, desc=f"Converting datasets from {args.inputs} to {args.output}"):
         if not os.path.exists(input_folder):
-            logger.error(f"Non-existing file {input_folder}")
-            raise FileNotFoundError
+            raise FileNotFoundError(f"Non-existing file {input_folder}")
         if not os.path.isdir(input_folder):
-            logger.error(f"File {input_folder} is not a directory")
-            raise NotADirectoryError
+            raise NotADirectoryError(f"File {input_folder} is not a directory")
         convert(input_folder, args.output, args.output_wav_dir)
     logger.info(f"Finished converting datasets from {input_files} to {args.output}")

@@ -317,13 +317,13 @@ def process_dataset(dataset: IterableDataset, cfg: HFDatasetConversionConfig):
     if cfg.split_output_dir is None:
         basedir = cfg.resolved_output_dir
         # manifest_filename = f"{cfg.path.replace('/', '_')}_manifest.json"
-        manifest_filename = f"manifest.json"
+        manifest_filename = f"manifest.jsonl"
 
     else:
         basedir = cfg.split_output_dir
         split = os.path.split(cfg.split_output_dir)[-1]
         # manifest_filename = f"{split}_{cfg.path.replace('/', '_')}_manifest.json"
-        manifest_filename = f"{split}_manifest.json"
+        manifest_filename = f"{split}_manifest.jsonl"
 
         if not os.path.exists(cfg.split_output_dir):
             os.makedirs(cfg.split_output_dir, exist_ok=True)

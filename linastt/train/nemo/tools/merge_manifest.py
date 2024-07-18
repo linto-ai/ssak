@@ -23,11 +23,9 @@ if __name__=="__main__":
     data = []
     for input_file in tqdm(input_files, desc="Merging manifest files"):
         if not os.path.exists(input_file):
-            logger.error(f"Non-existing file {input_file}")
-            raise FileNotFoundError
+            raise FileNotFoundError(f"Non-existing file {input_file}")
         elif os.path.isdir(input_file):
-            logger.error(f"Directory {input_file}")
-            raise IsADirectoryError
+            raise IsADirectoryError(f"Directory {input_file}")
         name, _ = os.path.splitext(input_file)
         name = name.split('/')[:-1]
         split = "all"

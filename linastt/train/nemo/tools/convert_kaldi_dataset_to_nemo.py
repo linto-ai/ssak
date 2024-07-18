@@ -116,7 +116,7 @@ class KaldiDataset:
         return self.__next__()
     
     def get_output_file(self, output_dir):
-        file = f"manifest_{self.name}.json" if self.name else "manifest.json"
+        file = f"manifest_{self.name}.jsonl" if self.name else "manifest.jsonl"
         return os.path.join(output_dir, file)
 
 def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
