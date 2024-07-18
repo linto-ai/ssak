@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from linastt.utils.text_latin import format_text_latin
 import torchaudio
 import logging
-from unidecode import unidecode
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,7 +44,7 @@ def audio_checks(audio_path, new_folder):
     return new_path
 
 @dataclass
-class kaldiDatasetRow:
+class KaldiDatasetRow:
     id: str
     raw_text: str
     normalized_text: str
@@ -54,7 +53,7 @@ class kaldiDatasetRow:
     start: float
     end: float
 
-class kaldiDataset:
+class KaldiDataset:
     def __init__(self, input_dir, name=None, new_folder=None):
         if name:
             self.name = name
@@ -102,7 +101,7 @@ class kaldiDataset:
                 # normalized_text = unidecode(normalized_text)
                 if not skip_audio_checks:
                     wav_path = audio_checks(wav_path, os.path.join(self.output_wavs_conversion_folder, self.name+"_wavs"))
-                self.dataset.append(kaldiDatasetRow(id=line[0], raw_text=texts[line[0]], wav_path=wav_path, duration=duration, normalized_text=normalized_text, start=start, end=end))
+                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], wav_path=wav_path, duration=duration, normalized_text=normalized_text, start=start, end=end))
         print(f"Loaded {len(self.dataset)} rows from {self.input_dir}")
         # print(f"Example row: {self.dataset[0]}")
     
@@ -128,7 +127,7 @@ def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
             f.write("\n")
 
 def convert(kaldi_input_dataset, output_dir, new_audio_folder=None):
-    kaldi_dataset = kaldiDataset(kaldi_input_dataset, new_folder=new_audio_folder if new_audio_folder else output_dir)
+    kaldi_dataset = KaldiDataset(kaldi_input_dataset, new_folder=new_audio_folder if new_audio_folder else output_dir)
     file = kaldi_dataset.get_output_file(output_dir)
     if os.path.exists(file):
         logger.warning(f"File {file} already exists. Abording conversion to NeMo...")

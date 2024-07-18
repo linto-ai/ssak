@@ -105,6 +105,7 @@ def format_text_latin(text,
         text = re.sub("``", "\"", text)
         text = re.sub("''", "\"", text)
         text = re.sub("-+", "-", text) # ---- -> -
+
         for reg, replacement in _corrections_caracteres_speciaux_fr:
             text = re.sub(reg, replacement, text)
 
