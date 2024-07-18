@@ -47,6 +47,8 @@ Create a tokenizer based on the manifest file
 
 ## PIPELINE
 
+```
 bash tools/nemo/prepare_data.sh TOKENIZER_SIZE FILE_CONTAINING_PATH_TO_KALDI_DATASETS OUTPUT_PROCESSED_AUDIO_FOLDER
+```
 
 Need to add param for split output, tokenizer output and dataset manifest folder
