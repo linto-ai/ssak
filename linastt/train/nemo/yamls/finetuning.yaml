@@ -9,10 +9,11 @@ model:
   log_prediction: false # enables logging sample predictions in the output during training
   rnnt_reduction: 'mean_volume'
   skip_nan_grad: false
+  freeze_encoder: false
 
   train_ds:
     # manifest_filepath: datasets/nemo_data/manifest_LesVocaux.json
-    manifest_filepath: sets/train.json
+    manifest_filepath: splits/train.jsonl
     sample_rate: ${model.sample_rate}
     batch_size: 4 # you may increase batch_size if your memory allows
     shuffle: true
@@ -29,7 +30,7 @@ model:
     bucketing_batch_size: null
 
   validation_ds:
-    manifest_filepath: sets/validation.json
+    manifest_filepath: splits/validation.jsonl
     sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false

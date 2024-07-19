@@ -58,7 +58,7 @@ def get_base_model(trainer, cfg) -> ASRModel:
     return asr_model
 
 
-def check_vocabulary(asr_model, cfg):
+def check_vocabulary(asr_model: ASRModel, cfg):
     """
     Checks if the decoder and vocabulary of the model needs to be updated.
     If either of them needs to be updated, it updates them and returns the updated model.
@@ -85,7 +85,7 @@ def check_vocabulary(asr_model, cfg):
     return asr_model
 
 
-def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
+def update_tokenizer(asr_model: ASRModel, tokenizer_dir, tokenizer_type):
     """
     Updates the tokenizer of the model and also reinitializes the decoder if the vocabulary size 
     of the new tokenizer differs from that of the loaded model.
@@ -135,15 +135,3 @@ def setup_dataloaders(asr_model: ASRModel, cfg: OmegaConf):
         asr_model.setup_multiple_test_data(cfg.model.test_ds)
 
     return asr_model
-
-def enable_bn_se(m):
-    if type(m) == nn.BatchNorm1d:
-        m.train()
-        for param in m.parameters():
-            param.requires_grad_(True)
-
-    if 'SqueezeExcite' in type(m).__name__:
-        m.train()
-        for param in m.parameters():
-            param.requires_grad_(True)
-

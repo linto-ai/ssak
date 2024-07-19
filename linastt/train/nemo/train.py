@@ -7,7 +7,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from train_utils import get_base_model, setup_dataloaders, check_vocabulary            
             
-@hydra_runner(config_path="yamls", config_name="finetuning.yaml")
+@hydra_runner(config_path="yamls", config_name="finetuning_small_model.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
@@ -18,19 +18,19 @@ def main(cfg):
         raise NotImplementedError(
             "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
         )
-
     asr_model = get_base_model(trainer, cfg)
+
     print()
     print(type(asr_model))
     print()
-    freeze_encoder = False
-    if freeze_encoder:
+    if cfg.model.freeze_encoder:
         asr_model.encoder.freeze()
         # asr_model.encoder.apply(enable_bn_se)
-        logging.info("Model encoder has been frozen, and batch normalization has been unfrozen")
+        logging.info("Model encoder has been frozen")
     else:
         asr_model.encoder.unfreeze()
         logging.info("Model encoder has been un-frozen")
+    # del cfg.model.freeze_encoder
     
     # Check vocabulary type and update if needed
     asr_model = check_vocabulary(asr_model, cfg)
@@ -41,10 +41,12 @@ def main(cfg):
     # Setup Optimizer
     asr_model.setup_optimization(cfg.model.optim)
 
-    # Setup SpecAug
     if hasattr(cfg.model, 'spec_augment') and cfg.model.spec_augment is not None:
         asr_model.spec_augment = ASRModel.from_config_dict(cfg.model.spec_augment)
-
+        
+    # asr_model.decoding.cfg.strategy= "greedy_batch"
+    
+    asr_model.wer.log_prediction=False
     trainer.fit(asr_model)
 
 

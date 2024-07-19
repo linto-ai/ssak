@@ -1,5 +1,4 @@
 name: "Speech_To_Text_Finetuning"
-
 # use `init_from_nemo_model` or `init_from_pretrained_model` to initialize the model
 # We do not currently support `init_from_ptl_ckpt` to create a single script for all types of models.
 # init_from_pretrained_model: "nvidia/parakeet-ctc-0.6b" # path to nemo model
@@ -12,9 +11,10 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
   rnnt_reduction: 'mean_volume'
   skip_nan_grad: false
+  freeze_encoder: false
 
   train_ds:
-    manifest_filepath: sets/train.json
+    manifest_filepath: splits/train.jsonl
     sample_rate: ${model.sample_rate}
     batch_size: 32 # you may increase batch_size if your memory allows
     shuffle: false
@@ -31,7 +31,7 @@ model:
     bucketing_batch_size: null
 
   validation_ds:
-    manifest_filepath: sets/validation.json
+    manifest_filepath: splits/validation.jsonl
     sample_rate: ${model.sample_rate}
     batch_size: 64
     shuffle: false
@@ -40,7 +40,7 @@ model:
     pin_memory: true
 
   test_ds:
-    manifest_filepath: sets/test.json
+    manifest_filepath: splits/test.jsonl
     sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false

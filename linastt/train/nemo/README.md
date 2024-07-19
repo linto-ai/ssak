@@ -52,3 +52,14 @@ bash tools/nemo/prepare_data.sh TOKENIZER_SIZE FILE_CONTAINING_PATH_TO_KALDI_DAT
 ```
 
 Need to add param for split output, tokenizer output and dataset manifest folder
+
+## TRAINING
+
+```
+python linastt/train/nemo/train.py --config-path FOLDER_CONTAINING_CONFIG --config-name CONFIG_FILE [overrides]
+```
+
+For example:
+```
+python linastt/train/nemo/train.py --config-path linastt/train/nemo/yamls  --config-name finetuning_small_model.yaml init_from_pretrained_model=stt_en_citrinet_512 model.freeze_encoder=False
+```
