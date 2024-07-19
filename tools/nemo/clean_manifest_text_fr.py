@@ -10,11 +10,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def remove_odd_chars(text):
-    from corrections import _corrections_caracteres_speciaux_fr
-    for reg, replacement in _corrections_caracteres_speciaux_fr:
-        text = re.sub(reg, replacement, text)
-
 def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=False, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
     extract_parenthesis=False,  file_acronyms=None, file_special_char=None):
