@@ -1,3 +1,4 @@
+import os
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
@@ -12,7 +13,10 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+
+    with open(os.path.join(log_dir, "config.yaml"), "w") as f:
+        OmegaConf.save(cfg, f)
 
     if hasattr(cfg, 'init_from_ptl_ckpt') and cfg.init_from_ptl_ckpt is not None:
         raise NotImplementedError(
