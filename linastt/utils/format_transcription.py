@@ -484,10 +484,11 @@ def read_simple_csv(transcription, delimiter=","):
                 func_text = lambda x: x[itext].strip()
 
                 istart = lrow.index("start")
-                func_start = lambda x: float(x[istart])
+                func_start = lambda x: float(x[istart]) if x[istart] else 0
                 if "end" in lrow:
                     iend = lrow.index("end")
-                    func_end = lambda x: float(x[iend])
+                    iduration = lrow.index("duration") if "duration" in lrow else None
+                    func_end = lambda x: float(x[iend]) if x[iend] else ((func_start(x) + x[iduration]) if iduration is not None else None)
                 elif "duration" in lrow:
                     iduration = lrow.index("duration")
                     func_end = lambda x: float(x[istart]) + float(x[iduration])
