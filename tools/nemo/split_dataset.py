@@ -19,6 +19,8 @@ if __name__=="__main__":
     parser.add_argument('--validation', help="Dev split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
     parser.add_argument('--test', help="Test split ratio for the remaning rows (the ones where set is not defined)", type=float, default=0.1)
     args = parser.parse_args()
+    if os.path.exists(os.path.join(args.output, "train.jsonl")):
+        raise FileExistsError(f'Output folder "{args.output}" already exists')
     if round(args.train+args.validation+args.test, 2)>1.0:
         raise ValueError(f"Train, validation and test ratios must be between 0 and 1 (current {args.train}+{args.validation}+{args.test})")
     elif not 0<round(args.train, 2)<=1.0:
@@ -35,6 +37,7 @@ if __name__=="__main__":
         data = [json.loads(l) for l in lines]
     splits = {'train': [], 'validation': [], 'test': []}
     remaining = list()
+    remaining_with_spks = dict()
     for row in data:
         split = row['split']
         if split=="dev":
@@ -42,9 +45,31 @@ if __name__=="__main__":
         if split!='all':
             splits[split].append(row)
         else:
-            remaining.append(row)
+            if "speaker" in row:
+                if not row['speaker'] in remaining_with_spks:
+                    remaining_with_spks[row['speaker']] = list()
+                remaining_with_spks[row['speaker']].append(row)
+            else:
+                remaining.append(row)
+    if len(remaining_with_spks)>0:
+        logger.info(f"Found {len(remaining_with_spks)} speakers ({sum(len(data_list) for data_list in remaining_with_spks.values())} rows) with no splits defined, splitting on speakers using ratios arguments")
+        speakers = list(remaining_with_spks.keys())
+
+        train_speakers, remaining_speakers = train_test_split(speakers, test_size=1-args.train, random_state=args.seed)
+        train = [data for speaker in train_speakers for data in remaining_with_spks[speaker]]
+            
+        if round(args.test,2)==0:
+            dev = [data for speaker in remaining_speakers for data in remaining_with_spks[speaker]]
+            test = []
+        else:
+            dev, test = train_test_split(remaining_speakers, test_size=args.test/(args.test+args.validation), random_state=args.seed)
+            dev = [data for speaker in dev for data in remaining_with_spks[speaker]]
+            test = [data for speaker in test for data in remaining_with_spks[speaker]]
+        splits['train'].extend(train)
+        splits['validation'].extend(dev)
+        splits['test'].extend(test)
     if len(remaining)>0:
-        logger.info(f"Found {len(remaining)} rows with no splits defined, splitting them using ratios arguments")
+        logger.info(f"Found {len(remaining)} rows with no splits and speaker defined, splitting them using ratios arguments")
         train, remaining = train_test_split(remaining, test_size=1-args.train, random_state=args.seed)
         if round(args.test,2)==0:
             dev = remaining

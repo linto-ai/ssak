@@ -20,7 +20,6 @@ def get_args():
 
 def audio_checks(audio_path, new_folder):
     if new_folder:
-        os.makedirs(new_folder, exist_ok=True)
         new_path = os.path.join(new_folder, os.path.basename(audio_path))
     else:
         raise ValueError("New folder must be specified for audio conversion")
@@ -37,6 +36,7 @@ def audio_checks(audio_path, new_folder):
                 # print(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to 16kHz...")
                 resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=16000)
                 resampled_waveform = resampler(waveform)
+            os.makedirs(new_folder, exist_ok=True)
             torchaudio.save(new_path, resampled_waveform, 16000)
             return new_path
         else:
@@ -48,10 +48,11 @@ class KaldiDatasetRow:
     id: str
     raw_text: str
     normalized_text: str
-    wav_path: str
+    audio_filepath: str
     duration: float
     start: float
     end: float
+    speaker: str = None
 
 class KaldiDataset:
     def __init__(self, input_dir, name=None, new_folder=None):
@@ -67,6 +68,8 @@ class KaldiDataset:
         self.output_wavs_conversion_folder = new_folder
     
     def load(self, skip_audio_checks=True):
+        if not skip_audio_checks and os.path.exists(os.path.join(self.input_dir, "clean_wavs")):
+            skip_audio_checks = True
         texts = dict()
         with open(os.path.join(self.input_dir, "text"), encoding="utf-8") as f:
             text_lines = f.readlines()
@@ -81,6 +84,11 @@ class KaldiDataset:
                     wavs[line[0]] = line[2]
                 else:
                     wavs[line[0]] = line[1]
+        spks = dict()
+        with open(os.path.join(self.input_dir, "utt2spk")) as f:
+            for line in f.readlines():
+                line = line.strip().split()
+                spks[line[0]] = line[1]
         self.dataset = []
         file = "segments"
         if not os.path.exists(os.path.join(self.input_dir, "segments")):
@@ -101,8 +109,12 @@ class KaldiDataset:
                 # normalized_text = unidecode(normalized_text)
                 if not skip_audio_checks:
                     wav_path = audio_checks(wav_path, os.path.join(self.output_wavs_conversion_folder, self.name+"_wavs"))
-                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], wav_path=wav_path, duration=duration, normalized_text=normalized_text, start=start, end=end))
+                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], audio_filepath=wav_path, duration=duration, \
+                    normalized_text=normalized_text, start=start, end=end, speaker=spks.get(line[0], None)))
         print(f"Loaded {len(self.dataset)} rows from {self.input_dir}")
+        if not skip_audio_checks and not os.path.exists(wav_path):
+            with open(os.path.join(self.input_dir, "clean_wavs")) as f:
+                pass
         # print(f"Example row: {self.dataset[0]}")
     
     def __len__(self):
@@ -122,7 +134,16 @@ class KaldiDataset:
 def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
     with open(output_file, "w", encoding="utf-8") as f:
         for row in tqdm(kaldi_dataset):
-            row_data = {"audio_filepath": row.wav_path, "offset": row.start, "duration": row.duration, "text": row.normalized_text if normalize_text else row.raw_text}
+            row_data = vars(row)
+            row_data.pop("id")
+            row_data.pop("end")
+            row_data['offset'] = row_data.pop("start")
+            if normalize_text:
+                row_data['text'] = row_data.pop("normalized_text")
+                row_data.pop("raw_text")
+            else:
+                row_data['text'] = row_data.pop("raw_text")
+                row_data.pop("normalized_text")
             json.dump(row_data, f, ensure_ascii=False)
             f.write("\n")
 
