@@ -44,7 +44,7 @@ def get_model_type(model):
     # if isinstance(model, str):
     #     return get_model_type(load_model(model))
 
-    if isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)):
+    if isinstance(model, (sb.inference.ASR.EncoderASR, sb.inference.ASR.EncoderDecoderASR)):
         return ModelType.SPEECHBRAIN
     
     elif isinstance(model, tuple) and len(model) == 2 and isinstance(model[0], WAV2VEC_CLASSES):
