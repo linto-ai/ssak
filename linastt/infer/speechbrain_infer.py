@@ -9,7 +9,7 @@ from linastt.utils.yaml_utils import make_yaml_overrides
 
 import huggingface_hub
 import speechbrain as sb
-from speechbrain.lobes.models.huggingface_whisper import HuggingFaceWhisper
+from speechbrain.lobes.models.huggingface_transformers.whisper import Whisper as HuggingFaceWhisper 
 
 import torch
 import torch.nn.utils.rnn as rnn_utils
