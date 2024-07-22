@@ -17,7 +17,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
     if output:
         output_file = output
         if os.path.exists(output_file):
-            raise RuntimeError(f"Output file {output_file} already exists")
+            raise FileExistsError(f"Output file {output_file} already exists")
             # os.remove(output_file)
         
         dname = os.path.dirname(output_file)

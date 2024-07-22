@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch
 torch.set_float32_matmul_precision("medium")
 
-def get_base_model(trainer, cfg) -> ASRModel:
+def get_base_model(trainer, cfg, wait=False) -> ASRModel:
     """
     Returns the base model to be fine-tuned.
     Currently supports two types of initializations:
@@ -44,13 +44,14 @@ def get_base_model(trainer, cfg) -> ASRModel:
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer)
         else:
             # Sleep on all ranks for at least 60 seconds
-            wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
-            if wait_time < 60:
-                wait_time = 60
+            if wait:
+                wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
+                if wait_time < 60:
+                    wait_time = 60
 
-            logging.info(f"Sleeping for at least {wait_time} seconds to wait for model download to finish.")
+                logging.info(f"Sleeping for at least {wait_time} seconds to wait for model download to finish.")
 
-            time.sleep(wait_time)
+                time.sleep(wait_time)
 
             # restore model from cached model dir
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer)

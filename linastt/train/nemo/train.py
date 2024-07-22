@@ -48,9 +48,9 @@ def main(cfg):
     if hasattr(cfg.model, 'spec_augment') and cfg.model.spec_augment is not None:
         asr_model.spec_augment = ASRModel.from_config_dict(cfg.model.spec_augment)
         
-    # asr_model.decoding.cfg.strategy= "greedy_batch"
-    
+    asr_model.decoding.cfg.strategy= "greedy_batch"
     asr_model.wer.log_prediction=False
+    
     trainer.fit(asr_model)
 
 

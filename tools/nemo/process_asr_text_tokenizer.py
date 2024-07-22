@@ -293,8 +293,9 @@ def __process_data(
             os.makedirs(tokenizer_dir)
 
         if os.path.exists(os.path.join(tokenizer_dir, 'tokenizer.model')):
-            logging.warning("Model file already exists, overriding old model file !")
-            os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
+            raise FileExistsError(f"Tokenizer already exists at {tokenizer_dir}")
+            # logging.error("Model file already exists, overriding old model file !")
+            # os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
 
         # Build tokenizer
         tokenizer_path, vocab_path = create_spt_model(

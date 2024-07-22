@@ -12,11 +12,13 @@ if __name__=="__main__":
     parser.add_argument('inputs', help="Input files", type=str, nargs='+')
     parser.add_argument('output', help="Output file", type=str)
     args = parser.parse_args()
+    if os.path.exists(args.output):
+        raise FileExistsError(f"Output file {args.output} already exists")
     input_files = args.inputs
     if len(input_files) == 1:
         logger.warning("One input file, considering it as containing a list of files or a folder containing manifest files")
         if os.path.isdir(input_files[0]):
-            input_files = [os.path.join(input_files[0], f) for f in os.listdir(input_files[0])]
+            input_files = [os.path.join(input_files[0], f) for f in os.listdir(input_files[0]) if f.endswith(".jsonl") and not f.startswith("all_manifests")]
         else:
             with open(input_files[0], 'r', encoding="utf-8") as f:
                 input_files = [l.strip() for l in f.readlines()]
@@ -27,16 +29,19 @@ if __name__=="__main__":
         elif os.path.isdir(input_file):
             raise IsADirectoryError(f"Directory {input_file}")
         name, _ = os.path.splitext(input_file)
-        name = name.split('/')[:-1]
+        name = os.path.basename(name)
+        name = name.split('_')
         split = "all"
-        if name[-1] in ['train', 'test', 'dev', 'validation']:
-            split = name[-1]
-            name = name[:-1]
         language = "fr"
-        if name[-1] in ['fr', 'en']:
-            language = name[-1]
-            name = name[:-1]
-        name = name[-1]
+        name.pop(name.index('manifest'))
+        for i in reversed(name):
+            if i in ['train', 'test', 'dev', 'validation']:
+                split = i
+                name.pop(name.index(i))
+            if i in ['fr', 'en']:
+                language = i
+                name.pop(name.index(i))
+        name = '_'.join(name)
         with open(input_file, 'r', encoding="utf-8") as f:
             lines = f.readlines()
             rows = [json.loads(l) for l in lines]
@@ -46,7 +51,7 @@ if __name__=="__main__":
                 row['name'] = name
             data.extend(rows)
     with open(args.output, 'w', encoding="utf-8") as f:
-        for i in tqdm(data):
+        for i in tqdm(data, desc="Writing merged manifest"):
             json.dump(i, f, ensure_ascii=False)
             f.write('\n')
     logger.info(f"Saved {len(data)} lines to {args.output}")
