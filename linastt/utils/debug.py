@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import speechbrain as sb
 
 COLORS = "bgrcmyk"
 
@@ -10,7 +9,8 @@ def plot_logits(logit, labels_or_model = None, blank_id = None):
 
     # Get the labels
     if labels_or_model:
-        if isinstance(labels_or_model, (sb.pretrained.interfaces.EncoderASR, )):
+        from linastt.infer.speechbrain_infer import SpeechBrainEncoderASR
+        if isinstance(labels_or_model, SpeechBrainEncoderASR):
             tokenizer = labels_or_model.tokenizer
             labels = [tokenizer.decode_ids([i]) for i in range(tokenizer.vocab_size())]
             if blank_id is None:
