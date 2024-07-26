@@ -6,13 +6,17 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from train_utils import get_base_model, setup_dataloaders, check_vocabulary            
-            
+from train_utils import get_base_model, setup_dataloaders, check_vocabulary
+
 @hydra_runner(config_path="yamls", config_name="finetuning_small_model.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = pl.Trainer(**cfg.trainer)
+    # set seed
+    pl.seed_everything(cfg.get("seed", 42))
+    logging.info(f"Trainer seed set to: {cfg.get('seed', 42)}")
+     
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
     with open(os.path.join(log_dir, "config.yaml"), "w") as f:
@@ -22,11 +26,9 @@ def main(cfg):
         raise NotImplementedError(
             "Currently for simplicity of single script for all model types, we only support `init_from_nemo_model` and `init_from_pretrained_model`"
         )
+        
     asr_model = get_base_model(trainer, cfg)
-
-    print()
-    print(type(asr_model))
-    print()
+    logging.info(type(asr_model))
     if cfg.model.freeze_encoder:
         asr_model.encoder.freeze()
         # asr_model.encoder.apply(enable_bn_se)
@@ -49,6 +51,7 @@ def main(cfg):
         asr_model.spec_augment = ASRModel.from_config_dict(cfg.model.spec_augment)
         
     asr_model.decoding.cfg.strategy= "greedy_batch"
+    logging.info(f"Decoding strategy: {asr_model.decoding.cfg.strategy}")
     asr_model.wer.log_prediction=False
     
     trainer.fit(asr_model)

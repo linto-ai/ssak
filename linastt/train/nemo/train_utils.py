@@ -54,7 +54,11 @@ def get_base_model(trainer, cfg, wait=False) -> ASRModel:
                 time.sleep(wait_time)
 
             # restore model from cached model dir
-            asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer)
+            override_config_path = None
+            if cfg.get('model', {}).get('override_config_path', None) is not None:
+                override_config_path = cfg.model.override_config_path
+            
+            asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer, override_config_path=override_config_path)
 
     return asr_model
 
