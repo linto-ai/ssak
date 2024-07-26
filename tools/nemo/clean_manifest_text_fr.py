@@ -13,6 +13,21 @@ logger = logging.getLogger(__name__)
 def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=False, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
     extract_parenthesis=False,  file_acronyms=None, file_special_char=None):
+    """ 
+    Clean the text of a manifest file for French language (remove special characters, numbers, etc.)
+    Args:
+        input (str): input manifest file
+        output (str): output manifest file
+        keep_punc (bool): keep punctuations
+        keep_num (bool): keep numbers and symbols
+        keep_case (bool): keep case (otherwise, everything will be lowercased)
+        empty_string_policy (str): what to do with empty strings
+        linebreak_policy (str): what to do when a line break is introduced
+        remove_suspicious_entry (bool): to ignore entries that are probably written in bad French
+        extract_parenthesis (bool): to pull out parenthesis and process them separately (as new lines)
+        file_acronyms (str): a file to list acronyms found
+        file_special_char (str): a file to list special characters that were removed
+    """
     
     if output:
         output_file = output

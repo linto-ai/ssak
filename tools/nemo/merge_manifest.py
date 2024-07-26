@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Merge manifest files')
-    parser.add_argument('inputs', help="Input files", type=str, nargs='+')
+    parser.add_argument('inputs', help="Input files", type=str, nargs='+', help="Input manifest files or folder containing manifest files that you want to merge")
     parser.add_argument('output', help="Output file", type=str)
     args = parser.parse_args()
     if os.path.exists(args.output):

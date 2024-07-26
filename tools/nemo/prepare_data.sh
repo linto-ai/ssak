@@ -10,7 +10,7 @@ echo "Output_wav_dir is set to $output_wav_dir"
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
-python3 $SCRIPT_DIR/convert_kaldi_datasets_to_nemo.py $input_datasets input_manifests --output_wav_dir $output_wav_dir
+python3 $SCRIPT_DIR/convert_kaldi_datasets_to_nemo.py $input_datasets input_manifests --output_wav_dir $output_wav_dir --check_audio
 python3 $SCRIPT_DIR/merge_manifest.py input_manifests input_manifests/all_manifests.jsonl
 python3 $SCRIPT_DIR/clean_manifest_text_fr.py input_manifests/all_manifests.jsonl input_manifests/all_manifests_clean.jsonl --empty_string_policy ignore
 
