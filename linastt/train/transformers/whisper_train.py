@@ -7,22 +7,20 @@ import shutil
 
 from linastt.utils.env import use_gpu # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.text import (
-    format_text,
     format_special_characters,
     remove_special_words,
     remove_special_characters,
 )
-from linastt.utils.monitoring import vram_usage, get_num_gpus, vram_free, tic, toc
+from linastt.utils.monitoring import vram_usage, get_num_gpus, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
-from linastt.utils.misc import remove_commonprefix
 from linastt.utils.wer import compute_wer
 from linastt.utils.train_utils import dataset_pseudos, args_to_str
 
 import logging
 import json
 
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR , get_last_checkpoint
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR 
 
 import transformers
 import torch
@@ -372,7 +370,7 @@ if __name__ == "__main__":
     if PEFT:
 
         from transformers import BitsAndBytesConfig
-        from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
+        from peft import LoraConfig, get_peft_model 
 
         quantization_config = BitsAndBytesConfig(
             llm_int8_enable_fp32_cpu_offload=True,
@@ -390,7 +388,6 @@ if __name__ == "__main__":
 
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
-            load_in_8bit=True,
             device_map="auto" if use_gpu() else None, 
             quantization_config=quantization_config,
             # peft_config = lora_config,
