@@ -5,6 +5,7 @@ from linastt.infer.speechbrain_infer import(
     speechbrain_compute_logits,
     speechbrain_infer,
     get_tokenizer_vocab,
+    _speechbrain_classes,
 )
 from linastt.infer.transformers_infer import (
     transformers_load_model,
@@ -44,7 +45,8 @@ def get_model_type(model):
     # if isinstance(model, str):
     #     return get_model_type(load_model(model))
 
-    if isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR)):
+
+    if isinstance(model, _speechbrain_classes):
         return ModelType.SPEECHBRAIN
     
     elif isinstance(model, tuple) and len(model) == 2 and isinstance(model[0], WAV2VEC_CLASSES):
