@@ -7,7 +7,7 @@ In NeMo, the files used for training are manifest files. Here is an example of r
 {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt": "utterance_id"}
 ```
 
-The mandatory fields are : audio_filepath, text and duration. Others are optionals
+The mandatory fields are : audio_filepath, text and duration. Offset is needed when segments are only a part of the audio file. Others are optionals and don't seem to be use anywhere.
 
 ### Kaldi to NeMo
 
@@ -15,7 +15,11 @@ The mandatory fields are : audio_filepath, text and duration. Others are optiona
 python tools/nemo/convert_kaldi_dataset_to_nemo.py INPUT_KALDI_DATASET_FOLDER OUTPUT_NEMO_FOLDER OUTPUT_AUDIO_PROCESSED_FOLDER
 ```
 
+The script will convert the kaldi dataset to manifest file and will keep speaker informations. It will also transform the adui files if needed (to 16kHz and mono channel).
+
 ### HuggingFace to NeMo
+
+For consistency, it is better to not use this.
 
 #### Common Voice
 
@@ -27,7 +31,7 @@ python tools/nemo/convert_hf_dataset_to_nemo.py output_dir=datasets/nemo_dataset
 
 ### Manifest files
 
-You can clean manifest files from weird chars
+You can clean manifest files from non french characters using the following command
 
 ```
 python tools/nemo/clean_manifest_text_fr.py datasets/nemo_dataset/common_voice_6_1/fr/validation/validation_mozilla-foundation_common_voice_6_1_manifest.json datasets/nemo_dataset/common_voice_6_1/fr/validation/validation_mozilla-foundation_common_voice_6_1_manifest_clean.json
@@ -45,13 +49,22 @@ Create a tokenizer based on the manifest file
 
 
 
-## PIPELINE
+## Data processing pipeline
+
+You can do everything said above in one command using:
 
 ```
 bash tools/nemo/prepare_data.sh TOKENIZER_SIZE FILE_CONTAINING_PATH_TO_KALDI_DATASETS OUTPUT_PROCESSED_AUDIO_FOLDER OUTPUT_TARRED_DATASET
 ```
 
-Need to add param for split output, tokenizer output and dataset manifest folder
+- TOKENIZER_SIZE : Size of the vocabulary of the tokenizer
+- FILE_CONTAINING_PATH_TO_KALDI_DATASETS : A file containing the path to all the kaldi datasets you want to use (one line per dataset)
+- OUTPUT_PROCESSED_AUDIO_FOLDER :  A folder to save the transformed audios 
+/!\ Be aware that it requires a lot of disk space if you need to transform a lot of files
+- OUTPUT_TARRED_DATASET : A folder to save the different buckets which will contain tar files 
+/!\ Be aware that it requires a lot of disk space
+
+In detail, the pipeline will convert kaldi datasets to manifest files, transform audios files if needed to the right format, merge the dataset, clean it, generate a tokenizer, split it to train/valid/test and finally makes buckets from the train split.
 
 ## TRAINING
 
@@ -61,5 +74,5 @@ python linastt/train/nemo/train.py --config-path FOLDER_CONTAINING_CONFIG --conf
 
 For example:
 ```
-python linastt/train/nemo/train.py --config-path linastt/train/nemo/yamls  --config-name finetuning_small_model.yaml init_from_pretrained_model=stt_en_citrinet_512 model.freeze_encoder=False
+python linastt/train/nemo/train.py --config-path linastt/train/nemo/yamls  --config-name finetuning.yaml init_from_pretrained_model=stt_en_citrinet_512 model.freeze_encoder=False
 ```
