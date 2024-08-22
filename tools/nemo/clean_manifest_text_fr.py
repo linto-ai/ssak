@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 
 from linastt.utils.text_latin import format_text_latin
-from linastt.utils.kaldi import check_kaldi_dir
-import shutil
 import json
-import re
 import logging
+import sys
+import os
+import argparse
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def remove_odd_chars(text):
-    from corrections import _corrections_caracteres_speciaux_fr
-    for reg, replacement in _corrections_caracteres_speciaux_fr:
-        text = re.sub(reg, replacement, text)
-
-def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=False, \
+def clean_text_fr(input, output, keep_punc=True, keep_num=False, keep_case=True, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
     extract_parenthesis=False,  file_acronyms=None, file_special_char=None):
-    
+    """ 
+    Clean the text of a manifest file for French language (remove special characters, numbers, etc.)
+    Args:
+        input (str): input manifest file
+        output (str): output manifest file
+        keep_punc (bool): keep punctuations
+        keep_num (bool): keep numbers and symbols
+        keep_case (bool): keep case (otherwise, everything will be lowercased)
+        empty_string_policy (str): what to do with empty strings
+        linebreak_policy (str): what to do when a line break is introduced
+        remove_suspicious_entry (bool): to ignore entries that are probably written in bad French
+        extract_parenthesis (bool): to pull out parenthesis and process them separately (as new lines)
+        file_acronyms (str): a file to list acronyms found
+        file_special_char (str): a file to list special characters that were removed
+    """
     if output:
         output_file = output
         if os.path.exists(output_file):
-            raise RuntimeError(f"Output file {output_file} already exists")
+            raise FileExistsError(f"Output file {output_file} already exists")
             # os.remove(output_file)
         
         dname = os.path.dirname(output_file)
@@ -82,10 +92,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
 
 if __name__ == "__main__":
 
-    import sys
-    import os
     import argparse
-    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

@@ -105,7 +105,8 @@ def format_text_latin(text,
         text = re.sub("``", "\"", text)
         text = re.sub("''", "\"", text)
         text = re.sub("-+", "-", text) # ---- -> -
-        for reg, replacement in _corrections_caracteres_speciaux_fr:
+
+        for reg, replacement in _corrections_caracteres_speciaux.get(lang, _corrections_caracteres_speciaux["fr"]):
             text = re.sub(reg, replacement, text)
 
         text = ' '+text+' '
@@ -490,42 +491,55 @@ _corrections_abbreviations_fr = [(r'\b'+x[0]+r'\b', x[1]) for x in [
 ]
 
 
-_corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
+_corrections_caracteres_speciaux = {
+    "fr": [(re.compile('%s' % x[0]), '%s' % x[1])
                   for x in [
-                    (" ", " "),
-                    ("а","a"),
+                    # Encoding corrections
                     ("â","â"),
                     ("à","à"),
-                    ("á","á"),
+                    # ("á","á"), # diacritics removed below
+                    ("ê","ê"),
+                    ("é","é"),
+                    ("è","è"),
+                    ("ô","ô"),
+                    ("û","û"),
+                    ("ϊ","ï"),
+                    ("î","î"),
+                    ("е","e"),
+                    (" ", " "), # non-breaking space
+
+                    # Diacritics not present in French
+                    ("á","a"),
+                    ("ä","a"),
+                    ("å","a"),
+                    ("а","a"),
                     ("ã","à"),
                     ("ā","a"),
                     ("ă","a"),
                     ("ǎ","a"),
-                    ("е","e"),
-                    ("ê","ê"),
-                    ("é","é"),
-                    ("è","è"),
                     ("ē","e"),
                     ("ĕ","e"),
                     ("ė","e"),
                     ("ę","e"),
                     ("ě","e"),
                     ("ё","e"),
-                    ("ϊ","ï"),
+                    ("í","i"),
                     ("ΐ","ï"),
                     ("ĩ","i"),
                     ("ī","i"),
                     ("ĭ","i"),
                     ("į","i"),
                     ("į","i"),
-                    ("î","î"),
                     ("ı","i"),
-                    ("ô","ô"),
+                    ("ñ","n"),
                     ("ό","ο"),
                     ("ǒ","o"),
                     ("ō","o"),
                     ("ő","o"),
-                    ("û","û"),
+                    ("ö","o"),
+                    ("ó","o"),
+                    ("ò","o"),
+                    ("ø","o"),
                     ("ǔ","u"),
                     ("ǜ","ü"),
                     ("ύ","u"),
@@ -548,14 +562,25 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
                     ("ş","s"),
                     ("š","s"),
                     ("ș","s"),
+                    ("ß","ss"),
                     ("ţ","t"),
                     ("ț","t"),
                     ("ť","t"),
+                    ("ǜ","u"),
+                    ("ü","u"),
+                    ("ú","u"),
                     ("ŵ","w"),
+                    ("ý","y"),
+                    ("ÿ","y"),
                     ("ź","z"),
                     ("ż","z"),
                     ("ž","z"),
+                    ("ð","d"),
+                    ("þ","z"), # utilisée pour transcrire le son d'une consonne fricative dentale sourde (comme le « th » de « thick » en anglais moderne)
                     ("Ã","a"),
+                    ("Å","A"),
+                    ("Ö","O"),
+                    ("Ø","O"),
                     # ('À','À'),
                     # ('É','É'),
                     # ('È','È'),
@@ -689,6 +714,7 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0]), '%s' % x[1])
                     ("ℸ", " daleth "),
                     ("ℹ", " information "),
                 ]]
+}
 
 _corrections_regex_fr = [(re.compile(' %s ' % x[0], re.IGNORECASE), ' %s ' % x[1])
                   for x in [

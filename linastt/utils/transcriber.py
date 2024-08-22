@@ -389,6 +389,7 @@ _corrections_caracteres_speciaux_fr = [(re.compile('%s' % x[0], re.IGNORECASE), 
                     ("è","è"),
                     ("ô","ô"),
                     ("û","û"),
+                    ("ϊ","ï"),
                     ("î","î"),
 
                     # Confusion iso-8859-1 <-> utf-8

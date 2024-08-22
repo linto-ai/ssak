@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch
 torch.set_float32_matmul_precision("medium")
 
-def get_base_model(trainer, cfg) -> ASRModel:
+def get_base_model(trainer, cfg, wait=False) -> ASRModel:
     """
     Returns the base model to be fine-tuned.
     Currently supports two types of initializations:
@@ -44,21 +44,26 @@ def get_base_model(trainer, cfg) -> ASRModel:
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer)
         else:
             # Sleep on all ranks for at least 60 seconds
-            wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
-            if wait_time < 60:
-                wait_time = 60
+            if wait:
+                wait_time = int(cfg.get('exp_manager', {}).get('seconds_to_sleep', 60))
+                if wait_time < 60:
+                    wait_time = 60
 
-            logging.info(f"Sleeping for at least {wait_time} seconds to wait for model download to finish.")
+                logging.info(f"Sleeping for at least {wait_time} seconds to wait for model download to finish.")
 
-            time.sleep(wait_time)
+                time.sleep(wait_time)
 
             # restore model from cached model dir
-            asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer)
+            override_config_path = None
+            if cfg.get('model', {}).get('override_config_path', None) is not None:
+                override_config_path = cfg.model.override_config_path
+            
+            asr_model = ASRModel.from_pretrained(model_name=pretrained_name, trainer=trainer, override_config_path=override_config_path)
 
     return asr_model
 
 
-def check_vocabulary(asr_model, cfg):
+def check_vocabulary(asr_model: ASRModel, cfg):
     """
     Checks if the decoder and vocabulary of the model needs to be updated.
     If either of them needs to be updated, it updates them and returns the updated model.
@@ -85,7 +90,7 @@ def check_vocabulary(asr_model, cfg):
     return asr_model
 
 
-def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
+def update_tokenizer(asr_model: ASRModel, tokenizer_dir, tokenizer_type):
     """
     Updates the tokenizer of the model and also reinitializes the decoder if the vocabulary size 
     of the new tokenizer differs from that of the loaded model.
@@ -135,15 +140,3 @@ def setup_dataloaders(asr_model: ASRModel, cfg: OmegaConf):
         asr_model.setup_multiple_test_data(cfg.model.test_ds)
 
     return asr_model
-
-def enable_bn_se(m):
-    if type(m) == nn.BatchNorm1d:
-        m.train()
-        for param in m.parameters():
-            param.requires_grad_(True)
-
-    if 'SqueezeExcite' in type(m).__name__:
-        m.train()
-        for param in m.parameters():
-            param.requires_grad_(True)
-

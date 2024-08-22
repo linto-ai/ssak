@@ -108,70 +108,6 @@ from nemo.utils.data_utils import DataStoreObject
 
 CLEAN_TEXT = True
 
-parser = argparse.ArgumentParser(description='Create tokenizer')
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument("--manifest", default=None, type=str, help='Comma separated list of manifest files')
-group.add_argument("--data_file", default=None, help='data file from which to create tokenizer model')
-parser.add_argument("--data_root", required=True, default=None, type=str, help='Output directory')
-parser.add_argument("--vocab_size", default=1024, type=int, help='Vocabulary size')
-parser.add_argument("--tokenizer", default="wpe", choices=["spe", "wpe"], help='Type of tokenization to perform')
-parser.add_argument(
-    "--spe_type",
-    default="bpe",
-    choices=['bpe', 'unigram', 'char', 'word'],
-    help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
-    'Used only if --tokenizer == `spe`',
-)
-parser.add_argument(
-    '--spe_character_coverage',
-    type=float,
-    default=1.0,
-    help="Character coverage percentage for SentencePiece tokenization. For languages "
-    "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
-)
-parser.add_argument('--spe_bos', action='store_true', help='Add <s> token to SentencePiece Tokenizer.')
-parser.add_argument('--spe_eos', action='store_true', help='Add </s> token to SentencePiece Tokenizer.')
-parser.add_argument('--spe_pad', action='store_true', help='Add <pad> token to SentencePiece Tokenizer.')
-parser.add_argument(
-    '--spe_user_defined_symbols', default=None, type=str, nargs='+', help='User defined symbols for SentencePiece'
-)
-parser.add_argument(
-    '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
-)
-parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
-
-parser.add_argument(
-    '--spe_sample_size',
-    type=int,
-    default=-1,
-    help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
-)
-parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
-parser.add_argument(
-    '--spe_max_sentencepiece_length',
-    type=int,
-    default=-1,
-    help='Limit the maximum number of tokens in each SentencePiece subword. '
-    'Must be a positive integer > 0. By default places no limit on subword length.',
-)
-parser.add_argument(
-    '--spe_no_split_by_unicode_script',
-    dest='spe_split_by_unicode_script',
-    action='store_false',
-    help="Don't use Unicode script to split sentence pieces.",
-)
-parser.add_argument(
-    '--spe_byte_fallback',
-    dest='spe_byte_fallback',
-    action='store_true',
-    help="If <unk>, fallback to a byte sequence of the characters.",
-)
-parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
-parser.add_argument("--log", action='store_true')
-parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
-args = parser.parse_args()
-
-
 def __build_document_from_manifests(
     data_root: str, manifests: str,
 ):
@@ -293,8 +229,9 @@ def __process_data(
             os.makedirs(tokenizer_dir)
 
         if os.path.exists(os.path.join(tokenizer_dir, 'tokenizer.model')):
-            logging.warning("Model file already exists, overriding old model file !")
-            os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
+            raise FileExistsError(f"Tokenizer already exists at {tokenizer_dir}")
+            # logging.error("Model file already exists, overriding old model file !")
+            # os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
 
         # Build tokenizer
         tokenizer_path, vocab_path = create_spt_model(
@@ -331,29 +268,16 @@ def __process_data(
     return tokenizer_dir
 
 
-def main():
-    data_root = args.data_root
-    manifests = args.manifest
-    data_file = args.data_file
-    vocab_size = args.vocab_size
-    tokenizer = args.tokenizer
-    spe_type = args.spe_type
-    spe_character_coverage = args.spe_character_coverage
-    spe_sample_size = args.spe_sample_size
-    spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
-    spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
-    spe_split_by_unicode_script = args.spe_split_by_unicode_script
-    spe_bos, spe_eos, spe_pad = args.spe_bos, args.spe_eos, args.spe_pad
-    spe_control_symbols = args.spe_control_symbols
-    spe_user_defined_symbols = args.spe_user_defined_symbols
-    spe_byte_fallback = args.spe_byte_fallback
-    spe_split_digits = args.spe_split_digits
-    lower_case = args.lower_case
-
+def process_asr_text_tokenizer(manifests=None, data_file=None, data_root=None, vocab_size=1024, tokenizer="wpe",
+                                spe_type="bpe", spe_character_coverage=1.0, spe_bos=False, spe_eos=False, spe_pad=False,
+                                spe_user_defined_symbols=None, spe_control_symbols=None, spe_split_digits=False,
+                                spe_sample_size=-1, spe_train_extremely_large_corpus=False, spe_max_sentencepiece_length=-1,
+                                spe_split_by_unicode_script=True, spe_byte_fallback=False, lower_case=True, log=False):
+                                
     if not os.path.exists(data_root):
         os.makedirs(data_root)
 
-    if args.log:
+    if log:
         logging.basicConfig(level=logging.INFO)
 
     if manifests:
@@ -386,4 +310,72 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Create tokenizer')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--manifest", default=None, type=str, help='Comma separated list of manifest files')
+    group.add_argument("--data_file", default=None, help='data file from which to create tokenizer model')
+    parser.add_argument("--data_root", required=True, default=None, type=str, help='Output directory')
+    parser.add_argument("--vocab_size", default=1024, type=int, help='Vocabulary size')
+    parser.add_argument("--tokenizer", default="wpe", choices=["spe", "wpe"], help='Type of tokenization to perform')
+    parser.add_argument(
+        "--spe_type",
+        default="bpe",
+        choices=['bpe', 'unigram', 'char', 'word'],
+        help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
+        'Used only if --tokenizer == `spe`',
+    )
+    parser.add_argument(
+        '--spe_character_coverage',
+        type=float,
+        default=1.0,
+        help="Character coverage percentage for SentencePiece tokenization. For languages "
+        "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
+    )
+    parser.add_argument('--spe_bos', action='store_true', help='Add <s> token to SentencePiece Tokenizer.')
+    parser.add_argument('--spe_eos', action='store_true', help='Add </s> token to SentencePiece Tokenizer.')
+    parser.add_argument('--spe_pad', action='store_true', help='Add <pad> token to SentencePiece Tokenizer.')
+    parser.add_argument(
+        '--spe_user_defined_symbols', default=None, type=str, nargs='+', help='User defined symbols for SentencePiece'
+    )
+    parser.add_argument(
+        '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
+    )
+    parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
+
+    parser.add_argument(
+        '--spe_sample_size',
+        type=int,
+        default=-1,
+        help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
+    )
+    parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
+    parser.add_argument(
+        '--spe_max_sentencepiece_length',
+        type=int,
+        default=-1,
+        help='Limit the maximum number of tokens in each SentencePiece subword. '
+        'Must be a positive integer > 0. By default places no limit on subword length.',
+    )
+    parser.add_argument(
+        '--spe_no_split_by_unicode_script',
+        dest='spe_split_by_unicode_script',
+        action='store_false',
+        help="Don't use Unicode script to split sentence pieces.",
+    )
+    parser.add_argument(
+        '--spe_byte_fallback',
+        dest='spe_byte_fallback',
+        action='store_true',
+        help="If <unk>, fallback to a byte sequence of the characters.",
+    )
+    parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
+    parser.add_argument("--log", action='store_true')
+    parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
+    args = parser.parse_args()
+
+    process_asr_text_tokenizer(args.manifest, args.data_file, args.data_root, args.vocab_size, args.tokenizer,
+                               args.spe_type, args.spe_character_coverage, args.spe_sample_size,
+                               args.spe_train_extremely_large_corpus, args.spe_max_sentencepiece_length,
+                               args.spe_split_by_unicode_script, args.spe_bos, args.spe_eos, args.spe_pad,
+                               args.spe_control_symbols, args.spe_user_defined_symbols, args.spe_byte_fallback,
+                               args.spe_split_digits, args.lower_case)
