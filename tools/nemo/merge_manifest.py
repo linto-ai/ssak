@@ -7,14 +7,10 @@ from tqdm import tqdm
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-if __name__=="__main__":
-    parser = argparse.ArgumentParser(description='Merge manifest files')
-    parser.add_argument('inputs', help="Input files", type=str, nargs='+', help="Input manifest files or folder containing manifest files that you want to merge")
-    parser.add_argument('output', help="Output file", type=str)
-    args = parser.parse_args()
-    if os.path.exists(args.output):
-        raise FileExistsError(f"Output file {args.output} already exists")
-    input_files = args.inputs
+def merge_manifests(inputs, output):
+    if os.path.exists(output):
+        raise FileExistsError(f"Output file {output} already exists")
+    input_files = inputs
     if len(input_files) == 1:
         logger.warning("One input file, considering it as containing a list of files or a folder containing manifest files")
         if os.path.isdir(input_files[0]):
@@ -50,8 +46,15 @@ if __name__=="__main__":
                 row['language'] = language
                 row['name'] = name
             data.extend(rows)
-    with open(args.output, 'w', encoding="utf-8") as f:
+    with open(output, 'w', encoding="utf-8") as f:
         for i in tqdm(data, desc="Writing merged manifest"):
             json.dump(i, f, ensure_ascii=False)
             f.write('\n')
-    logger.info(f"Saved {len(data)} lines to {args.output}")
+    logger.info(f"Saved {len(data)} lines to {output}")
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description='Merge manifest files')
+    parser.add_argument('inputs', type=str, nargs='+', help="Input manifest files or folder containing manifest files that you want to merge")
+    parser.add_argument('output', help="Output file", type=str)
+    args = parser.parse_args()
+    merge_manifests(args.inputs, args.output)

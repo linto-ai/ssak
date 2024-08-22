@@ -37,7 +37,7 @@ def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
             json.dump(row_data, f, ensure_ascii=False)
             f.write("\n")
 
-def convert(kaldi_input_dataset, output_dir, new_audio_folder=None, check_audio=False):
+def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, check_audio=False):
     kaldi_dataset = KaldiDataset(kaldi_input_dataset, new_folder=new_audio_folder if new_audio_folder else output_dir)
     file = get_output_file(kaldi_dataset, output_dir)
     if os.path.exists(file):
@@ -52,5 +52,5 @@ def convert(kaldi_input_dataset, output_dir, new_audio_folder=None, check_audio=
 
 if __name__=="__main__":
     args = get_args()
-    convert(args.kaldi_dataset, args.output_dir, args.output_wav_dir, args.check_audio)
+    convert_dataset(args.kaldi_dataset, args.output_dir, args.output_wav_dir, args.check_audio)
 

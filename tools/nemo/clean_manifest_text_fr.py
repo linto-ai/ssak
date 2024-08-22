@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 from linastt.utils.text_latin import format_text_latin
-from linastt.utils.kaldi import check_kaldi_dir
-import shutil
 import json
-import re
 import logging
+import sys
+import os
+import argparse
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=False, \
+def clean_text_fr(input, output, keep_punc=True, keep_num=False, keep_case=True, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
     extract_parenthesis=False,  file_acronyms=None, file_special_char=None):
     """ 
@@ -28,7 +29,6 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
         file_acronyms (str): a file to list acronyms found
         file_special_char (str): a file to list special characters that were removed
     """
-    
     if output:
         output_file = output
         if os.path.exists(output_file):
@@ -92,10 +92,7 @@ def clean_text_fr(input, output, keep_punc=False, keep_num=False, keep_case=Fals
 
 if __name__ == "__main__":
 
-    import sys
-    import os
     import argparse
-    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
