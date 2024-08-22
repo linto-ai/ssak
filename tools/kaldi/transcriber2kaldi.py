@@ -102,6 +102,10 @@ def list_files(folder, subfolders=False, extension=None):
     else:
         return [os.path.join(folder, i) for i in os.listdir(folder) if (i.lower().endswith(extension) or extension is None)]
 
+def to_id(basename):
+    """For ESL, we remove the last part of the basename"""
+    return "_".join(basename.split("_")[:-1])
+
 def transcriber2kaldi(trs_folder, audio_folder, output_folder, language=None, audio_extensions=[".wav", ".mp3"], subfolders=False, function_to_id=None, ignore_missing_audio=False, **kwargs):
 
     if os.path.isdir(output_folder):
