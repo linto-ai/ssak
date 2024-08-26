@@ -208,9 +208,6 @@ def compute_wer(refs, preds,
             s = jiwer.visualize_alignment(
                 output, show_measures=True, skip_correct=not include_correct_in_alignement
             )
-            # def add_separator(match):
-            #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
-            # s = re.sub(r"(REF: |HYP: )([^\n]+)", add_separator, s)
             f.write(s)
             extra = {
                 "alignment": s,
@@ -220,24 +217,39 @@ def compute_wer(refs, preds,
     if words_list:
         n_total = 0
         n_correct = 0
+        TP = 0
+        FP = 0
+        FN = 0
         if details_words_list:
             words_list_total = {w: 0 for w in words_list}
             words_list_correct = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
+            ref_words = set(re.findall(r'\b\w+\b', r))
+            pred_words = set(re.findall(r'\b\w+\b', p))
             for w in words_list:
-                if re.search(r"\b" + w + r"\b", r):
+                if w in ref_words:
                     n_total += 1
                     if details_words_list:
                         words_list_total[w] += 1
-                    if re.search(r"\b" + w + r"\b", p):
+                    if w in pred_words:
                         n_correct += 1
+                        TP += 1
                         if details_words_list:
                             words_list_correct[w] += 1
-                    break
-        if n_total > 0:
-            extra.update({
-                "word_err": (n_total - n_correct) / n_total,
-            })
+                    else:
+                        FN += 1
+                if w in pred_words and w not in ref_words:
+                    FP += 1
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+        extra.update({
+            "word_err": (n_total - n_correct) / n_total,
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1_score,
+        })
         if details_words_list:
             words_list_err = {w: (words_list_total[w] - words_list_correct[w]) / words_list_total[w] for w in words_list if words_list_total[w]}
             with open(details_words_list, 'w+') if isinstance(details_words_list, str) else open("/dev/stdout", "w") as f:
@@ -245,7 +257,6 @@ def compute_wer(refs, preds,
                 csv_writer.writerow(["Word", "ErrorRate%", "Total", "Correct"])
                 max_length_words = max([len(w) for w in words_list])
                 for w in sorted(words_list_err.keys(), key=lambda w: (
-                    # words_list_err[w],
                     -words_list_total[w],
                     w
                     ), reverse=False):
@@ -275,7 +286,6 @@ def compute_wer(refs, preds,
         } | extra
 
     wer_score = (float(del_score + ins_score + sub_score) / count)
-    # wer_score = measures['wer']
 
     return {
         'wer': wer_score * scale,
@@ -284,6 +294,7 @@ def compute_wer(refs, preds,
         'sub': (float(sub_score) * scale/ count),
         'count': count,
     } | extra
+
 
 def compute_wer_differences(refs, preds1, preds2, **kwargs):
     """
