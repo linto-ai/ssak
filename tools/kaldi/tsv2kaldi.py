@@ -9,6 +9,12 @@ import csv
 import random
 import re
 import hashlib
+from tqdm import tqdm
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def convert_integers_for_safe_kaldi(s):
     return re.sub(r"(\d+)", _add_zeros, s)
@@ -132,12 +138,13 @@ def generate_examples(filepath, path_to_clips, ignore_missing_gender, ignore_mis
                 field_values.append(convert_integers_for_safe_kaldi(os.path.splitext(filename_relative)[0].replace("/","--")))
 
             # set absolute path for mp3 audio file
+            # field_values[path_idx] = filename_absolute
             field_values[path_idx] = os.path.realpath(filename_absolute)
 
             yield {key: value for key, value in zip(column_names, field_values)}
 
 
-def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None, prefix=None):
+def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, language=None, prefix=None, compute_duration=False, check_kaldi=True):
     
     rows = generate_examples(input_file, audio_folder, ignore_missing_gender)
 
@@ -152,7 +159,7 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
         open(output_folder + '/utt2dur', 'w') as utt2dur_file:
 
         uniq_spks=[]
-        for row in rows:
+        for row in tqdm(rows, desc="Converting tsv to kaldi format"):
             if has_duration is None:
                 has_duration = 'duration' in row
             else:
@@ -185,15 +192,22 @@ def tsv2kaldi(input_file, audio_folder, output_folder, ignore_missing_gender, la
                 wavscp_file.write(utt_id+" sox "+ os.path.abspath(row['path']) +" -t wav -r 16k -b 16 -c 1 - |\n")
                 if has_duration:
                     utt2dur_file.write(utt_id+" "+row['duration']+"\n")
-
-    if not has_duration:
+                elif compute_duration:
+                    # from pydub.utils import mediainfo
+                    # dur = float(mediainfo(os.path.abspath(row['path']))['duration'])
+                    import librosa
+                    dur = librosa.get_duration(path=os.path.abspath(row['path']))
+                    l = f"{utt_id} {dur:.3f}"
+                    utt2dur_file.write(l+"\n")
+    if not has_duration and not compute_duration:
         os.remove(output_folder + '/utt2dur')
 
     with open(output_folder + '/spk2gender', 'w') as spk2gender_file:
         for speaker in speakers:
             spk2gender_file.write(speaker['id']+" "+speaker['gender']+"\n")
-
-    return check_kaldi_dir(output_folder, language=language)
+            
+    if check_kaldi:
+        return check_kaldi_dir(output_folder, language=language)
 
 if __name__ == '__main__':
 
@@ -204,7 +218,9 @@ if __name__ == '__main__':
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument('--prefix', default=None, type=str, help='A prefix for all ids (ex: MyDatasetName_)')
     parser.add_argument('--language', default=None, type=str, help='Main language (only for checking the charset and giving warnings)')
-    parser.add_argument('--ignore_missing_gender', type=bool, default=False, help="True if there's no gender column")
+    parser.add_argument('--ignore_missing_gender', default=False, action="store_true", help="True if there's no gender column")
+    parser.add_argument('--compute_duration', default=False, action="store_true", help="True if there's no gender column")
+    parser.add_argument('--no_kaldi_check', default=False, action="store_true", help="")
     args = parser.parse_args()
 
     input_file = args.input_file
@@ -215,4 +231,11 @@ if __name__ == '__main__':
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
     assert not os.path.exists(output_folder), f"Output folder already exists. Remove it if you want to overwrite:\n\trm -R {output_folder}"
 
-    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender, prefix=args.prefix)
+    logger.info(f"Converting {input_file} and {audio_folder} to {output_folder}")
+    logger.info(f"Checking kaldi folder: {not args.no_kaldi_check}")
+    logger.info(f"Ignoring missing gender: {args.ignore_missing_gender}")
+    logger.info(f"Computing duration if not found: {args.compute_duration}")
+    logger.info(f"Checking charset for language: {args.language}")
+    logger.info(f"Adding prefix to ids: {args.prefix}")
+    
+    tsv2kaldi(input_file, audio_folder, output_folder, language=args.language, ignore_missing_gender=args.ignore_missing_gender, prefix=args.prefix, compute_duration=args.compute_duration, check_kaldi=not args.no_kaldi_check)
