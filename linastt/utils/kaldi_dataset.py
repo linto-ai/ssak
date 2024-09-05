@@ -1,10 +1,11 @@
 from tqdm import tqdm
 import os
+import csv
 from dataclasses import dataclass
 from linastt.utils.text_latin import format_text_latin
+from linastt.utils.kaldi import check_kaldi_dir
 import torchaudio
 import logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +16,16 @@ class KaldiDatasetRow:
     """
     id: str
     raw_text: str
-    normalized_text: str
-    audio_filepath: str
-    duration: float
-    start: float
-    end: float
+    audio_input_path: str
+    normalized_text: str = None
+    duration: float = None
+    start: float = None
+    end: float = None
     speaker: str = None
     gender: str = None
 
 class KaldiDataset:
-    def __init__(self, input_dir, name=None, new_folder=None, target_sample_rate=16000):
+    def __init__(self, name=None):
         """
         Iterator class for kaldi datasets. You need to load it before iterating over it.
         
@@ -36,15 +37,7 @@ class KaldiDataset:
         """
         if name:
             self.name = name
-        else:
-            if input_dir.endswith("/"):
-                input_dir = input_dir[:-1]
-            prefix, self.name = os.path.split(input_dir)
-            if self.name in ["train", "dev", "validation", "test"]:
-                self.name = f"{os.path.split(prefix)[1]}_{self.name}".replace(".","-")
-        self.input_dir = input_dir
-        self.output_wavs_conversion_folder = new_folder
-        self.target_sample_rate = target_sample_rate
+        self.dataset = []
 
     def __len__(self):
         return len(self.dataset)
@@ -56,23 +49,73 @@ class KaldiDataset:
     def __iter__(self):
         return self.__next__()
 
-    def load(self, skip_audio_checks=True):
+    def append(self, row):
+        self.dataset.append(row)
+
+    def save(self, output_dir, check_durations_if_missing=False):
+        os.makedirs(output_dir, exist_ok=True)
+        speakers_to_gender = dict()
+        no_spk = True
+        with open(os.path.join(output_dir, "text"), "w", encoding="utf-8") as text_file,\
+            open(os.path.join(output_dir, "wav.scp"), "w") as wav_file,\
+            open(os.path.join(output_dir, "utt2spk"), "w") as uttspkfile,\
+            open(os.path.join(output_dir, "utt2dur"), "w") as uttdurfile,\
+            open(os.path.join(output_dir, "segments"), "w") as segmentfile:  
+            for row in self.dataset:
+                text_file.write(f"{row.id} {row.raw_text}\n")
+                wav_file.write(f"{row.id} {row.audio_input_path}\n")
+                if row.speaker is not None:
+                    no_spk = False
+                    uttspkfile.write(f"{row.id} {row.speaker}\n")
+                    if row.gender is not None:
+                        speakers_to_gender[row.speaker] = row.gender
+                duration = float(row.duration) if row.duration is not None else None
+                if duration is None and row.end is not None and row.start is not None:
+                    duration = float(row.end) - float(row.start)
+                elif duration is None:
+                    if check_durations_if_missing:
+                        infos = torchaudio.info(row.audio_input_path)
+                        duration = infos.num_frames / infos.sample_rate
+                    else:
+                        raise ValueError(f"Duration (or end and start) must be specified for row {row.id}")
+                uttdurfile.write(f"{row.id} {duration:.3f}\n")
+                start = float(row.start) if row.start is not None else 0
+                end = float(row.end) if row.end is not None else start+duration
+                segmentfile.write(f"{row.id} {row.id} {start:.3f} {end:.3f}\n")
+                
+        if no_spk:
+            os.remove(os.path.join(output_dir, "utt2spk"))
+        if len(speakers_to_gender) > 0:
+            with open(os.path.join(output_dir, "spk2gender"), "w") as f:
+                for i in speakers_to_gender:
+                    f.write(f"{i} {speakers_to_gender[i].lower()}\n")
+        logger.info(f"Validating dataset {output_dir}")
+        check_kaldi_dir(output_dir)
+        logger.info(f"Saved {len(self.dataset)} rows to {output_dir}")
+
+    def load(self, input_dir,  output_wavs_conversion_folder=None, target_sample_rate=16000, skip_audio_checks=True):
         """
         Load the kaldi dataset and transform audios if asked and needed
         
         Args:
             skip_audio_checks (bool): Skip audio checks and transformations
         """
-        if not skip_audio_checks and os.path.exists(os.path.join(self.input_dir, "clean_wavs")):
+        if not self.name:
+            if input_dir.endswith("/"):
+                input_dir = input_dir[:-1]
+            prefix, self.name = os.path.split(input_dir)
+            if self.name in ["train", "dev", "validation", "test"]:
+                self.name = f"{os.path.split(prefix)[1]}_{self.name}".replace(".","-")
+        if not skip_audio_checks and os.path.exists(os.path.join(input_dir, "clean_wavs")):
             skip_audio_checks = True
         texts = dict()
-        with open(os.path.join(self.input_dir, "text"), encoding="utf-8") as f:
+        with open(os.path.join(input_dir, "text"), encoding="utf-8") as f:
             text_lines = f.readlines()
             for line in text_lines:
                 line = line.strip().split()
                 texts[line[0]] = " ".join(line[1:])
         wavs = dict()
-        with open(os.path.join(self.input_dir, "wav.scp")) as f:
+        with open(os.path.join(input_dir, "wav.scp")) as f:
             for line in f.readlines():
                 line = line.strip().split()
                 if line[1] == "sox":
@@ -80,16 +123,15 @@ class KaldiDataset:
                 else:
                     wavs[line[0]] = line[1]
         spks = dict()
-        with open(os.path.join(self.input_dir, "utt2spk")) as f:
+        with open(os.path.join(input_dir, "utt2spk")) as f:
             for line in f.readlines():
                 line = line.strip().split()
                 spks[line[0]] = line[1]
-        self.dataset = []
         file = "segments"
-        if not os.path.exists(os.path.join(self.input_dir, "segments")):
+        if not os.path.exists(os.path.join(input_dir, "segments")):
             file = "wav.scp"
-        with open(os.path.join(self.input_dir, file)) as f:
-            for line in tqdm(f.readlines(), desc=f"Loading {self.input_dir}"):
+        with open(os.path.join(input_dir, file)) as f:
+            for line in tqdm(f.readlines(), desc=f"Loading {input_dir}"):
                 line = line.strip().split()
                 if file=="segments":
                     start, end = round(float(line[2]), 3), round(float(line[3]), 3)
@@ -102,15 +144,15 @@ class KaldiDataset:
                     start, end = 0, duration
                 normalized_text = format_text_latin(texts[line[0]])
                 if not skip_audio_checks:
-                    wav_path = self.audio_checks(wav_path, os.path.join(self.output_wavs_conversion_folder, self.name+"_wavs"))
-                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], audio_filepath=wav_path, duration=duration, \
+                    wav_path = self.audio_checks(wav_path, os.path.join(output_wavs_conversion_folder, self.name+"_wavs"), target_sample_rate=target_sample_rate)
+                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], audio_input_path=wav_path, duration=duration, \
                     normalized_text=normalized_text, start=start, end=end, speaker=spks.get(line[0], None)))
-        logger.info(f"Loaded {len(self.dataset)} rows from {self.input_dir}")
+        logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         if not skip_audio_checks and not os.path.exists(wav_path):
-            with open(os.path.join(self.input_dir, "clean_wavs")) as f:
+            with open(os.path.join(input_dir, "clean_wavs")) as f:
                 pass
         
-    def audio_checks(self, audio_path, new_folder):
+    def audio_checks(self, audio_path, new_folder, target_sample_rate=16000):
         if new_folder:
             new_path = os.path.join(new_folder, os.path.basename(audio_path))
         else:
@@ -119,18 +161,119 @@ class KaldiDataset:
             if not os.path.exists(audio_path):
                 raise FileNotFoundError(f"Audio file {audio_path} does not exist")
             infos = torchaudio.info(audio_path)
-            if infos.num_channels != 1 or infos.sample_rate != self.target_sample_rate:
+            if infos.num_channels != 1 or infos.sample_rate != target_sample_rate:
                 waveform, original_sample_rate = torchaudio.load(audio_path)
                 if infos.num_channels != 1:
                     logger.debug(f"Audio file {audio_path} has {infos.num_channels} channels. Converting to 1 channel...")
                     waveform = waveform[0, :].unsqueeze(0)
-                if infos.sample_rate != self.target_sample_rate:
+                if infos.sample_rate != target_sample_rate:
                     logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to 16kHz...")
-                    resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=self.target_sample_rate)
+                    resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=target_sample_rate)
                     resampled_waveform = resampler(waveform)
                 os.makedirs(new_folder, exist_ok=True)
-                torchaudio.save(new_path, resampled_waveform, self.target_sample_rate)
+                torchaudio.save(new_path, resampled_waveform, target_sample_rate)
                 return new_path
             else:
                 return audio_path
         return new_path
+    
+class Reader2Kaldi:
+    
+    def __init__(self, root, files) -> None:
+        for i in files:
+            if not os.path.exists(i.input_path):
+                i.input_path = os.path.join(root, i.input_path)
+                if not os.path.exists(i.input_path):
+                    raise FileNotFoundError(f"File {i.input_path} not found")
+        self.files = files
+    
+    def load(self):
+        needed_keywords = {"id": -1, "text": -1, "audio_input_path": -1}
+        for idx, i in enumerate(self.files):
+            i.load()
+            for col in i.inputfile_columns:
+                if col in needed_keywords and needed_keywords[col] == -1:
+                    needed_keywords[col] = idx
+        # check if values are above -1
+        if -1 in needed_keywords.values():
+            raise ValueError(f"Columns must be specified ({needed_keywords})")
+        
+        for i in self.files:
+            if len(i) != len(self.files[0]):
+                raise ValueError(f"Files ({i} and {self.files[0]}) must have the same number of rows: {len(i)} != {len(self.files[0])}")
+
+        dataset = KaldiDataset()
+
+        for i in zip(*self.files):
+            if i[0]["id"] != i[1]["id"]:
+                raise ValueError(f"IDs do not match between files")
+            id = i[0]["id"]
+            start = None
+            if "start" in needed_keywords:
+                start = i[needed_keywords["start"]]["start"]
+            end = None
+            if "end" in needed_keywords:
+                end = i[needed_keywords["end"]]["end"]
+            text = i[needed_keywords["text"]]["text"]
+            audio = i[needed_keywords["audio_input_path"]]["audio_input_path"]
+            kaldi_row = KaldiDatasetRow(id=id, start=start, end=end, raw_text=text, audio_input_path=audio)
+            dataset.append(kaldi_row)
+
+        return dataset
+
+class ToKaldi():
+    def __len__(self):
+        return len(self.data)
+    
+    def __next__(self):
+        for row in self.data:
+            yield row
+            
+    def __getitem__(self, idx):
+        return self.data[idx]
+    
+    def get_path(self):
+        return self.input_path
+
+class AudioFolder2Kaldi(ToKaldi):
+    
+    def __init__(self, input_path, audio_extensions=[".wav"]) -> None:
+        self.input_path = input_path
+        self.supported_extensions = audio_extensions
+        self.data = None
+        self.inputfile_columns = ["id", "audio_input_path"]
+
+    def load(self):
+        data = []
+        for root, _, files in os.walk(self.input_path):
+            audios = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
+            ids = [os.path.splitext(i)[0] for i in audios]
+            for id, audio in zip(ids, audios):
+                data.append({"id": id, "audio_input_path": os.path.join(root, audio)})
+        data = sorted(data, key=lambda x: x["id"])
+        self.data = data
+        
+    def get_path(self):
+        return self.input_folder
+
+class ColumnFile2Kaldi(ToKaldi):
+    
+    def __init__(self, input_path: str, separator: str, inputfile_columns: list, header=False) -> None:
+        self.input_path = input_path
+        self.separator = separator
+        if inputfile_columns is None:
+            raise ValueError("Columns must be specified")
+        self.inputfile_columns = inputfile_columns
+        self.header = header
+        self.data = None
+    
+    def load(self):
+        data = []
+        with open(self.input_path) as f:
+            reader = csv.reader(f, delimiter=self.separator)
+            if self.header:
+                next(reader)
+            for row in reader:
+                data.append({col: row[i] for i, col in enumerate(self.inputfile_columns) if col is not None})
+        data = sorted(data, key=lambda x: x["id"])
+        self.data = data

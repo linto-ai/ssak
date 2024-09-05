@@ -23,13 +23,16 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
         num_lines = sum(1 for _ in open(os.path.join(input,"text")))
         gen = open(os.path.join(input,"text"), "r", encoding="utf-8")
         raw_file = open(os.path.join(output, "text_raw"), "w", encoding="utf-8")
-        shutil.copy2(os.path.join(input,"utt2spk"), os.path.join(output,"utt2spk"))
-        shutil.copy2(os.path.join(input, "utt2dur"), os.path.join(output, "utt2dur"))
-        shutil.copy2(os.path.join(input,"segments"), os.path.join(output,"segments"))
-        shutil.copy2(os.path.join(input,"wav.scp"), os.path.join(output,"wav.scp"))
-        shutil.copy2(os.path.join(input, "spk2utt"), os.path.join(output, "spk2utt"))
+        if os.path.exists(os.path.join(input,"utt2spk")):
+            shutil.copyfile(os.path.join(input,"utt2spk"), os.path.join(output,"utt2spk"))
+        shutil.copyfile(os.path.join(input, "utt2dur"), os.path.join(output, "utt2dur"))
+        if os.path.exists(os.path.join(input,"segments")):
+            shutil.copyfile(os.path.join(input,"segments"), os.path.join(output,"segments"))
+        shutil.copyfile(os.path.join(input,"wav.scp"), os.path.join(output,"wav.scp"))
+        if os.path.exists(os.path.join(input,"spk2utt")):
+            shutil.copyfile(os.path.join(input, "spk2utt"), os.path.join(output, "spk2utt"))
         if os.path.exists(os.path.join(input,"spk2gender")):
-            shutil.copy2(os.path.join(input,"spk2gender"), os.path.join(output,"spk2gender"))
+            shutil.copyfile(os.path.join(input,"spk2gender"), os.path.join(output,"spk2gender"))
     else:
         if output:
             output_file = output

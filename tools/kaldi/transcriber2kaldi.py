@@ -95,33 +95,38 @@ def list_files(folder, subfolders=False, extension=None):
     if subfolders:
         list_files = []
         for root, dirs, files in os.walk(folder):
-            root = root[len(folder):]
+            root = root[len(folder):].lstrip("/")
             to_add = [os.path.join(root, i) for i in files if (i.lower().endswith(extension) or extension is None)]
             list_files.extend(to_add)
         return list_files
     else:
         return [os.path.join(folder, i) for i in os.listdir(folder) if (i.lower().endswith(extension) or extension is None)]
 
-def to_id(basename):
+def to_eslo_id(basename):
     """For ESL, we remove the last part of the basename"""
     return "_".join(basename.split("_")[:-1])
 
-def transcriber2kaldi(trs_folder, audio_folder, output_folder, language=None, audio_extensions=[".wav", ".mp3"], subfolders=False, function_to_id=None, ignore_missing_audio=False, **kwargs):
+def to_clapi_id(basename):
+    return re.sub(r"transcription_transcriber$", "audio_", basename)
+    # return re.sub(r"transcription_orthographe_standard_transcriber$", "audio_wav", basename)
 
-    if os.path.isdir(output_folder):
+def transcriber2kaldi(trs_folder, audio_folder, output_folder, language=None, extension=".trs", audio_extensions=[".wav", ".mp3"], subfolders=False, function_to_id=None, ignore_missing_audio=False, force=False, **kwargs):
+
+    if os.path.isdir(output_folder) and not force:
         raise RuntimeError(f"Output folder {output_folder} already exists. Please remove it to overwrite.")
 
-    for filename in tqdm(list_files(trs_folder, subfolders=subfolders, extension=".trs")):
+    for filename in tqdm(list_files(trs_folder, subfolders=subfolders, extension=extension)):
         basename = os.path.splitext(filename)[0]
         if function_to_id is not None:
             basename = function_to_id(basename)
         trs_file = os.path.join(trs_folder, filename)
         audio_files = []
         for audio_extension in audio_extensions:
-            audio_files += glob(os.path.join(audio_folder, basename + audio_extension))
+            audio_filepath = os.path.join(audio_folder, basename + audio_extension)
+            audio_files += glob(audio_filepath)
         if len(audio_files) == 0:
             if not ignore_missing_audio:
-                raise RuntimeError(f"Audio file not found for {filename} (in {audio_folder})")
+                raise RuntimeError(f"Audio file not found for {filename} ({audio_filepath}) (in {audio_folder})")
             else:
                 warnings.warn(f"Skipping {filename}, audio file not found in {audio_folder}")
                 continue
@@ -143,7 +148,7 @@ if __name__ == '__main__':
     parser.add_argument('trs_folder', help='Folder with trs files')
     parser.add_argument('audio_folder', help='Folder with audio files (if different from trs folder)', nargs='?', default=None)
     parser.add_argument('output_folder', help='output directory')
-    parser.add_argument('--anonymization_level', default=1, type=int, choices=[0,1,2], help='0: No anonymization, 1: Change spkeaker names, 2: Total anonymization (default: 1)')
+    parser.add_argument('--anonymization_level', default=0, type=int, choices=[0,1,2], help='0: No anonymization, 1: Change speaker names, 2: Total anonymization (default: 1)')
     parser.add_argument('--max_speakers', default=1, type=int, help='Default number of speakers at the same time')
     parser.add_argument('--remove_extra_speech', default=False, action="store_true", help='Remove extra speech (events, comments, background)')
     parser.add_argument('--max_text_length', default=None, type=int, help='Maximum text length in number of charachers (default: None)')
@@ -151,6 +156,9 @@ if __name__ == '__main__':
     parser.add_argument('--subfolders', default=False, action="store_true", help='Search for trs files in subfolders')
     parser.add_argument('--ignore_missing_audio', default=False, action="store_true", help='Ignore missing audio files')
     parser.add_argument('--audio_extensions', default=[".wav",".mp3"], nargs='+', type=str, help='Audio extensions to look for (default: .wav .mp3)')
+    parser.add_argument('--force', default=False, action="store_true", help='Force overwrite of output folder')
+    parser.add_argument('--function_to_id', default=None, type=str, help='Function to convert basename to id (e.g. to_eslo_id, to_clapi_id)')
+    parser.add_argument('--trs_extension', default=".trs", type=str, help='Extension of the transcriber files')
     args = parser.parse_args()
 
     if not args.audio_folder:
@@ -158,11 +166,17 @@ if __name__ == '__main__':
 
     assert os.path.isdir(args.trs_folder), f"Folder {args.trs_folder} does not exist"
     assert os.path.isdir(args.audio_folder), f"Folder {args.audio_folder} does not exist"
-    assert not os.path.isdir(args.output_folder), f"Folder {args.output_folder} already exists"
+    if not args.force:
+        assert not os.path.isdir(args.output_folder), f"Folder {args.output_folder} already exists"
 
     assert args.anonymization_level >= 0
     assert args.max_speakers > 0, f"Invalid number of speakers: {args.max_speakers} (must be a strictly positive integer)"
     assert args.max_text_length is None or args.max_text_length > 0, f"Invalid maximum text length: {args.max_text_length} (must be a strictly positive integer or None)"
+
+    functions_to_id = {
+        "to_eslo_id": to_eslo_id,
+        "to_clapi_id": to_clapi_id,
+    }
 
     transcriber2kaldi(
         args.trs_folder, args.audio_folder, args.output_folder,
@@ -173,5 +187,8 @@ if __name__ == '__main__':
         language=args.language,
         subfolders=args.subfolders,
         ignore_missing_audio=args.ignore_missing_audio,
-        audio_extensions=args.audio_extensions
+        audio_extensions=args.audio_extensions,
+        force=args.force,
+        function_to_id=functions_to_id[args.function_to_id] if args.function_to_id is not None else None,
+        extension=args.trs_extension
     )
