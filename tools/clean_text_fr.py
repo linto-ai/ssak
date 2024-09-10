@@ -3,6 +3,9 @@
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.kaldi import check_kaldi_dir
 import shutil
+import os
+import sys
+from tqdm import tqdm
 
 def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_num=False, keep_case=False, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
@@ -63,7 +66,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
     fid_special_char = open(file_special_char, "a", encoding="utf-8") if file_special_char else None
 
     try:
-        for line in tqdm(gen, total=num_lines):
+        for line in tqdm(gen, total=num_lines, desc=f"Cleaning text from {input}"):
             full_line = line
             if ignore_first:
                 words = line.split()
@@ -106,11 +109,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
 
 
 if __name__ == "__main__":
-
-    import sys
-    import os
     import argparse
-    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

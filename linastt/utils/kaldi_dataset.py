@@ -1,6 +1,7 @@
 from tqdm import tqdm
 import os
 import csv
+import re
 from dataclasses import dataclass
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.kaldi import check_kaldi_dir
@@ -15,7 +16,8 @@ class KaldiDatasetRow:
     Dataclass for a row (/segment) in a kaldi dataset
     """
     id: str
-    raw_text: str
+    text: str
+    audio_id: str
     audio_input_path: str
     normalized_text: str = None
     duration: float = None
@@ -30,10 +32,7 @@ class KaldiDataset:
         Iterator class for kaldi datasets. You need to load it before iterating over it.
         
         Args:
-            input_dir (str): Path to the kaldi dataset folder
             name (str): Name of the dataset
-            new_folder (str): Folder where to save transformed audios (if asked and needed)
-            target_sample_rate (int): Target sample rate for audio files (used if audio checks are not skipped)
         """
         if name:
             self.name = name
@@ -50,28 +49,55 @@ class KaldiDataset:
         return self.__next__()
 
     def append(self, row):
+        """
+        Append a row to the dataset
+        
+        Args:
+            row (dict or KaldiDatasetRow): Row to append to the dataset
+        """
+        if not isinstance(row, KaldiDatasetRow):
+            row = KaldiDatasetRow(**row)
+        if row.duration is not None:
+            row.duration = float(row.duration)
+        if row.start is not None:
+            row.start = float(row.start)
+        if row.end is not None:
+            row.end = float(row.end)
+        if row.duration is None and row.start is not None and row.end is not None:
+            row.duration = row.end - row.start
+        elif row.end is None and row.start is not None and row.duration is not None:
+            row.end = row.start + row.duration
+        if row.duration is not None and row.duration <= 0.05:
+            logger.warning(f"Duration too short for {row.id}: {row.duration:.3f} ({row.start}->{row.end}) (with text: {row.text})")
+            return
+        if row.audio_id is None:
+            row.audio_id = row.id
         self.dataset.append(row)
 
     def save(self, output_dir, check_durations_if_missing=False):
         os.makedirs(output_dir, exist_ok=True)
         speakers_to_gender = dict()
         no_spk = True
+        saved_wavs = set()
         with open(os.path.join(output_dir, "text"), "w", encoding="utf-8") as text_file,\
             open(os.path.join(output_dir, "wav.scp"), "w") as wav_file,\
             open(os.path.join(output_dir, "utt2spk"), "w") as uttspkfile,\
             open(os.path.join(output_dir, "utt2dur"), "w") as uttdurfile,\
             open(os.path.join(output_dir, "segments"), "w") as segmentfile:  
-            for row in self.dataset:
-                text_file.write(f"{row.id} {row.raw_text}\n")
-                wav_file.write(f"{row.id} {row.audio_input_path}\n")
+            for row in tqdm(self.dataset, total=len(self.dataset), desc=f"Saving kaldi to {output_dir}"):
+                text = re.sub(r'[^\S\r\n]', ' ', row.text)
+                text_file.write(f"{row.id} {text}\n")
+                if not row.audio_id in saved_wavs: 
+                    wav_file.write(f"{row.audio_id} {row.audio_input_path}\n")
+                    saved_wavs.add(row.audio_id)
                 if row.speaker is not None:
                     no_spk = False
                     uttspkfile.write(f"{row.id} {row.speaker}\n")
                     if row.gender is not None:
                         speakers_to_gender[row.speaker] = row.gender
-                duration = float(row.duration) if row.duration is not None else None
+                duration = row.duration if row.duration is not None else None
                 if duration is None and row.end is not None and row.start is not None:
-                    duration = float(row.end) - float(row.start)
+                    duration = row.end - row.start
                 elif duration is None:
                     if check_durations_if_missing:
                         infos = torchaudio.info(row.audio_input_path)
@@ -79,10 +105,9 @@ class KaldiDataset:
                     else:
                         raise ValueError(f"Duration (or end and start) must be specified for row {row.id}")
                 uttdurfile.write(f"{row.id} {duration:.3f}\n")
-                start = float(row.start) if row.start is not None else 0
-                end = float(row.end) if row.end is not None else start+duration
-                segmentfile.write(f"{row.id} {row.id} {start:.3f} {end:.3f}\n")
-                
+                start = row.start if row.start is not None else 0
+                end = row.end if row.end is not None else start+duration
+                segmentfile.write(f"{row.id} {row.audio_id} {start:.3f} {end:.3f}\n")
         if no_spk:
             os.remove(os.path.join(output_dir, "utt2spk"))
         if len(speakers_to_gender) > 0:
@@ -145,7 +170,7 @@ class KaldiDataset:
                 normalized_text = format_text_latin(texts[line[0]])
                 if not skip_audio_checks:
                     wav_path = self.audio_checks(wav_path, os.path.join(output_wavs_conversion_folder, self.name+"_wavs"), target_sample_rate=target_sample_rate)
-                self.dataset.append(KaldiDatasetRow(id=line[0], raw_text=texts[line[0]], audio_input_path=wav_path, duration=duration, \
+                self.append(KaldiDatasetRow(id=line[0], text=texts[line[0]], audio_input_path=wav_path, duration=duration, \
                     normalized_text=normalized_text, start=start, end=end, speaker=spks.get(line[0], None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         if not skip_audio_checks and not os.path.exists(wav_path):
@@ -176,104 +201,3 @@ class KaldiDataset:
             else:
                 return audio_path
         return new_path
-    
-class Reader2Kaldi:
-    
-    def __init__(self, root, files) -> None:
-        for i in files:
-            if not os.path.exists(i.input_path):
-                i.input_path = os.path.join(root, i.input_path)
-                if not os.path.exists(i.input_path):
-                    raise FileNotFoundError(f"File {i.input_path} not found")
-        self.files = files
-    
-    def load(self):
-        needed_keywords = {"id": -1, "text": -1, "audio_input_path": -1}
-        for idx, i in enumerate(self.files):
-            i.load()
-            for col in i.inputfile_columns:
-                if col in needed_keywords and needed_keywords[col] == -1:
-                    needed_keywords[col] = idx
-        # check if values are above -1
-        if -1 in needed_keywords.values():
-            raise ValueError(f"Columns must be specified ({needed_keywords})")
-        
-        for i in self.files:
-            if len(i) != len(self.files[0]):
-                raise ValueError(f"Files ({i} and {self.files[0]}) must have the same number of rows: {len(i)} != {len(self.files[0])}")
-
-        dataset = KaldiDataset()
-
-        for i in zip(*self.files):
-            if i[0]["id"] != i[1]["id"]:
-                raise ValueError(f"IDs do not match between files")
-            id = i[0]["id"]
-            start = None
-            if "start" in needed_keywords:
-                start = i[needed_keywords["start"]]["start"]
-            end = None
-            if "end" in needed_keywords:
-                end = i[needed_keywords["end"]]["end"]
-            text = i[needed_keywords["text"]]["text"]
-            audio = i[needed_keywords["audio_input_path"]]["audio_input_path"]
-            kaldi_row = KaldiDatasetRow(id=id, start=start, end=end, raw_text=text, audio_input_path=audio)
-            dataset.append(kaldi_row)
-
-        return dataset
-
-class ToKaldi():
-    def __len__(self):
-        return len(self.data)
-    
-    def __next__(self):
-        for row in self.data:
-            yield row
-            
-    def __getitem__(self, idx):
-        return self.data[idx]
-    
-    def get_path(self):
-        return self.input_path
-
-class AudioFolder2Kaldi(ToKaldi):
-    
-    def __init__(self, input_path, audio_extensions=[".wav"]) -> None:
-        self.input_path = input_path
-        self.supported_extensions = audio_extensions
-        self.data = None
-        self.inputfile_columns = ["id", "audio_input_path"]
-
-    def load(self):
-        data = []
-        for root, _, files in os.walk(self.input_path):
-            audios = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
-            ids = [os.path.splitext(i)[0] for i in audios]
-            for id, audio in zip(ids, audios):
-                data.append({"id": id, "audio_input_path": os.path.join(root, audio)})
-        data = sorted(data, key=lambda x: x["id"])
-        self.data = data
-        
-    def get_path(self):
-        return self.input_folder
-
-class ColumnFile2Kaldi(ToKaldi):
-    
-    def __init__(self, input_path: str, separator: str, inputfile_columns: list, header=False) -> None:
-        self.input_path = input_path
-        self.separator = separator
-        if inputfile_columns is None:
-            raise ValueError("Columns must be specified")
-        self.inputfile_columns = inputfile_columns
-        self.header = header
-        self.data = None
-    
-    def load(self):
-        data = []
-        with open(self.input_path) as f:
-            reader = csv.reader(f, delimiter=self.separator)
-            if self.header:
-                next(reader)
-            for row in reader:
-                data.append({col: row[i] for i, col in enumerate(self.inputfile_columns) if col is not None})
-        data = sorted(data, key=lambda x: x["id"])
-        self.data = data
