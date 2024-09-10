@@ -30,7 +30,9 @@ def textgrid_to_csv(textgrid_file: str, output_dir: str) -> None:
                     start = interval.xmin
                     end = interval.xmax
                     duration = end - start
-                    data.append([text, start, duration])
+                    if len(text)>1:
+                        data.append([text, start, duration])
+            # break # Needed for OFROM
 
         # Write the extracted data to a CSV file
         csv_path = os.path.join(output_dir, csv_file)
@@ -48,11 +50,12 @@ if __name__ == "__main__":
     parser.add_argument('output', help="Path to Kaldi data folder", type=str)
     parser.add_argument('--extension', help="File extension of audio files (e.g., mp3, wav, ogg)", type=str, default='mp3')
     parser.add_argument('--audio_suffix', help="Suffix for audio files if different from their corresponding transcription files", type=str)
+    parser.add_argument('--utt_prefix', default="", type=str)
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)  # Ensure output directory exists
     
-    csv_path = os.path.join(os.path.dirname(args.textgrid_path), 'CSV_folder')
+    csv_path = os.path.join(os.path.dirname(args.output), 'CSV_folder')
     os.makedirs(csv_path, exist_ok=True)  # Create CSV folder inside the output directory
     
     # Convert TextGrid files to CSV
@@ -68,4 +71,5 @@ if __name__ == "__main__":
         args.output,
         extension=args.extension,
         audio_suffix=args.audio_suffix,
+        utt_prefix=''
     )
