@@ -68,7 +68,7 @@ class KaldiDataset:
             row.duration = row.end - row.start
         elif row.end is None and row.start is not None and row.duration is not None:
             row.end = row.start + row.duration
-        if row.duration is not None and row.duration <= 0.05:
+        if row.duration <= 0.05:
             if self.show_warnings:
                 logger.warning(f"Duration too short for {row.id}: {row.duration:.3f} ({row.start}->{row.end}) (with text: {row.text})")
             return

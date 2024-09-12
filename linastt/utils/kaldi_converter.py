@@ -208,6 +208,9 @@ class TextGrid2Kaldi(ToKaldi):
         just_parenthesis = re.compile(r'^\(.*\)\W*$')
         text = re.sub(just_parenthesis, '', text)
         text = text.strip()
+        just_punc = re.compile(r'^\W*$')
+        text = re.sub(just_punc, '', text)
+        text = text.strip() 
         return text
 
     def extract_speaker(self, text):
@@ -282,7 +285,7 @@ class TextGrid2Kaldi(ToKaldi):
                                         if i>=self.max_number_overlap:
                                             break
                                         overlap_text = overlap[1:-1]                         
-                                        self.process_segment(data, overlap_text, interval, file, id_ct)
+                                        data, id_ct = self.process_segment(data, overlap_text, interval, file, id_ct)
                                 text = overlaps_regex.sub('', text)
                                 data, id_ct = self.process_segment(data, text, interval, file, id_ct)
 
