@@ -216,33 +216,28 @@ def compute_wer(refs, preds,
 
     if words_list:
         TP = 0
-        TN = 0
         FP = 0
         FN = 0
         if details_words_list:
-            words_list_total = {w: 0 for w in words_list}
-            words_list_correct = {w: 0 for w in words_list}
+            detailed_tp = {w: 0 for w in words_list}
+            detailed_fp = {w: 0 for w in words_list}
+            detailed_fn = {w: 0 for w in words_list}
+            detailed_total = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
             for w in words_list:
-                is_in_ref = re.search(r"\b" + w + r"\b", r)
-                is_in_pred = re.search(r"\b" + w + r"\b", p)
-                if is_in_ref:
-                    if is_in_pred:
-                        TP += 1
-                        if details_words_list:
-                            words_list_total[w] += 1
-                            words_list_correct[w] += 1
-                    else:
-                        FN += 1
-                        if details_words_list:
-                            words_list_total[w] += 1
-                elif is_in_pred:
-                    FP += 1
-                    if details_words_list:
-                        words_list_total[w] += 1
-                else:
-                    TN += 1
-
+                num_in_ref = len(re.findall(r"\b" + w + r"\b", r))
+                num_in_pred = len(re.findall(r"\b" + w + r"\b", p))
+                tp = min(num_in_ref, num_in_pred)
+                fp = max(0, num_in_pred - num_in_ref)
+                fn = max(0, num_in_ref - num_in_pred)
+                TP += tp
+                FP += fp
+                FN += fn
+                if details_words_list:
+                    detailed_total[w] += num_in_ref
+                    detailed_tp[w] += tp
+                    detailed_fp[w] += fp
+                    detailed_fn[w] += fn
         precision = TP / (TP + FP) if (TP + FP) > 0 else 0
         recall = TP / (TP + FN) if (TP + FN) > 0 else 0
         F1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
@@ -251,26 +246,41 @@ def compute_wer(refs, preds,
             "FP": FP,
             "FN": FN,
             "TP": TP,
-            "TN": TN,
             "precision": precision,
             "recall": recall,
             "F1": F1,
         })
         if details_words_list:
-            words_list_err = {w: (words_list_total[w] - words_list_correct[w]) / words_list_total[w] for w in words_list if words_list_total[w]}
+            words_list_recall = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fp[w]) if (detailed_tp[w] + detailed_fp[w]) > 0 else 0 for w in words_list}
+            words_list_precision = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fn[w]) if (detailed_tp[w] + detailed_fn[w]) > 0 else 0 for w in words_list}
+            words_list_F1 = {w: 2 * words_list_precision[w] * words_list_recall[w] / (words_list_precision[w] + words_list_recall[w]) if (words_list_precision[w] + words_list_recall[w]) > 0 else 0 for w in words_list}
             with open(details_words_list, 'w+') if isinstance(details_words_list, str) else open("/dev/stdout", "w") as f:
                 csv_writer = csv.writer(f, delimiter=',')
-                csv_writer.writerow(["Word", "ErrorRate%", "Total", "Correct"])
                 max_length_words = max([len(w) for w in words_list])
-                for w in sorted(words_list_err.keys(), key=lambda w: (
-                    -words_list_total[w],
+                csv_writer.writerow([
+                    "Word" + " " * (max_length_words - 4),
+                    "F1%    ",
+                    "Recall%",
+                    "Precision%",
+                    "Total",
+                    "TP   ",
+                    "FN   ",
+                    "FP   "
+                ])
+                for w in sorted(detailed_total.keys(), key=lambda w: (
+                    -detailed_tp[w],
                     w
                     ), reverse=False):
-                    err = f"{round(words_list_err[w]*100, 1): <6}"
-                    total = f"{words_list_total[w]: <5}"
-                    correct = f"{words_list_correct[w]: <5}"
-                    w = f"{w: <{max_length_words}}"
-                    csv_writer.writerow([w, err, total, correct])
+                    csv_writer.writerow([
+                        f"{w: <{max_length_words}}",
+                        f"{round(words_list_F1[w]*100, 1):<7}",
+                        f"{round(words_list_recall[w]*100, 1):<7}",
+                        f"{round(words_list_precision[w]*100, 1):<10}",
+                        f"{detailed_total[w]:<5}",
+                        f"{detailed_tp[w]:<5}",
+                        f"{detailed_fn[w]:<5}",
+                        f"{detailed_fp[w]:<5}",
+                    ])
 
     sub_score = measures['substitutions']
     del_score = measures['deletions']
@@ -630,5 +640,5 @@ if __name__ == "__main__":
     if words_list:
         extra = f"Details for {len(words_list)} words:\n"
         extra += " | ".join([f"{w}: {100*result[w]:.2f}%" for w in ["F1", "precision", "recall"]])
-        extra += " | " + " | ".join([f"{w}: {result[w]}" for w in ["FN", "FP", "TP", "TN"]])
+        extra += " | " + " | ".join([f"{w}: {result[w]}" for w in ["TP", "FN", "FP"]])
         print(extra)
