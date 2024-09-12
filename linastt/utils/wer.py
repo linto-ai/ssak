@@ -215,40 +215,46 @@ def compute_wer(refs, preds,
             }
 
     if words_list:
-        n_total = 0
-        n_correct = 0
         TP = 0
+        TN = 0
         FP = 0
         FN = 0
         if details_words_list:
             words_list_total = {w: 0 for w in words_list}
             words_list_correct = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
-            ref_words = set(re.findall(r'\b\w+\b', r))
-            pred_words = set(re.findall(r'\b\w+\b', p))
             for w in words_list:
-                if w in ref_words:
-                    n_total += 1
-                    if details_words_list:
-                        words_list_total[w] += 1
-                    if w in pred_words:
-                        n_correct += 1
+                is_in_ref = re.search(r"\b" + w + r"\b", r)
+                is_in_pred = re.search(r"\b" + w + r"\b", p)
+                if is_in_ref:
+                    if is_in_pred:
                         TP += 1
                         if details_words_list:
+                            words_list_total[w] += 1
                             words_list_correct[w] += 1
                     else:
                         FN += 1
-                if w in pred_words and w not in ref_words:
+                        if details_words_list:
+                            words_list_total[w] += 1
+                elif is_in_pred:
                     FP += 1
+                    if details_words_list:
+                        words_list_total[w] += 1
+                else:
+                    TN += 1
+
         precision = TP / (TP + FP) if (TP + FP) > 0 else 0
         recall = TP / (TP + FN) if (TP + FN) > 0 else 0
-        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        F1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
 
         extra.update({
-            "word_err": (n_total - n_correct) / n_total,
+            "FP": FP,
+            "FN": FN,
+            "TP": TP,
+            "TN": TN,
             "precision": precision,
             "recall": recall,
-            "f1_score": f1_score,
+            "F1": F1,
         })
         if details_words_list:
             words_list_err = {w: (words_list_total[w] - words_list_correct[w]) / words_list_total[w] for w in words_list if words_list_total[w]}
@@ -621,3 +627,8 @@ if __name__ == "__main__":
     print('-' * len(line))
     print(line)
     print('-' * len(line))
+    if words_list:
+        extra = f"Details for {len(words_list)} words:\n"
+        extra += " | ".join([f"{w}: {100*result[w]:.2f}%" for w in ["F1", "precision", "recall"]])
+        extra += " | " + " | ".join([f"{w}: {result[w]}" for w in ["FN", "FP", "TP", "TN"]])
+        print(extra)
