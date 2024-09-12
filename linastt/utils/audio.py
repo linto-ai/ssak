@@ -174,7 +174,7 @@ def get_audio_duration(path, verbose=False):
             info = sox.get_info(path)[0]
         except RuntimeError as e:
             raise RuntimeError(f"Error while reading {path}") from e
-        return info.length / info.rate
+        return info.length / info.rate / info.channels
     return get_audio_total_duration(path, verbose=verbose)[1]
 
 def get_audio_num_channels(path, verbose=False):
