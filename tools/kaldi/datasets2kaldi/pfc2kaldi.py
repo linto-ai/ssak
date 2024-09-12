@@ -29,3 +29,8 @@ if __name__=="__main__":
     dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audios])
     dataset = dev_reader.load()
     dataset.save(raw, True)
+    
+    clean_text_fr(raw, 
+        nocasepunc,
+        ignore_first=1,
+        file_clean_mode="kaldi")
