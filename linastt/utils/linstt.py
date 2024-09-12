@@ -145,7 +145,7 @@ def linstt_transcribe(
             diarization = curl_post(
                 diarization_server + "/diarization",
                 { "file": audio_file } | \
-                ({"spk_number": numberOfSpeaker} if numberOfSpeaker else {}) | \
+                ({"speaker_count": numberOfSpeaker} if numberOfSpeaker else {}) | \
                 ({"max_speaker": maxNumberOfSpeaker} if maxNumberOfSpeaker else {}),
                 headers=[f"Authorization: Bearer {token}"] if token else [],
                 verbose=verbose,
