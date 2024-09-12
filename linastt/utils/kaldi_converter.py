@@ -178,3 +178,114 @@ class ListFile2Kaldi(ToKaldi):
                     row = [row]
                 data.append({col: row[i].strip() for i, col in enumerate(self.return_columns) if col is not None})
         return self.merge_data(dataset, new_data=data)
+    
+class TextGrid2Kaldi(ToKaldi):
+    
+    def __init__(self, input, return_columns, execute_order, sort_merging=True, subfolders=False, extract_items=None) -> None:
+        from textgrids import TextGrid
+        super().__init__(input, return_columns, execute_order, sort_merging=sort_merging)
+        self.subfolders = subfolders
+        self.extract_items = extract_items
+        self.max_number_overlap = 1
+    
+    def filter_empty_texts(self, text):
+        text = text.strip()
+        hum_regex = re.compile(r"[h|H]um*")
+        text = re.sub(hum_regex, '', text, re.IGNORECASE)
+        text = text.strip()
+        # number_word = re.compile(r'^\d+\.*\s\w+$', re.UNICODE)    # prononciation exercices
+        # text = re.sub(number_word, '', text)
+        # text = text.strip()
+        
+        number_word = re.compile(r'^\d+\.', re.UNICODE)    # uniformize prononciation exercices
+        match = re.match(number_word, text)
+        
+        if match is not None:
+            to_sub = match.group()
+            sub_with = to_sub.replace('.', '')
+            text = re.sub(to_sub, sub_with, text)
+            text = text.strip()
+        just_parenthesis = re.compile(r'^\(.*\)\W*$')
+        text = re.sub(just_parenthesis, '', text)
+        text = text.strip()
+        return text
+
+    def extract_speaker(self, text):
+        # speaker is a few characters and numbers at the start of the string and end with ":"
+        speaker_regex = re.compile(r'^(\(.*\))?\s?[A-Za-z0-9]+\s?:')
+        speaker = re.match(speaker_regex, text)
+        if speaker:
+            text = text[speaker.end():]
+            text = text.strip()
+            # remove speaker from text
+            just_parenthesis = re.compile(r'\(.*\)')
+            speaker = speaker.group()[:-1]
+            speaker = re.sub(just_parenthesis, '', speaker)
+            speaker = speaker.strip()
+            return text, speaker
+        return text, None
+    
+    def process_segment(self, data, text, interval, file, id_ct):
+        overlaps_not_closed_regex = re.compile(r'<[^>]*$')
+        matches = re.findall(overlaps_not_closed_regex, text)
+        if len(matches)>0:
+            # logger.warning(f"Overlap not closed in {file}: {text}")
+            return data, id_ct
+        overlaps_not_opened_regex = re.compile(r'[^<]*>.*$')
+        matches = re.findall(overlaps_not_opened_regex, text)
+        if len(matches)>0:
+            # logger.warning(f"Overlap not opened in {file}: {text}")
+            return data, id_ct
+        text, speaker = self.extract_speaker(text)
+        if not speaker:
+            speaker = f"UNK_{os.path.splitext(file)[0]}"
+        text = self.filter_empty_texts(text)
+        if len(text)>1:
+            data.append({"id": f"{os.path.splitext(file)[0]}_{id_ct}", 
+                "audio_id": f"{os.path.splitext(file)[0]}",
+                "text": text, "start":interval.xmin, "end":interval.xmax, "speaker": speaker})
+            id_ct += 1
+        return data, id_ct
+        
+    def process(self, dataset):
+        from textgrids import TextGrid
+        data = []
+        for root, dirs, files in os.walk(self.input):
+            for file in files:
+                if file.endswith(".TextGrid"):
+                    textgrid = TextGrid()
+                    texgrid_file = os.path.join(root, file)
+                    try:
+                        textgrid.read(texgrid_file)
+                    except Exception as e:
+                        # logger.error(f"Error processing {texgrid_file}: {e}")
+                        continue
+                    id_ct = 0
+                    for idx, (item_name, intervals) in enumerate(textgrid.items()):
+                        if self.extract_items is not None and idx not in self.extract_items:
+                            continue
+                        for interval in intervals:
+                            if interval.text.strip():  # Ignore empty text
+                                text = interval.text
+                                overlaps_in_overlaps_regex = re.compile(r'<[^>]*?<.*?>[^>]*?>')
+                                matches = re.findall(overlaps_in_overlaps_regex, text)
+                                if len(matches)>0:
+                                    # logger.warning(f"Found overlaps in overlaps in {file}: {text}")
+                                    continue
+                                overlaps_regex = re.compile(r'<.*?>')
+                                matches = re.findall(overlaps_regex, text)
+                                if self.max_number_overlap>0 and len(matches)>self.max_number_overlap:
+                                    # logger.warning(f"Too much overlaps ({len(matches)}) in {file}: {text}")
+                                    continue
+                                elif len(matches)>0 and self.max_number_overlap>0:
+                                    for i, overlap in enumerate(matches):
+                                        if i>=self.max_number_overlap:
+                                            break
+                                        overlap_text = overlap[1:-1]                         
+                                        self.process_segment(data, overlap_text, interval, file, id_ct)
+                                text = overlaps_regex.sub('', text)
+                                data, id_ct = self.process_segment(data, text, interval, file, id_ct)
+
+            if not self.subfolders:
+                break
+        return self.merge_data(dataset, new_data=data)

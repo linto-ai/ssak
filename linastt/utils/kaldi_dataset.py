@@ -36,6 +36,7 @@ class KaldiDataset:
         """
         if name:
             self.name = name
+        self.show_warnings = False
         self.dataset = []
 
     def __len__(self):
@@ -68,10 +69,13 @@ class KaldiDataset:
         elif row.end is None and row.start is not None and row.duration is not None:
             row.end = row.start + row.duration
         if row.duration is not None and row.duration <= 0.05:
-            logger.warning(f"Duration too short for {row.id}: {row.duration:.3f} ({row.start}->{row.end}) (with text: {row.text})")
+            if self.show_warnings:
+                logger.warning(f"Duration too short for {row.id}: {row.duration:.3f} ({row.start}->{row.end}) (with text: {row.text})")
             return
         if row.audio_id is None:
             row.audio_id = row.id
+        if row.speaker is None:
+            raise ValueError(f"Speaker must be specified for row {row.id}")
         self.dataset.append(row)
 
     def save(self, output_dir, check_durations_if_missing=False):
