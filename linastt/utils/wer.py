@@ -268,9 +268,12 @@ def compute_wer(refs, preds,
                     "FP   "
                 ])
                 for w in sorted(detailed_total.keys(), key=lambda w: (
-                    -detailed_tp[w],
+                    -detailed_total[w],
                     w
                     ), reverse=False):
+                    if not detailed_total[w] and not detailed_fp[w]:
+                        # Ignore words that are not involved at all
+                        continue
                     csv_writer.writerow([
                         f"{w: <{max_length_words}}",
                         f"{round(words_list_F1[w]*100, 1):<7}",
