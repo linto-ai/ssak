@@ -11,17 +11,21 @@ logger = logging.getLogger(__name__)
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Convert TEDX dataset to Kaldi format')
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--input", type=str, default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/TEDX/fr-fr/data")
+    parser.add_argument("--output", type=str, default="/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/TEDX_fr")
     args = parser.parse_args()
     
-    input_dataset = "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/TEDX/fr-fr/data"
+    input_dataset = args.input
     
-    raw_dev = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/casepunc/TEDX_fr/dev"
-    raw_test = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/casepunc/TEDX_fr/test"
-    raw_train = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/casepunc/TEDX_fr/train"
-    
-    nocasepunc_dev = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/TEDX_fr/dev"
-    nocasepunc_test = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/TEDX_fr/test"
-    nocasepunc_train = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/TEDX_fr/train"
+    output_path = args.output
+
+    raw_dev = os.path.join(output_path, "casepunc/dev")
+    raw_test = os.path.join(output_path, "casepunc/test")
+    raw_train = os.path.join(output_path, "casepunc/train")
+
+    nocasepunc_dev = os.path.join(output_path, "nocasepunc/dev")
+    nocasepunc_test = os.path.join(output_path, "nocasepunc/test")
+    nocasepunc_train = os.path.join(output_path, "nocasepunc/train")
     
     if os.path.exists(nocasepunc_dev) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")

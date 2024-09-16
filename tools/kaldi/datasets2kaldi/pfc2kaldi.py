@@ -11,13 +11,17 @@ logger = logging.getLogger(__name__)
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Convert PFC dataset to Kaldi format')
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--input", type=str, default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/PFC/2")
+    parser.add_argument("--output", type=str, default="/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/PFC")
     args = parser.parse_args()
     
-    input_dataset = "/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/PFC/2"
+    input_dataset = args.input
     
-    raw = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/casepunc/PFC"
+    output_path = args.output
     
-    nocasepunc = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/PFC"
+    raw = os.path.join(output_path, "casepunc/PFC")
+    
+    nocasepunc = os.path.join(output_path, "nocasepunc/PFC")
     
     if os.path.exists(nocasepunc) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")

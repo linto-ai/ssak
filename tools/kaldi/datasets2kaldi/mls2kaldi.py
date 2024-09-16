@@ -11,17 +11,21 @@ logger = logging.getLogger(__name__)
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Convert MLS Facebook French dataset to Kaldi format')
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--input", type=str, default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/LIBRIVOX/mls_Facebook_french")
+    parser.add_argument("--output", type=str, default="/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/MLS_Facebook_french")
     args = parser.parse_args()
     
-    input_dataset = "/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/LIBRIVOX/mls_Facebook_french"
+    input_dataset = args.input
     
-    raw_dev = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/others/MLS_Facebook_french/dev"
-    raw_test = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/others/MLS_Facebook_french/test"
-    raw_train = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/others/MLS_Facebook_french/train"
+    output_path = args.output
     
-    nocasepunc_dev = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/MLS_Facebook_french/dev"
-    nocasepunc_test = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/MLS_Facebook_french/test"
-    nocasepunc_train = "/media/nas/CORPUS_PENDING/kaldi/Corpus_FR/nocasepunc/MLS_Facebook_french/train"
+    raw_dev = os.path.join(output_path, "others/dev")
+    raw_test = os.path.join(output_path, "others/test")
+    raw_train = os.path.join(output_path, "others/train")
+    
+    nocasepunc_dev = os.path.join(output_path, "nocasepunc/dev")
+    nocasepunc_test = os.path.join(output_path, "nocasepunc/test")
+    nocasepunc_train = os.path.join(output_path, "nocasepunc/train")
     
     if os.path.exists(nocasepunc_dev) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")
