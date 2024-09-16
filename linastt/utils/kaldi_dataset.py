@@ -18,7 +18,7 @@ class KaldiDatasetRow:
     id: str
     text: str
     audio_id: str
-    audio_input_path: str
+    audio_path: str
     normalized_text: str = None
     duration: float = None
     start: float = None
@@ -54,7 +54,7 @@ class KaldiDataset:
         Append a row to the dataset
         
         Args:
-            row (dict or KaldiDatasetRow): Row to append to the dataset
+            row (dict or KaldiDatasetRow): Row to append to the dataset. If a dict, the keys must be : {id, audio_id, audio_path, text, duration, start, end, speaker}
         """
         if not isinstance(row, KaldiDatasetRow):
             row = KaldiDatasetRow(**row)
@@ -92,7 +92,7 @@ class KaldiDataset:
                 text = re.sub(r'[^\S\r\n]', ' ', row.text)
                 text_file.write(f"{row.id} {text}\n")
                 if not row.audio_id in saved_wavs: 
-                    wav_file.write(f"{row.audio_id} {row.audio_input_path}\n")
+                    wav_file.write(f"{row.audio_id} {row.audio_path}\n")
                     saved_wavs.add(row.audio_id)
                 if row.speaker is not None:
                     no_spk = False
@@ -104,7 +104,7 @@ class KaldiDataset:
                     duration = row.end - row.start
                 elif duration is None:
                     if check_durations_if_missing:
-                        infos = torchaudio.info(row.audio_input_path)
+                        infos = torchaudio.info(row.audio_path)
                         duration = infos.num_frames / infos.sample_rate
                     else:
                         raise ValueError(f"Duration (or end and start) must be specified for row {row.id}")
@@ -174,7 +174,7 @@ class KaldiDataset:
                 normalized_text = format_text_latin(texts[line[0]])
                 if not skip_audio_checks:
                     wav_path = self.audio_checks(wav_path, os.path.join(output_wavs_conversion_folder, self.name+"_wavs"), target_sample_rate=target_sample_rate)
-                self.append(KaldiDatasetRow(id=line[0], text=texts[line[0]], audio_input_path=wav_path, duration=duration, \
+                self.append(KaldiDatasetRow(id=line[0], text=texts[line[0]], audio_path=wav_path, duration=duration, \
                     normalized_text=normalized_text, start=start, end=end, speaker=spks.get(line[0], None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         if not skip_audio_checks and not os.path.exists(wav_path):

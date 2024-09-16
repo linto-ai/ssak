@@ -30,7 +30,7 @@ class Reader2Kaldi:
         logger.info(f"Dataset processed with {len(dataset)} rows")
         logger.info(f"First row: {dataset[0]}")
         kaldi_dataset = KaldiDataset()
-        keys_to_keep = ['id', 'audio_id', 'audio_input_path', 'text', 'speaker', 'gender', 'start', 'end', 'duration', 'normalized_text']
+        keys_to_keep = ['id', 'audio_id', 'audio_path', 'text', 'speaker', 'gender', 'start', 'end', 'duration', 'normalized_text']
         for row in tqdm(dataset, desc="Creating Kaldi dataset"):
             row = {k: row[k] for k in keys_to_keep if k in row}
             kaldi_dataset.append(row)
@@ -89,7 +89,7 @@ class ToKaldi():
 class AudioFolder2Kaldi(ToKaldi):
     
     def __init__(self, input, execute_order, sort_merging=True, extracted_id="audio_id", audio_extensions=[".wav"]) -> None:
-        super().__init__(input, [extracted_id, "audio_input_path"], execute_order, extracted_id, sort_merging=sort_merging)
+        super().__init__(input, [extracted_id, "audio_path"], execute_order, extracted_id, sort_merging=sort_merging)
         self.supported_extensions = audio_extensions
 
     def process(self, dataset):
