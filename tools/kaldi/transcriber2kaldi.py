@@ -12,9 +12,7 @@ from linastt.utils.transcriber import read_transcriber
 
 
 def do_ignore_text(text):
-    return text.strip().strip(".").lower() in [
-        "",
-    ]
+    return len(text.strip().strip("._").lower())==0
 
 # Note: this is because xmltodict.parse removes trailing \n
 #       and \n are specially important to check number of speakers in a turn, with an xml like:
