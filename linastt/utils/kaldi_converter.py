@@ -29,7 +29,7 @@ class Reader2Kaldi:
             dataset = processor.process(dataset)
         logger.info(f"Dataset processed with {len(dataset)} rows")
         logger.info(f"First row: {dataset[0]}")
-        kaldi_dataset = KaldiDataset()
+        kaldi_dataset = KaldiDataset(show_warnings=True)
         keys_to_keep = ['id', 'audio_id', 'audio_path', 'text', 'speaker', 'gender', 'start', 'end', 'duration', 'normalized_text']
         for row in tqdm(dataset, desc="Creating Kaldi dataset"):
             row = {k: row[k] for k in keys_to_keep if k in row}
@@ -77,7 +77,9 @@ class ToKaldi():
                 i.update(j)
             return dataset
         else:       # not optimized, use it when want to keep original order or when lenghts are different (merging speakers list with dataset for example)
-            merged_data = []        
+            merged_data = []
+            if len(dataset)<len(new_data):
+                dataset, new_data = new_data, dataset     
             for i in dataset:
                 for j in new_data:
                     if i[self.merge_on] == j[self.merge_on]:
@@ -128,6 +130,10 @@ class Row2Info(ToKaldi):
     def __call__(self, row):
         if self.separator is None:
             return {self.return_columns[0]: row[self.input]}
+        if isinstance(self.info_position, list):
+            start = self.info_position[0]
+            end = self.info_position[1]
+            return {self.return_columns[0]: self.separator.join(row[self.input].split(self.separator)[start:end])}
         return {self.return_columns[0]: row[self.input].split(self.separator)[self.info_position]}
     
     def process(self, dataset):

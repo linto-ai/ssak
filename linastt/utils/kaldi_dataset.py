@@ -25,9 +25,35 @@ class KaldiDatasetRow:
     end: float = None
     speaker: str = None
     gender: str = None
+    
+    def check_row(self, show_warnings=True):
+        if self.duration is not None:
+            self.duration = float(self.duration)
+        if self.start is not None:
+            self.start = float(self.start)
+        if self.end is not None:
+            self.end = float(self.end)
+        if self.duration is None and self.start is not None and self.end is not None:
+            self.duration = self.end - self.start
+        elif self.end is None and self.start is not None and self.duration is not None:
+            self.end = self.start + self.duration
+        if self.audio_id is None:
+            self.audio_id = self.id
+        self.text = re.sub(r'\s+', ' ', self.text)
+        if self.duration <= 0.05:
+            if show_warnings:
+                logger.warning(f"Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (with text: {self.text} and file: {self.audio_id})")
+            return False
+        if len(self.text)==0:
+            if show_warnings:
+                logger.warning(f"Empty text for {self.id} (with file: {self.audio_id})")
+            return False
+        if self.speaker is None:
+            raise ValueError(f"Speaker must be specified for self {self.id} (with file: {self.audio_id})")
+        return True
 
 class KaldiDataset:
-    def __init__(self, name=None):
+    def __init__(self, name=None, show_warnings=True):
         """
         Iterator class for kaldi datasets. You need to load it before iterating over it.
         
@@ -36,7 +62,7 @@ class KaldiDataset:
         """
         if name:
             self.name = name
-        self.show_warnings = False
+        self.show_warnings = show_warnings
         self.dataset = []
 
     def __len__(self):
@@ -48,7 +74,7 @@ class KaldiDataset:
 
     def __iter__(self):
         return self.__next__()
-
+        
     def append(self, row):
         """
         Append a row to the dataset
@@ -58,25 +84,8 @@ class KaldiDataset:
         """
         if not isinstance(row, KaldiDatasetRow):
             row = KaldiDatasetRow(**row)
-        if row.duration is not None:
-            row.duration = float(row.duration)
-        if row.start is not None:
-            row.start = float(row.start)
-        if row.end is not None:
-            row.end = float(row.end)
-        if row.duration is None and row.start is not None and row.end is not None:
-            row.duration = row.end - row.start
-        elif row.end is None and row.start is not None and row.duration is not None:
-            row.end = row.start + row.duration
-        if row.duration <= 0.05:
-            if self.show_warnings:
-                logger.warning(f"Duration too short for {row.id}: {row.duration:.3f} ({row.start}->{row.end}) (with text: {row.text})")
-            return
-        if row.audio_id is None:
-            row.audio_id = row.id
-        if row.speaker is None:
-            raise ValueError(f"Speaker must be specified for row {row.id}")
-        self.dataset.append(row)
+        if row.check_row(self.show_warnings):
+            self.dataset.append(row)
 
     def save(self, output_dir, check_durations_if_missing=False):
         os.makedirs(output_dir, exist_ok=True)
@@ -89,8 +98,7 @@ class KaldiDataset:
             open(os.path.join(output_dir, "utt2dur"), "w") as uttdurfile,\
             open(os.path.join(output_dir, "segments"), "w") as segmentfile:  
             for row in tqdm(self.dataset, total=len(self.dataset), desc=f"Saving kaldi to {output_dir}"):
-                text = re.sub(r'[^\S\r\n]', ' ', row.text)
-                text_file.write(f"{row.id} {text}\n")
+                text_file.write(f"{row.id} {row.text}\n")
                 if not row.audio_id in saved_wavs: 
                     wav_file.write(f"{row.audio_id} {row.audio_path}\n")
                     saved_wavs.add(row.audio_id)
