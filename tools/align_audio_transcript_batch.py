@@ -89,11 +89,11 @@ if __name__ == "__main__":
             if not dirs_in:
                 raise ValueError(f"No text folder found in {i}")
             for input_folder in dirs_in:
-                output_folder = f"{input_folder}_max{args.max_duration}"
+                output_folder = f"{input_folder}_max{args.max_duration:.0f}"
                 if not os.path.basename(input_folder).startswith(args.pattern_in):
                     split = os.path.basename(input_folder)
                     new_input = os.path.dirname(input_folder)
-                    output_folder = os.path.join(os.path.dirname(new_input), f"{args.pattern_in}_max{args.max_duration}", split)
+                    output_folder = os.path.join(os.path.dirname(new_input), f"{args.pattern_in}_max{args.max_duration:.0f}", split)
                 if input_folder == output_folder:
                     raise ValueError(f"Input and output folders are the same: {input_folder}")
                 if os.path.exists(output_folder):
@@ -123,3 +123,4 @@ if __name__ == "__main__":
                     logger.error(f"Error {input_folder}: {e} {'(skipped)' if args.skip_erros else ''}")
                     if not args.skip_erros:
                         raise e
+                exit(0)
