@@ -3,6 +3,9 @@
 from linastt.utils.text_latin import format_text_latin
 from linastt.utils.kaldi import check_kaldi_dir
 import shutil
+import os
+import sys
+from tqdm import tqdm
 
 def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_num=False, keep_case=False, \
     empty_string_policy="fail", linebreak_policy="fail", remove_suspicious_entry=False, \
@@ -23,13 +26,10 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
         num_lines = sum(1 for _ in open(os.path.join(input,"text")))
         gen = open(os.path.join(input,"text"), "r", encoding="utf-8")
         raw_file = open(os.path.join(output, "text_raw"), "w", encoding="utf-8")
-        shutil.copy2(os.path.join(input,"utt2spk"), os.path.join(output,"utt2spk"))
-        shutil.copy2(os.path.join(input, "utt2dur"), os.path.join(output, "utt2dur"))
-        shutil.copy2(os.path.join(input,"segments"), os.path.join(output,"segments"))
-        shutil.copy2(os.path.join(input,"wav.scp"), os.path.join(output,"wav.scp"))
-        shutil.copy2(os.path.join(input, "spk2utt"), os.path.join(output, "spk2utt"))
-        if os.path.exists(os.path.join(input,"spk2gender")):
-            shutil.copy2(os.path.join(input,"spk2gender"), os.path.join(output,"spk2gender"))
+        for fn in "utt2spk", "utt2dur", "segments", "wav.scp", "spk2utt":
+            if os.path.exists(os.path.join(input, fn)):
+                # shutil.copyfile(os.path.join(input, fn), os.path.join(output, fn))    # use it when you don't have write permissions
+                shutil.copy2(os.path.join(input, fn), os.path.join(output, fn))
     else:
         if output:
             output_file = output
@@ -60,7 +60,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
     fid_special_char = open(file_special_char, "a", encoding="utf-8") if file_special_char else None
 
     try:
-        for line in tqdm(gen, total=num_lines):
+        for line in tqdm(gen, total=num_lines, desc=f"Cleaning text from {input}"):
             full_line = line
             if ignore_first:
                 words = line.split()
@@ -103,11 +103,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
 
 
 if __name__ == "__main__":
-
-    import sys
-    import os
     import argparse
-    from tqdm import tqdm
 
     parser = argparse.ArgumentParser(description='Clean input text (in order to train a language model)',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

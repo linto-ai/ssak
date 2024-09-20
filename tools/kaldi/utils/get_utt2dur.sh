@@ -110,7 +110,7 @@ elif [ -f $data/wav.scp ]; then
     if [[ $? != 0 ]]; then
       echo "$0: could not run wav-to-duration (check $data/log/wav-to-duration.*.log), using get_audio_duration.py"
       $cmd JOB=1:$nj $data/log/get_audio_duration.JOB.log \
-      ../get_audio_duration.py $sdata/JOB/wav.scp $sdata/JOB/utt2dur;
+      ../deprecated/get_audio_duration.py $sdata/JOB/wav.scp $sdata/JOB/utt2dur;
       if [[ $? != 0 ]]; then
         tail $data/log/get_audio_duration.*.log
         echo "$0: there was a problem getting the durations"; exit 1;

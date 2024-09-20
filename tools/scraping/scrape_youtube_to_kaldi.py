@@ -16,6 +16,7 @@ def generate_kaldi_data(
     output_folder,
     extension='mp3',
     audio_suffix=None,
+    utt_prefix='youtube',
     ):
     
     for folder in [audio_folder,transcription_folder]:
@@ -23,7 +24,8 @@ def generate_kaldi_data(
 
     # Create output folder if it does not exist
     os.makedirs(output_folder, exist_ok=True)
-
+    if len(utt_prefix)>0:
+        utt_prefix+="_"
     segments_file = os.path.join(output_folder, "segments")
     wav_scp_file = os.path.join(output_folder, "wav.scp")
     utt2spk_file = os.path.join(output_folder, "utt2spk")
@@ -65,7 +67,8 @@ def generate_kaldi_data(
                     for _id, row in enumerate(reader):
                         if len(row) == 0:
                             continue
-                        utt_id = f"youtube_{audio_name}-seg_{_id:04d}"
+
+                        utt_id = f"{utt_prefix}{audio_name}-seg_{_id:05d}"
                         try:
                             text, start, duration = row
                         except ValueError as err:

@@ -170,8 +170,11 @@ def get_audio_duration(path, verbose=False):
     Return the duration of an audio file in seconds.
     """
     if os.path.isfile(path):
-        info = sox.get_info(path)[0]
-        return info.length / info.rate
+        try:
+            info = sox.get_info(path)[0]
+        except RuntimeError as e:
+            raise RuntimeError(f"Error while reading {path}") from e
+        return info.length / info.rate / info.channels
     return get_audio_total_duration(path, verbose=verbose)[1]
 
 def get_audio_num_channels(path, verbose=False):

@@ -46,6 +46,35 @@ default_sub = [
     (r"([" + re.escape('.') + r"]+)([A-Z])", r"\1 \2"),
 ]
 
+DEFAULT_ALIGN_MODELS_TORCH = {
+    "en": "WAV2VEC2_ASR_BASE_960H",
+    "fr": "VOXPOPULI_ASR_BASE_10K_FR",
+    "de": "VOXPOPULI_ASR_BASE_10K_DE",
+    "es": "VOXPOPULI_ASR_BASE_10K_ES",
+    "it": "VOXPOPULI_ASR_BASE_10K_IT",
+}
+
+DEFAULT_ALIGN_MODELS_HF = {
+    "ja": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
+    "zh": "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
+    "nl": "jonatasgrosman/wav2vec2-large-xlsr-53-dutch",
+    "uk": "Yehor/wav2vec2-xls-r-300m-uk-with-small-lm",
+    "pt": "jonatasgrosman/wav2vec2-large-xlsr-53-portuguese",
+    "ar": "jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
+    "cs": "comodoro/wav2vec2-xls-r-300m-cs-250",
+    "ru": "jonatasgrosman/wav2vec2-large-xlsr-53-russian",
+    "pl": "jonatasgrosman/wav2vec2-large-xlsr-53-polish",
+    "hu": "jonatasgrosman/wav2vec2-large-xlsr-53-hungarian",
+    "fi": "jonatasgrosman/wav2vec2-large-xlsr-53-finnish",
+    "fa": "jonatasgrosman/wav2vec2-large-xlsr-53-persian",
+    "el": "jonatasgrosman/wav2vec2-large-xlsr-53-greek",
+    "tr": "mpoyraz/wav2vec2-xls-r-300m-cv7-turkish",
+    "da": "saattrupdan/wav2vec2-xls-r-300m-ftspeech",
+    "he": "imvladikon/wav2vec2-xls-r-300m-hebrew",
+    "vi": 'nguyenvulebinh/wav2vec2-base-vi',
+    "ko": "kresnik/wav2vec2-large-xlsr-korean",
+}
+
 def custom_text_normalization(transcript, regex_rm=None, lang="fr"):
     transcript = format_special_characters(transcript, remove_ligatures=False)
     transcript = remove_special_characters(transcript, replace_by=" ")
@@ -435,35 +464,6 @@ def get_last_line(filename):
 
 
 if __name__ == "__main__":
-
-    DEFAULT_ALIGN_MODELS_TORCH = {
-        "en": "WAV2VEC2_ASR_BASE_960H",
-        "fr": "VOXPOPULI_ASR_BASE_10K_FR",
-        "de": "VOXPOPULI_ASR_BASE_10K_DE",
-        "es": "VOXPOPULI_ASR_BASE_10K_ES",
-        "it": "VOXPOPULI_ASR_BASE_10K_IT",
-    }
-
-    DEFAULT_ALIGN_MODELS_HF = {
-        "ja": "jonatasgrosman/wav2vec2-large-xlsr-53-japanese",
-        "zh": "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn",
-        "nl": "jonatasgrosman/wav2vec2-large-xlsr-53-dutch",
-        "uk": "Yehor/wav2vec2-xls-r-300m-uk-with-small-lm",
-        "pt": "jonatasgrosman/wav2vec2-large-xlsr-53-portuguese",
-        "ar": "jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
-        "cs": "comodoro/wav2vec2-xls-r-300m-cs-250",
-        "ru": "jonatasgrosman/wav2vec2-large-xlsr-53-russian",
-        "pl": "jonatasgrosman/wav2vec2-large-xlsr-53-polish",
-        "hu": "jonatasgrosman/wav2vec2-large-xlsr-53-hungarian",
-        "fi": "jonatasgrosman/wav2vec2-large-xlsr-53-finnish",
-        "fa": "jonatasgrosman/wav2vec2-large-xlsr-53-persian",
-        "el": "jonatasgrosman/wav2vec2-large-xlsr-53-greek",
-        "tr": "mpoyraz/wav2vec2-xls-r-300m-cv7-turkish",
-        "da": "saattrupdan/wav2vec2-xls-r-300m-ftspeech",
-        "he": "imvladikon/wav2vec2-xls-r-300m-hebrew",
-        "vi": 'nguyenvulebinh/wav2vec2-base-vi',
-        "ko": "kresnik/wav2vec2-large-xlsr-korean",
-    }
 
     import argparse
 
