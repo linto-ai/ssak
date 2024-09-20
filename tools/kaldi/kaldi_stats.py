@@ -179,8 +179,14 @@ if __name__ == "__main__":
     parser.add_argument("--check-wav-duration", action='store_true', help="Check total duration of wav files as well (might be long to compute).")
     parser.add_argument("--warn-if-longer-than", default=1800, type=float, help="Warn if duration is longer than this value (in seconds).")
     parser.add_argument("--warn-if-shorter-than", default=0.005, type=float, help="Warn if duration is shorter than this value (in seconds).")
+    parser.add_argument("--dataset_list", default=None, type=str, help="Path to a file containing a list of dataset to process.")
+    parser.add_argument("--subset_pattern", default=None, type=str)
     args = parser.parse_args()
-
+    
+    datasets=[]
+    if args.dataset_list is not None:
+        with open(args.dataset_list, 'r') as f:
+            datasets = f.read().strip().split("\n")
     all_stats = []
     for file_or_folder in args.input:
         if os.path.isfile(file_or_folder) or os.path.isdir(file_or_folder+"/utt2dur"):
@@ -188,6 +194,13 @@ if __name__ == "__main__":
         else:
             all_files = []
             for root, dirs, files in os.walk(file_or_folder):
+                if len(datasets)>0:
+                    path = root.split("/")
+                    if not any([d in path for d in datasets]):
+                        continue
+                    if not args.subset_pattern is None:
+                        if not args.subset_pattern in path:
+                            continue
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
