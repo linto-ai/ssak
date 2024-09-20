@@ -37,6 +37,8 @@ from transformers import (
     TrainerControl,
 )
 
+from accelerate import dispatch_model
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
@@ -82,7 +84,7 @@ def compute_metrics(pred, language):
     
     # we do not want to group tokens when computing the metrics
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+    label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)   
 
     return compute_wer(label_str, pred_str, normalization=language, use_percents=True)
 
@@ -97,11 +99,11 @@ class SavePeftModelCallback(TrainerCallback):
         checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
 
         peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
-        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
         kwargs["model"].save_pretrained(peft_model_path)
-        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
-        # if os.path.exists(pytorch_model_path):
-        #     os.remove(pytorch_model_path)
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        if os.path.exists(pytorch_model_path):
+            os.remove(pytorch_model_path)
         return control
 
 
@@ -233,7 +235,6 @@ if __name__ == "__main__":
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
 
     tokenizer_func = lambda x: processor.tokenizer(x).input_ids
-
     trainsetmeta, train_dataset = kaldi_folder_to_dataset(
         args.train,
         shuffle = True,
@@ -362,28 +363,20 @@ if __name__ == "__main__":
         text_processor = text_processor,
         logstream = readme
     )
+    
+    
     if readme is not None:
         readme.flush()
-
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
     
     if PEFT:
 
         from transformers import BitsAndBytesConfig
         from peft import LoraConfig, get_peft_model 
-
+        from peft import prepare_model_for_kbit_training
         quantization_config = BitsAndBytesConfig(
             llm_int8_enable_fp32_cpu_offload=True,
             load_in_8bit=True,
-        )
-
-        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
-        lora_config = LoraConfig(
-            r=32, 
-            lora_alpha=64, 
-            target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
-            lora_dropout=0.05, 
-            bias="none",
         )
 
         model = WhisperForConditionalGeneration.from_pretrained(
@@ -392,10 +385,24 @@ if __name__ == "__main__":
             quantization_config=quantization_config,
             # peft_config = lora_config,
         ) 
-
+        
+        # we need to apply some post-processing on the 8-bit model to enable training, let's freeze all our layers, and cast all non int8 layers in float32 for stability.
+        model = prepare_model_for_kbit_training(model)
         # Useless
         # model = prepare_model_for_int8_training(model)
+        def make_inputs_require_grad(module, input, output):
+            output.requires_grad_(True)
 
+        model.model.encoder.conv1.register_forward_hook(make_inputs_require_grad)
+        
+        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
+        lora_config = LoraConfig(
+            r=32, 
+            lora_alpha=64, 
+            target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+            lora_dropout=0.05, 
+            bias="none",
+        )
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
     else:
@@ -403,14 +410,22 @@ if __name__ == "__main__":
         model = WhisperForConditionalGeneration.from_pretrained(base_model, load_in_8bit=False, device_map="auto")
         model.gradient_checkpointing_enable()
     
+    device_map = model.hf_device_map.copy()
+    device_map["model.decoder.embed_tokens"] = model._hf_hook.execution_device
+    device_map["model.decoder.embed_positions"] = model._hf_hook.execution_device
+    device_map["proj_out"] = model._hf_hook.execution_device
+    dispatch_model(model, device_map=device_map)
+    model.hf_device_map
+    
     # Note: we do not train language identification, but rather focus on the target language
     special_tokens_ids = processor.tokenizer.additional_special_tokens_ids
     special_tokens = processor.tokenizer.additional_special_tokens
-    model.config.forced_decoder_ids =  [
-        [1, special_tokens_ids[special_tokens.index(f"<|{language}|>")]],
-        [2, special_tokens_ids[special_tokens.index("<|transcribe|>")]],
-        [3, special_tokens_ids[special_tokens.index("<|notimestamps|>")]],
-    ]
+    model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language="ar", task="transcribe")
+    # model.config.forced_decoder_ids =  [
+    #     [1, special_tokens_ids[special_tokens.index(f"<|{language}|>")]],
+    #     [2, special_tokens_ids[special_tokens.index("<|transcribe|>")]],
+    #     [3, special_tokens_ids[special_tokens.index("<|notimestamps|>")]],
+    # ]
     model.config.suppress_tokens = []
     model.train(True)
        
