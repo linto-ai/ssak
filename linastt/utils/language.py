@@ -115,16 +115,37 @@ HATE_SPEECH_MODELS_SRC = {
 }
 HATE_SPEECH_MODELS = {}
 
+HATE_SPEECH_MAX_NUM_TOKENS={
+    "fr": 150, # This was determined by looking at the distrubution of the number of tokens in the training set "Poulpidot/FrenchHateSpeechSuperset"
+}
 
 def is_hate_speech(
     text,
     lang="fr",
-    return_score=False,
+    return_type="decision",
     max_paragraph=100,
-    combine_paragraphs_with_max=False
+    combine_paragraphs_with_max=False,
+    max_tokens=None,
     ):
+    """
+    Check if a text is hate speech or not
+
+    Args:
+        text: str or list of str
+        lang: str
+        return_type: str
+            "all" (default): return a list of scores for each input
+            "decision": return a boolean for each input
+            "score": return a score for each input
+        max_paragraph: int
+            Maximum number of paragraphs
+        combine_paragraphs_with_max: bool
+            If True, combine paragraphs with max score, otherwise average them
+    """
     if isinstance(text, str):
-        return is_hate_speech([text], lang=lang, return_score=return_score)[0]
+        return is_hate_speech([text], lang=lang, return_type=return_type)[0]
+
+    return_all_scores = (return_type == "all")
 
     from transformers import AutoTokenizer, AutoModelForSequenceClassification
     import torch
@@ -137,14 +158,16 @@ def is_hate_speech(
         HATE_SPEECH_MODELS[lang] = (tokenizer, model)
 
     tokenizer, model = HATE_SPEECH_MODELS[lang]
+    if max_tokens is None:
+        max_tokens = HATE_SPEECH_MAX_NUM_TOKENS.get(lang, tokenizer.model_max_length)
     inputs = tokenizer(text, return_tensors="pt", padding=True)
-    if inputs.input_ids.shape[-1] > tokenizer.model_max_length:
+    if inputs.input_ids.shape[-1] > max_tokens:
         # If one text is too long, split it into smaller texts
         probas = []
         for t in text:
             sublines = [t]
             input = tokenizer(sublines, return_tensors="pt")
-            while input.input_ids.shape[-1] > tokenizer.model_max_length:
+            while input.input_ids.shape[-1] > max_tokens:
                 # Take the biggest subline
                 imax = np.argmax([len(s) for s in sublines])
                 # Split it into two sublines
@@ -155,18 +178,25 @@ def is_hate_speech(
                 input = tokenizer(sublines, return_tensors="pt", padding=True)
 
             proba = model(**input).logits
-            if combine_paragraphs_with_max:
+            if return_all_scores:
+                proba = proba.softmax(dim=-1)[:,1]
+            elif combine_paragraphs_with_max:
                 proba = proba.softmax(dim=-1).max(dim=0).values
             else:
                 proba = proba.mean(dim=0).softmax(dim=-1)
             probas.append(proba)
-        probas = torch.cat([p.unsqueeze(0) for p in probas])
+        if not return_all_scores:
+            probas = torch.cat([p.unsqueeze(0) for p in probas])
     else:
         outputs = model(**inputs)
         probas = outputs.logits.softmax(dim=-1)
+        if return_all_scores:
+            probas = [probas[:,1]]
 
+    if return_all_scores:
+        return [p.tolist() for p in probas]
     probas = probas[:,1]
-    if return_score:
+    if return_type == "score":
         return probas.tolist()
     else:
         return (probas > 0.5).tolist()
@@ -183,7 +213,7 @@ def cut_line(line):
         # Choose the space the more in the middle
         imax = np.argmin([abs(len(line)/2 - s) for s in spaces])
         return [line[:spaces[imax]+1], line[spaces[imax]+1:]]
-    print("WARNING: Cutting line without space")
+    # print("WARNING: Cutting line without space")
     return [line[:len(line)//2], line[len(line)//2:]]
 
 if __name__ == "__main__":
@@ -202,7 +232,7 @@ if __name__ == "__main__":
 
     if args.language in ["fr"]:
         
-        hs = is_hate_speech(texts, args.language, return_score=True)
+        hs = is_hate_speech(texts, args.language, return_type="score")
         assert len(hs) == len(texts)
         for t, h in zip(texts, hs):
             print("is_hate_speech", h, t)

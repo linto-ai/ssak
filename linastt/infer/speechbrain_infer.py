@@ -9,7 +9,20 @@ from linastt.utils.yaml_utils import make_yaml_overrides
 
 import huggingface_hub
 import speechbrain as sb
-from speechbrain.lobes.models.huggingface_whisper import HuggingFaceWhisper
+if sb.__version__ >= "1.0.0":
+    from speechbrain.lobes.models.huggingface_transformers.whisper import Whisper as SpeechBrainWhisper
+    from speechbrain.inference.ASR import(
+        EncoderASR as SpeechBrainEncoderASR,
+        EncoderDecoderASR as SpeechBrainEncoderDecoderASR
+    )
+else:
+    from speechbrain.lobes.models.huggingface_whisper import HuggingFaceWhisper as SpeechBrainWhisper
+    from speechbrain.pretrained.interfaces import (
+        EncoderASR as SpeechBrainEncoderASR,
+        EncoderDecoderASR as SpeechBrainEncoderDecoderASR
+    )
+
+_speechbrain_classes = (SpeechBrainEncoderASR, SpeechBrainEncoderDecoderASR)
 
 import torch
 import torch.nn.utils.rnn as rnn_utils
@@ -66,7 +79,7 @@ def speechbrain_infer(
     if isinstance(model, str):
         model = speechbrain_load_model(model, device = device)
 
-    assert isinstance(model, (sb.pretrained.interfaces.EncoderASR, sb.pretrained.interfaces.EncoderDecoderASR, HuggingFaceWhisper)), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
+    assert isinstance(model, _speechbrain_classes + (SpeechBrainWhisper, )), f"model must be a SpeechBrain model or a path to the model (got {type(model)})"
 
     sample_rate = model.audio_normalizer.sample_rate if hasattr(model, "audio_normalizer") else model.sampling_rate
 
@@ -97,7 +110,7 @@ def speechbrain_infer(
 
     else:
         assert os.path.isfile(arpa_path), f"Arpa file {arpa_path} not found"
-        if isinstance(model, sb.pretrained.interfaces.EncoderDecoderASR):
+        if isinstance(model, SpeechBrainEncoderDecoderASR):
             raise NotImplementedError("Language model decoding is not implemented for EncoderDecoderASR models (which do not provide an interface to access log-probabilities)")
 
         # Compute framewise log probas
@@ -137,7 +150,7 @@ def speechbrain_infer(
 MAX_LEN = 2240400
 
 def model_cannot_compute_logits(model):
-    res = isinstance(model, HuggingFaceWhisper)
+    res = isinstance(model, SpeechBrainWhisper)
     if res:
         logger.warning(f"Model of type {type(model)} cannot be used to compute logits. And memory overflow might occur when processing a long audio")
     return res
@@ -148,7 +161,7 @@ def speechbrain_transcribe_batch(model, audios, max_duration = MAX_LEN, plot_log
     else:
         device = speechbrain_get_device(model)
         batch, wav_lens = pack_sequences(audios, device = device)
-        if isinstance(model, HuggingFaceWhisper):
+        if isinstance(model, SpeechBrainWhisper):
             if not hasattr(model, "input_tokens") or model.task != "transcribe_"+language:
                 # Note: there might be another way of doing this using
                 #   model.tokenizer.set_prefix_tokens("french", "transcribe", False)
@@ -188,8 +201,8 @@ def speechbrain_transcribe_batch(model, audios, max_duration = MAX_LEN, plot_log
     return reco
 
 def speechbrain_compute_logits(model, audios, max_duration = MAX_LEN, plot_logprobas = False, compute_predictions = False):
-    if isinstance(model, HuggingFaceWhisper):
-        raise NotImplementedError("Computing log probability is not implemented for HuggingFaceWhisper models")
+    if isinstance(model, SpeechBrainWhisper):
+        raise NotImplementedError("Computing log probability is not implemented for SpeechBrainWhisper models")
     if not isinstance(audios, list):
         audios = [audios]
         reco, log_probas = speechbrain_compute_logits(model, audios, max_duration = max_duration, plot_logprobas = plot_logprobas, compute_predictions = compute_predictions)
@@ -338,13 +351,13 @@ def speechbrain_load_model(source, device = None):
     save_path = None if sb.__version__ <= "0.5.13" else get_cache_dir("huggingface/hub")
     overrides = make_yaml_overrides(yaml_file, {"save_path": save_path})
     try:
-        model = sb.pretrained.EncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+        model = SpeechBrainEncoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
     except ValueError as err1:
         try:
-            model = sb.pretrained.EncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
+            model = SpeechBrainEncoderDecoderASR.from_hparams(source = source, run_opts= {"device": device}, savedir = cache_dir, overrides = overrides)
         except ValueError as err2:
             try:
-                model = HuggingFaceWhisper(source, save_path = get_cache_dir("huggingface/hub"), freeze = True)
+                model = SpeechBrainWhisper(source, save_path = get_cache_dir("huggingface/hub"), freeze = True)
                 model = model.to(device)
             except Exception as err3:
                 raise RuntimeError(f"Cannot load model from {source}:\n==={err3}\n===\n{err2}\n===\n{err1}")

@@ -2,6 +2,7 @@ import time
 import os
 import sys
 import shutil
+import re
 
 import subprocess
 import json
@@ -9,6 +10,8 @@ import asyncio
 
 from linastt.utils.curl import curl_post, curl_get
 from linastt.utils.text_basic import collapse_whitespace
+from linastt.utils.format_diarization import to_linstt_diarization
+from linastt.utils.linstt_transcription_result import TranscriptionResult
 
 DIARIZATION_SERVICES = {
     "pybk": "stt-diarization-pybk",
@@ -24,7 +27,7 @@ def linstt_transcribe(
         diarization_service_name=DIARIZATION_SERVICES["simple"],
         force_16k = False,
         convert_numbers=True,
-        punctuation=True,
+        punctuation=None,
         diarization=False,
         return_raw=True,
         wordsub={},
@@ -33,7 +36,6 @@ def linstt_transcribe(
         timeout_first = 3600 * 24,
         ping_interval = 1,
         delete_temp_files = True,
-        transcription_service_src="/home/jlouradour/src/linto-platform-transcription-service", # TODO: remove this ugly hardcoded path
     ):
     """
     Transcribe an audio file using the linstt service.
@@ -43,7 +45,12 @@ def linstt_transcribe(
         diarization_server (str): URL of the diarization service.
         convert_numbers (bool): Convert numbers to words.
         punctuation (bool): Add punctuation to the transcription.
-        diarization (bool or int): Enable diarization. If int, set the number of speakers.
+        diarization (bool or int or string or dictionary):
+            False (default)): Disable diarization.
+            True: Enable diarization, with unknown number of speakers.
+            int: set the number of speakers.
+            string: filename (rttm or json file).
+            dictionary: output of a diarization.
         return_raw (bool): Return the raw response from linstt service.
         wordsub (dict): Dictionary of words to substitute.
         verbose (bool): Print curl command, and progress while waiting for job to finish.
@@ -55,6 +62,8 @@ def linstt_transcribe(
     if not timeout:
         timeout = float("inf")
     assert timeout > 0, f"Timeout must be > 0, got {timeout}"
+    if punctuation is None:
+        punctuation = "whisper" not in transcription_server.lower()
 
     token = None # cm_get_token("https://convos.linto.ai/cm-api", email, password, verbose=verbose)
 
@@ -72,6 +81,7 @@ def linstt_transcribe(
     numberOfSpeaker = diarization if performDiarization else None
     maxNumberOfSpeaker = 50 if not performDiarization else None
 
+    explicitDiarization = to_linstt_diarization(diarization) if isinstance(diarization, (str, dict)) else None
 
     transcription_server_complete = transcription_server
     if not transcription_server_complete.endswith("/streaming") and not transcription_server_complete.endswith("/transcribe"):
@@ -107,7 +117,7 @@ def linstt_transcribe(
                     "serviceName": None,
                 },
                 "diarizationConfig": {
-                    "enableDiarization": True if diarization else False,
+                    "enableDiarization": True if performDiarization else False,
                     "numberOfSpeaker": numberOfSpeaker,
                     "maxNumberOfSpeaker": maxNumberOfSpeaker,
                     "serviceName": diarization_service_name,
@@ -118,6 +128,7 @@ def linstt_transcribe(
         headers=[f"Authorization: Bearer {token}"] if token else [],
         verbose=verbose,
     )
+
     if "jobid" not in result and "text" in result:
         assert "words" in result, f"'words' not found in response: {result}"
         assert "confidence-score" in result, f"'confidence-score' not found in response: {result}"
@@ -127,24 +138,22 @@ def linstt_transcribe(
         if punctuation:
             print(f"WARNING: punctuation not supported for simple stt. Use transcription service")
 
+        if explicitDiarization:
+            raise NotImplementedError("Combining explicit diarization with simple STT is not supported. Use transcription service.")
+
         if diarization_server:
             diarization = curl_post(
                 diarization_server + "/diarization",
                 { "file": audio_file } | \
-                ({"spk_number": numberOfSpeaker} if numberOfSpeaker else {}) | \
+                ({"speaker_count": numberOfSpeaker} if numberOfSpeaker else {}) | \
                 ({"max_speaker": maxNumberOfSpeaker} if maxNumberOfSpeaker else {}),
                 headers=[f"Authorization: Bearer {token}"] if token else [],
                 verbose=verbose,
             )
 
-            sys.path.append(transcription_service_src)
-            from transcriptionservice.transcription.transcription_result import TranscriptionResult
-
             combined = TranscriptionResult([(result, 0.)])
             combined.setDiarizationResult(diarization)
             output = combined.final_result()
-
-            sys.path.pop(-1)
 
         else:
 
@@ -221,6 +230,37 @@ def linstt_transcribe(
             ],
             verbose=verbose
         )
+
+        if explicitDiarization:
+            
+            words = []
+            for segment in output["segments"]:
+                text = segment["raw_segment"]
+                end = 0
+                for word in segment["words"]:
+                    start = re.search(re.escape(word["word"]), text[end:], re.IGNORECASE)
+                    assert start, f"Word '{word['word']}' not found in '{text[end:]}'"
+                    start = start.start() + end
+                    if start > end:
+                        suffix = text[end:start].rstrip(" ")
+                        if suffix:
+                            words[-1]["word"] += suffix
+                    end = start + len(word["word"])
+                    words.append(word)
+            start = len(text)
+            if start > end:
+                suffix = text[end:start].rstrip(" ")
+                if suffix:
+                    words[-1]["word"] += suffix
+
+            result = {
+                "text": output["transcription_result"],
+                "words": words
+            }
+
+            combined = TranscriptionResult([(result, 0.)])
+            combined.setDiarizationResult(explicitDiarization)
+            output = combined.final_result()
 
     for fn in to_be_deleted:
         os.remove(fn)

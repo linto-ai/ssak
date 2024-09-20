@@ -31,6 +31,7 @@ pypi-kenlm
 python-magic
 python-slugify
 soxbindings
+speechbrain
 tensorboard
 text2num
 torch

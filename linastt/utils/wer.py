@@ -30,7 +30,7 @@ def compute_wer(refs, preds,
                 character_level=False,
                 use_percents=False,
                 alignment=False,
-                include_correct_in_alignement=True,
+                include_correct_in_alignement=False,
                 words_list=None,
                 words_blacklist=None,
                 replacements_ref=None,
@@ -113,7 +113,7 @@ def compute_wer(refs, preds,
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
     if normalization:
-        from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru, collapse_whitespace
+        from linastt.utils.text import format_text_latin, collapse_whitespace
 
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
@@ -123,9 +123,11 @@ def compute_wer(refs, preds,
             normalization = normalization[:-1]
 
         normalize_funcs = []
-        if normalization == "ar":
-            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True))
+        if normalization.startswith("ar"):
+            from linastt.utils.text import format_text_ar
+            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True, lang=normalization))
         elif normalization == "ru":
+            from linastt.utils.text import format_text_ru
             normalize_funcs.append(lambda x: format_text_ru(x))
         else:
             normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
@@ -206,49 +208,82 @@ def compute_wer(refs, preds,
             s = jiwer.visualize_alignment(
                 output, show_measures=True, skip_correct=not include_correct_in_alignement
             )
-            # def add_separator(match):
-            #     return match.group(1) + re.sub(r" ( *)", " | \1", match.group(2))
-            # s = re.sub(r"(REF: |HYP: )([^\n]+)", add_separator, s)
             f.write(s)
-            extra = {"alignment": s}
+            extra = {
+                "alignment": s,
+                "raw_alignement": output,
+            }
 
     if words_list:
-        n_total = 0
-        n_correct = 0
+        TP = 0
+        FP = 0
+        FN = 0
         if details_words_list:
-            words_list_total = {w: 0 for w in words_list}
-            words_list_correct = {w: 0 for w in words_list}
+            detailed_tp = {w: 0 for w in words_list}
+            detailed_fp = {w: 0 for w in words_list}
+            detailed_fn = {w: 0 for w in words_list}
+            detailed_total = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
             for w in words_list:
-                if re.search(r"\b" + w + r"\b", r):
-                    n_total += 1
-                    if details_words_list:
-                        words_list_total[w] += 1
-                    if re.search(r"\b" + w + r"\b", p):
-                        n_correct += 1
-                        if details_words_list:
-                            words_list_correct[w] += 1
-                    break
-        if n_total > 0:
-            extra.update({
-                "word_err": (n_total - n_correct) / n_total,
-            })
+                num_in_ref = len(re.findall(r"\b" + w + r"\b", r))
+                num_in_pred = len(re.findall(r"\b" + w + r"\b", p))
+                tp = min(num_in_ref, num_in_pred)
+                fp = max(0, num_in_pred - num_in_ref)
+                fn = max(0, num_in_ref - num_in_pred)
+                TP += tp
+                FP += fp
+                FN += fn
+                if details_words_list:
+                    detailed_total[w] += num_in_ref
+                    detailed_tp[w] += tp
+                    detailed_fp[w] += fp
+                    detailed_fn[w] += fn
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+        F1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+        extra.update({
+            "FP": FP,
+            "FN": FN,
+            "TP": TP,
+            "precision": precision,
+            "recall": recall,
+            "F1": F1,
+        })
         if details_words_list:
-            words_list_err = {w: (words_list_total[w] - words_list_correct[w]) / words_list_total[w] for w in words_list if words_list_total[w]}
+            words_list_recall = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fp[w]) if (detailed_tp[w] + detailed_fp[w]) > 0 else 0 for w in words_list}
+            words_list_precision = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fn[w]) if (detailed_tp[w] + detailed_fn[w]) > 0 else 0 for w in words_list}
+            words_list_F1 = {w: 2 * words_list_precision[w] * words_list_recall[w] / (words_list_precision[w] + words_list_recall[w]) if (words_list_precision[w] + words_list_recall[w]) > 0 else 0 for w in words_list}
             with open(details_words_list, 'w+') if isinstance(details_words_list, str) else open("/dev/stdout", "w") as f:
                 csv_writer = csv.writer(f, delimiter=',')
-                csv_writer.writerow(["Word", "ErrorRate%", "Total", "Correct"])
                 max_length_words = max([len(w) for w in words_list])
-                for w in sorted(words_list_err.keys(), key=lambda w: (
-                    # words_list_err[w],
-                    -words_list_total[w],
+                csv_writer.writerow([
+                    "Word" + " " * (max_length_words - 4),
+                    "F1%    ",
+                    "Recall%",
+                    "Precision%",
+                    "Total",
+                    "TP   ",
+                    "FN   ",
+                    "FP   "
+                ])
+                for w in sorted(detailed_total.keys(), key=lambda w: (
+                    -detailed_total[w],
                     w
                     ), reverse=False):
-                    err = f"{round(words_list_err[w]*100, 1): <6}"
-                    total = f"{words_list_total[w]: <5}"
-                    correct = f"{words_list_correct[w]: <5}"
-                    w = f"{w: <{max_length_words}}"
-                    csv_writer.writerow([w, err, total, correct])
+                    if not detailed_total[w] and not detailed_fp[w]:
+                        # Ignore words that are not involved at all
+                        continue
+                    csv_writer.writerow([
+                        f"{w: <{max_length_words}}",
+                        f"{round(words_list_F1[w]*100, 1):<7}",
+                        f"{round(words_list_recall[w]*100, 1):<7}",
+                        f"{round(words_list_precision[w]*100, 1):<10}",
+                        f"{detailed_total[w]:<5}",
+                        f"{detailed_tp[w]:<5}",
+                        f"{detailed_fn[w]:<5}",
+                        f"{detailed_fp[w]:<5}",
+                    ])
 
     sub_score = measures['substitutions']
     del_score = measures['deletions']
@@ -270,7 +305,6 @@ def compute_wer(refs, preds,
         } | extra
 
     wer_score = (float(del_score + ins_score + sub_score) / count)
-    # wer_score = measures['wer']
 
     return {
         'wer': wer_score * scale,
@@ -279,6 +313,88 @@ def compute_wer(refs, preds,
         'sub': (float(sub_score) * scale/ count),
         'count': count,
     } | extra
+
+
+def compute_wer_differences(refs, preds1, preds2, **kwargs):
+    """
+    Compute the difference of WER between two predictions and the reference.
+    """
+    kwargs["alignment"] = True
+    out1 = compute_wer(refs, preds1, **kwargs)
+    out2 = compute_wer(refs, preds2, **kwargs)
+
+    def collect_errors(out):
+        data = out["raw_alignement"]
+        alignments = data.alignments
+        hypotheses = data.hypotheses
+        references = data.references
+        dels = []
+        ins = []
+        subs = []
+        for alignement, hyp, ref in zip(alignments, hypotheses, references):
+            dels.append(set())
+            ins.append([])
+            subs.append(set())
+            for chunk in alignement:
+                if chunk.type == "insert":
+                    # An insertion is characterized by the inserted word(s)
+                    for i in range(chunk.hyp_start_idx, chunk.hyp_end_idx):
+                        ins[-1].append(hyp[chunk.hyp_start_idx])
+                elif chunk.type == "delete":
+                    # An deletion is characterized by the indices of the deleted word(s) -> unique
+                    for i in range(chunk.ref_start_idx, chunk.ref_end_idx):
+                        dels[-1].add(i)
+                elif chunk.type == "substitute":
+                    # A substitution is characterized by the indices of the substituted word(s) -> unique
+                    len_hyp = chunk.hyp_end_idx - chunk.hyp_start_idx
+                    len_ref = chunk.ref_end_idx - chunk.ref_start_idx
+                    assert len_hyp == len_ref
+                    for i in range(chunk.ref_start_idx, chunk.ref_end_idx):
+                        subs[-1].add(i)
+                else:
+                    assert chunk.type == "equal"
+        return dels, ins, subs
+
+    dels1, ins1, subs1 = collect_errors(out1)
+    dels2, ins2, subs2 = collect_errors(out2)
+
+    def count_differences(set1, set2):
+        if isinstance(set1, list):
+            # This is a quick approximation
+            # (the correct implementation would be to removed common elements one by one and count the rest)
+            return count_differences(set(set1), set(set2))
+        elif isinstance(set1, set):
+            return {
+                "removed": len(set1 - set2),
+                "added": len(set2 - set1),
+            }
+        else:
+            raise ValueError(f"Invalid type {type(set1)}")
+        
+    def count_differences_batch(list1, list2):
+        assert len(list1) == len(list2)
+        res = {}
+        for s1, s2 in zip(list1, list2):
+            diff = count_differences(s1, s2)
+            for k, v in diff.items():
+                if k not in res:
+                    res[k] = 0
+                res[k] += v
+        return res
+        
+    count = out1["count"]
+    assert count == out2["count"]
+
+    res = {}
+    for what, o1, o2 in [
+        ("del", dels1, dels2),
+        ("ins", ins1, ins2),
+        ("sub", subs1, subs2),
+    ]:
+        diffs = count_differences_batch(o1, o2)
+        for k, v in diffs.items():
+            res[what + "_" + k] = v / count
+    return res
 
 
 def ensure_not_empty_reference(refs, preds, character_level):
@@ -320,6 +436,9 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
+    show_boxplot=True,
+    show_axisnames=True,
+    x_axisname=None,
     **kwargs
     ):
     """
@@ -365,7 +484,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     n = 2 if small_hatch else 1
     
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1:
+    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1 and show_boxplot:
         vals = [get_stat_list(wer_dict[k]) for k in keys]
         plt.boxplot(vals, positions = positions, whis=100)
         # plt.violinplot(vals, positions = positions, showmedians=True, quantiles=[[0.25, 0.75] for i in range(len(vals))], showextrema=True)
@@ -378,15 +497,20 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
     plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
+    plt.yticks(fontsize=label_fontdict['size'])
     if ymax is None:
         _, maxi = plt.ylim()
         plt.ylim(bottom=ymin, top=min(100, maxi))
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
-        plt.legend()
+        plt.legend(fontsize=label_fontdict['size'])
+    if show_axisnames:
+        plt.ylabel("WER (%)", fontsize=label_fontdict['size'])
+        if x_axisname:
+            plt.xlabel(x_axisname, fontsize=label_fontdict['size'])
     if title:
-        plt.title(title)
+        plt.title(title, fontsize=label_fontdict['size'])
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
@@ -516,3 +640,8 @@ if __name__ == "__main__":
     print('-' * len(line))
     print(line)
     print('-' * len(line))
+    if words_list:
+        extra = f"Details for {len(words_list)} words:\n"
+        extra += " | ".join([f"{w}: {100*result[w]:.2f}%" for w in ["F1", "precision", "recall"]])
+        extra += " | " + " | ".join([f"{w}: {result[w]}" for w in ["TP", "FN", "FP"]])
+        print(extra)
