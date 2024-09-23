@@ -373,6 +373,14 @@ class TestFormatTextArabic(Test):
             format_text_ar(sentence, keep_latin_chars=True),
             'صبباح النوور Meeeerci'
         )
+
+    def test_remove_outer_apostrophes_and_hyphens(self):
+        sentence = "Here's an example: remove 'these ' apostrophes and - these -hyphens but not don't or high-quality"
+
+        self.assertEqual(
+            format_text_ar(sentence, keep_latin_chars=True),
+            "Here's an example remove these apostrophes and these hyphens but not don't or high-quality"
+        )
     # def test_digit_round_check(self):
 
     #     from linastt.utils.language import translate_language

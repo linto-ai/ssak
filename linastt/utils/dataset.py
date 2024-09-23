@@ -355,8 +355,8 @@ def kaldi_folder_to_dataset(
             "ID": uttids,
             "path": paths,
             "text": annots,
-            "start": [None] * len(uttids),
-            "end": [None] * len(uttids),
+            "start": [0] * len(uttids),
+            "end": durations,
         }
 
     total_duration = sum(durations)
