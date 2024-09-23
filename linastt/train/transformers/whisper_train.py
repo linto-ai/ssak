@@ -120,6 +120,7 @@ if __name__ == "__main__":
     parser.add_argument('--lang', help='Language to tune', default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune', default="transcribe", type=str)
     parser.add_argument('--peft', help='To use PEFT method', default=False, action = "store_true")
+    parser.add_argument('--int4', help='To quantize the model to 4-bits', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--offline', help="do not load and process training audio files on the fly (precompute all MFCC)", default=False, action="store_true")
     parser.add_argument('--offline_dev', help="do not load and process validation audio files on the fly (precompute all MFCC)", default=False, action="store_true")
@@ -166,6 +167,7 @@ if __name__ == "__main__":
     NUM_EPOCH = args.num_epochs
     MAX_TEXT_LENGTH = args.max_text_length
     PEFT = args.peft
+    INT4 = args.int4
     SEED = args.seed
     WARMUP_STEPS = args.warmup_steps
     
@@ -374,16 +376,41 @@ if __name__ == "__main__":
         from transformers import BitsAndBytesConfig
         from peft import LoraConfig, get_peft_model 
         from peft import prepare_model_for_kbit_training
-        quantization_config = BitsAndBytesConfig(
-            llm_int8_enable_fp32_cpu_offload=True,
-            load_in_8bit=True,
-        )
-
+        
+        if INT4:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                )
+            
+            lora_config = LoraConfig(
+                r=8, 
+                lora_alpha=32, 
+                target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+                lora_dropout=0.05, 
+                bias="none",
+                )
+        else:
+            quantization_config = BitsAndBytesConfig(
+                llm_int8_enable_fp32_cpu_offload=True,
+                load_in_8bit=True,
+                )
+            
+            lora_config = LoraConfig(
+                r=32, 
+                lora_alpha=64, 
+                target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+                lora_dropout=0.05, 
+                bias="none",
+                )
+            
+        
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
             device_map="auto" if use_gpu() else None, 
             quantization_config=quantization_config,
-            # peft_config = lora_config,
         ) 
         
         # we need to apply some post-processing on the 8-bit model to enable training, let's freeze all our layers, and cast all non int8 layers in float32 for stability.
@@ -396,13 +423,8 @@ if __name__ == "__main__":
         model.model.encoder.conv1.register_forward_hook(make_inputs_require_grad)
         
         # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
-        lora_config = LoraConfig(
-            r=32, 
-            lora_alpha=64, 
-            target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
-            lora_dropout=0.05, 
-            bias="none",
-        )
+
+        
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
     else:
