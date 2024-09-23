@@ -1,6 +1,7 @@
 from linastt.utils.kaldi_converter import ToKaldi, Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info
 from tools.clean_text_fr import clean_text_fr
 import logging
+import re
 import os
 import shutil
 import argparse
@@ -28,7 +29,10 @@ class Xml2Kaldi(ToKaldi):
                 end = timecodes[turn.get("synch").strip("# ")]
                 for i in tmp_rows:
                     i['end'] = end
-                    data.append(i)
+                    regex = re.compile(r'[\s|hm|chri]+')
+                    t = regex.sub('', i['text'])
+                    if len(t)>0:
+                        data.append(i)
             tmp_rows = []
         start = timecodes[turn.get("synch").strip("#")]
         return data, tmp_rows, start
