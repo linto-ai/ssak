@@ -117,10 +117,10 @@ if __name__ == "__main__":
                             debug_folder = args.debug_folder,
                             plot = args.plot,
                             verbose = args.verbose,
+                            skip_warnings=True,
                         )
                     logger.info(f"Segmented: {output_folder}")
                 except Exception as e:
                     logger.error(f"Error {input_folder}: {e} {'(skipped)' if args.skip_erros else ''}")
                     if not args.skip_erros:
                         raise e
-                exit(0)

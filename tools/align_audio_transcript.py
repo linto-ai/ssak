@@ -131,6 +131,7 @@ def split_long_audio_kaldifolder(
     verbose = False,
     debug_folder = None, # "check_audio/split",
     plot = False,
+    skip_warnings = False,
     ):
     """
     Split long audio files into smaller ones.
@@ -373,10 +374,12 @@ def split_long_audio_kaldifolder(
                 index += 1
                 new_start = start+last_start
                 new_end = start+last_end
-                if new_end - new_start > max_duration:
+                if new_end - new_start > max_duration and not skip_warnings:
                     print(f"WARNING: {id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 if last_end <= last_start:
                     print(f"WARNING: Skipping {id}, got null or negative duration (after realignment, start={last_start}, end={last_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
+                elif new_end - new_start > max_duration and skip_warnings:
+                    print(f"WARNING: Skipping {id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 else:
                     assert new_end > new_start
                     if verbose:
