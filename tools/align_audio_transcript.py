@@ -367,23 +367,24 @@ def split_long_audio_kaldifolder(
             ratio = len(audio) / (num_frames * sample_rate)
             if verbose:
                 print(f"Alignment done in {time.time()-tic:.2f}s")
-            global index, last_start, last_end, new_transcript
-            def process():
-                global index, f_text, f_utt2spk, f_utt2dur, f_segments, last_start, last_end, new_transcript
+            global index, first_word_start, last_word_end, new_transcript
+            def add_segment():
+                global index, f_text, f_utt2spk, f_utt2dur, f_segments, first_word_start, last_word_end, new_transcript
                 new_id = f"{id}_cut{index:02}"
                 index += 1
-                new_start = start+last_start
-                new_end = start+last_end
+                new_start = start+first_word_start
+                new_end = start+last_word_end
                 if new_end - new_start > max_duration and not skip_warnings:
-                    print(f"WARNING: {id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
-                if last_end <= last_start:
-                    print(f"WARNING: Skipping {id}, got null or negative duration (after realignment, start={last_start}, end={last_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
+                    print(f"WARNING: {new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
+                
+                if last_word_end <= first_word_start:
+                    print(f"WARNING: Skipping {new_id}, got null or negative duration (after realignment, start={first_word_start}, end={last_word_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
                 elif new_end - new_start > max_duration and skip_warnings:
-                    print(f"WARNING: Skipping {id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
+                    print(f"WARNING: Skipping {new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 else:
                     assert new_end > new_start
                     if verbose:
-                        print(f"Got: {new_transcript} {last_start}-{last_end} ({new_end - new_start})")
+                        print(f"Got: {new_transcript} {first_word_start}-{last_word_end} ({new_end - new_start})")
                     f_text.write(f"{new_id} {new_transcript}\n")
                     f_utt2spk.write(f"{new_id} {id2spk[id]}\n")
                     f_utt2dur.write(f"{new_id} {new_end - new_start:.3f}\n")
@@ -399,11 +400,11 @@ def split_long_audio_kaldifolder(
                         if len(fname) > (200/cratio)-4:
                             fname = fname[:int(200/cratio)-4-23] + "..." + fname[-20:]  
                         sox.write(debug_folder+"/"+fname+".wav", load_audio(path, new_start, new_end, sample_rate), sample_rate)
-                last_start = last_end
-                last_end = last_start
+
+                first_word_start = last_word_end
                 new_transcript = ""
-            last_start = 0
-            last_end = 0
+
+            last_word_end = first_word_start = 0
             new_transcript = ""
             index = 1
             def ignore_word(word):
@@ -418,17 +419,17 @@ def split_long_audio_kaldifolder(
                     if new_transcript == "":
                         print("WARNING: removed a punctuation mark???")
                 if refine_timestamps and i==0:
-                    last_start = segment.start * ratio
+                    first_word_start = last_word_end = segment.start * ratio
                 end = segment.end * ratio
-                if end - last_start > max_duration:
-                    process()
-                last_end = end
+                if end - first_word_start > max_duration and new_transcript:
+                    add_segment()
+                last_word_end = end
                 if new_transcript:
                     new_transcript += " "
                 new_transcript += word
             if new_transcript:
-                last_end = word_segments[-1].end * ratio
-                process()
+                last_word_end = word_segments[-1].end * ratio
+                add_segment()
             idx_processed += 1
 
     if not has_shorten:
