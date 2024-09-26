@@ -21,34 +21,44 @@ def get_output_file(dataset, output_dir):
     file = f"manifest_{dataset.name}.jsonl" if dataset.name else "manifest.jsonl"
     return os.path.join(output_dir, file)
 
-def kaldi_to_nemo(kaldi_dataset, output_file, normalize_text=True):
+def kaldi_to_nemo(kaldi_dataset, output_file):
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         for row in tqdm(kaldi_dataset):
             row_data = vars(row)
             row_data.pop("id")
             row_data.pop("end")
+            row_data.pop("audio_id")
             row_data['offset'] = row_data.pop("start")
-            if normalize_text:
-                row_data['text'] = row_data.pop("normalized_text")
-                row_data.pop("raw_text")
-            else:
-                row_data['text'] = row_data.pop("raw_text")
-                row_data.pop("normalized_text")
+            row_data['text'] = row_data.pop("text")
+            row_data.pop("normalized_text")
+            if row_data.get("gender") is None:
+                row_data.pop("gender")
             json.dump(row_data, f, ensure_ascii=False)
             f.write("\n")
 
 def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, check_audio=False):
-    kaldi_dataset = KaldiDataset(kaldi_input_dataset, new_folder=new_audio_folder if new_audio_folder else output_dir)
+    logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to NeMo format")
+    splitted_path = kaldi_input_dataset.split(os.sep)
+    idx = -1
+    if splitted_path[idx].startswith("case") or splitted_path[idx].startswith("nocase"):
+        idx -= 1
+    if splitted_path[idx].startswith("train") or splitted_path[idx].startswith("dev") or splitted_path[idx].startswith("valid") or splitted_path[idx].startswith("test"):
+        idx -= 1
+    kaldi_dataset = KaldiDataset(os.sep.join(splitted_path[idx:]))
     file = get_output_file(kaldi_dataset, output_dir)
     if os.path.exists(file):
         logger.warning(f"File {file} already exists. Abording conversion to NeMo...")
         return
     logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to NeMo format")
-    kaldi_dataset.load(skip_audio_checks=not check_audio)
+    kaldi_dataset.load(kaldi_input_dataset)
+    if check_audio:
+        logger.info(f"Checking (and transforming if needed) audio files")
+        kaldi_dataset.normalize_audios(os.path.join(new_audio_folder, kaldi_dataset.name), target_sample_rate=16000)
     logger.info(f"Writing to {file}")
     os.makedirs(output_dir, exist_ok=True)
     kaldi_to_nemo(kaldi_dataset, file)
-    logger.info(f"Conversion complete")
+    logger.info(f"Conversion done (saved to {len(kaldi_dataset)} lines to {file})")
 
 if __name__=="__main__":
     args = get_args()

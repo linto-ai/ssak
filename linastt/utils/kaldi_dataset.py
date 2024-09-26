@@ -130,21 +130,25 @@ class KaldiDataset:
         check_kaldi_dir(output_dir)
         logger.info(f"Saved {len(self.dataset)} rows to {output_dir}")
 
-    def load(self, input_dir,  output_wavs_conversion_folder=None, target_sample_rate=16000, skip_audio_checks=True):
+    def normalize_dataset(self, apply_text_normalization=False):
+        if len(self.dataset)==0:
+            raise ValueError("Dataset is empty")
+        if self.dataset[0].normalized_text is not None:
+            logger.warning("Dataset is already normalized (or at least first segment), skipping normalization")
+            return
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Normalizing texts"):
+            row.normalized_text = format_text_latin(row.text)
+            if apply_text_normalization:
+                row.text = row.normalized_text
+            
+    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000):
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
+            row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+
+    def load(self, input_dir):
         """
-        Load the kaldi dataset and transform audios if asked and needed
-        
-        Args:
-            skip_audio_checks (bool): Skip audio checks and transformations
+        Load a kaldi dataset from a directory
         """
-        if not self.name:
-            if input_dir.endswith("/"):
-                input_dir = input_dir[:-1]
-            prefix, self.name = os.path.split(input_dir)
-            if self.name in ["train", "dev", "validation", "test"]:
-                self.name = f"{os.path.split(prefix)[1]}_{self.name}".replace(".","-")
-        if not skip_audio_checks and os.path.exists(os.path.join(input_dir, "clean_wavs")):
-            skip_audio_checks = True
         texts = dict()
         with open(os.path.join(input_dir, "text"), encoding="utf-8") as f:
             text_lines = f.readlines()
@@ -173,23 +177,21 @@ class KaldiDataset:
                 if file=="segments":
                     start, end = round(float(line[2]), 3), round(float(line[3]), 3)
                     duration = round(end - start, 3)
-                    wav_path = wavs[line[1]]
+                    seg_id = line[0]
+                    audio_id = line[1]
+                    wav_path = wavs[audio_id]
                 else:
-                    wav_path = wavs[line[0]]
+                    seg_id = audio_id = line[0]
+                    wav_path = wavs[audio_id]
                     infos = torchaudio.info(wav_path)
                     duration = infos.num_frames / infos.sample_rate
                     start, end = 0, duration
-                normalized_text = format_text_latin(texts[line[0]])
-                if not skip_audio_checks:
-                    wav_path = self.audio_checks(wav_path, os.path.join(output_wavs_conversion_folder, self.name+"_wavs"), target_sample_rate=target_sample_rate)
-                self.append(KaldiDatasetRow(id=line[0], text=texts[line[0]], audio_path=wav_path, duration=duration, \
-                    normalized_text=normalized_text, start=start, end=end, speaker=spks.get(line[0], None)))
+                self.append(KaldiDatasetRow(id=seg_id, text=texts[seg_id], audio_path=wav_path, duration=duration, \
+                    audio_id=audio_id, start=start, end=end, speaker=spks.get(seg_id, None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
-        if not skip_audio_checks and not os.path.exists(wav_path):
-            with open(os.path.join(input_dir, "clean_wavs")) as f:
-                pass
         
     def audio_checks(self, audio_path, new_folder, target_sample_rate=16000):
+        max_channel = 1 # not implemented for higher values yet
         if new_folder:
             new_path = os.path.join(new_folder, os.path.basename(audio_path))
         else:
@@ -198,13 +200,13 @@ class KaldiDataset:
             if not os.path.exists(audio_path):
                 raise FileNotFoundError(f"Audio file {audio_path} does not exist")
             infos = torchaudio.info(audio_path)
-            if infos.num_channels != 1 or infos.sample_rate != target_sample_rate:
+            if infos.num_channels > max_channel or infos.sample_rate != target_sample_rate:
                 waveform, original_sample_rate = torchaudio.load(audio_path)
-                if infos.num_channels != 1:
+                if infos.num_channels > max_channel:
                     logger.debug(f"Audio file {audio_path} has {infos.num_channels} channels. Converting to 1 channel...")
                     waveform = waveform[0, :].unsqueeze(0)
                 if infos.sample_rate != target_sample_rate:
-                    logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to 16kHz...")
+                    logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to {target_sample_rate}Hz...")
                     resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=target_sample_rate)
                     resampled_waveform = resampler(waveform)
                 os.makedirs(new_folder, exist_ok=True)
