@@ -100,7 +100,7 @@ class KaldiDataset:
             for row in tqdm(self.dataset, total=len(self.dataset), desc=f"Saving kaldi to {output_dir}"):
                 text_file.write(f"{row.id} {row.text}\n")
                 if not row.audio_id in saved_wavs: 
-                    wav_file.write(f"{row.audio_id} {row.audio_path}\n")
+                    wav_file.write(f"{row.audio_id} sox {row.audio_path} -t wav -r 16k -b 16 -c 1 - |\n")
                     saved_wavs.add(row.audio_id)
                 if row.speaker is not None:
                     no_spk = False
