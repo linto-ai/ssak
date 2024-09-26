@@ -3,7 +3,6 @@ import os
 import csv
 import re
 from dataclasses import dataclass
-from linastt.utils.text_latin import format_text_latin
 from linastt.utils.kaldi import check_kaldi_dir
 import torchaudio
 import logging
@@ -137,6 +136,7 @@ class KaldiDataset:
             logger.warning("Dataset is already normalized (or at least first segment), skipping normalization")
             return
         for row in tqdm(self.dataset, total=len(self.dataset), desc="Normalizing texts"):
+            from linastt.utils.text_latin import format_text_latin
             row.normalized_text = format_text_latin(row.text)
             if apply_text_normalization:
                 row.text = row.normalized_text
