@@ -13,10 +13,12 @@ def merge_manifests(inputs, output):
     input_files = inputs
     if len(input_files) == 1:
         logger.warning("One input file, considering it as containing a list of files or a folder containing manifest files")
-        if os.path.isdir(input_files[0]):
-            input_files = [os.path.join(input_files[0], f) for f in os.listdir(input_files[0]) if f.endswith(".jsonl") and not f.startswith("all_manifests")]
+        if os.path.isdir(inputs[0]):
+            input_files = []
+            for root, dirs, files in os.walk(inputs[0]):
+                input_files.extend([os.path.join(root, f) for f in files if f.endswith(".jsonl") and not f.startswith("all_manifests")])
         else:
-            with open(input_files[0], 'r', encoding="utf-8") as f:
+            with open(inputs[0], 'r', encoding="utf-8") as f:
                 input_files = [l.strip() for l in f.readlines()]
     data = []
     for input_file in tqdm(input_files, desc="Merging manifest files"):

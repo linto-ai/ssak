@@ -45,7 +45,7 @@ def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, chec
         idx -= 1
     if splitted_path[idx].startswith("train") or splitted_path[idx].startswith("dev") or splitted_path[idx].startswith("valid") or splitted_path[idx].startswith("test"):
         idx -= 1
-    kaldi_dataset = KaldiDataset(os.sep.join(splitted_path[idx:]))
+    kaldi_dataset = KaldiDataset("_".join(splitted_path[idx:]))
     file = get_output_file(kaldi_dataset, output_dir)
     if os.path.exists(file):
         logger.warning(f"File {file} already exists. Abording conversion to NeMo...")
