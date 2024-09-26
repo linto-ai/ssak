@@ -7,22 +7,20 @@ import shutil
 
 from linastt.utils.env import use_gpu # handle option --gpus (and set environment variables at the beginning)
 from linastt.utils.text import (
-    format_text,
     format_special_characters,
     remove_special_words,
     remove_special_characters,
 )
-from linastt.utils.monitoring import vram_usage, get_num_gpus, vram_free, tic, toc
+from linastt.utils.monitoring import vram_usage, get_num_gpus, tic, toc
 from linastt.utils.dataset import kaldi_folder_to_dataset, process_dataset
 from linastt.utils.augment import SpeechAugment
-from linastt.utils.misc import remove_commonprefix
 from linastt.utils.wer import compute_wer
 from linastt.utils.train_utils import dataset_pseudos, args_to_str
 
 import logging
 import json
 
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR , get_last_checkpoint
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR 
 
 import transformers
 import torch
@@ -38,6 +36,8 @@ from transformers import (
     TrainerState, 
     TrainerControl,
 )
+
+from accelerate import dispatch_model
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
@@ -84,7 +84,7 @@ def compute_metrics(pred, language):
     
     # we do not want to group tokens when computing the metrics
     pred_str = processor.tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+    label_str = processor.tokenizer.batch_decode(label_ids, skip_special_tokens=True)   
 
     return compute_wer(label_str, pred_str, normalization=language, use_percents=True)
 
@@ -99,11 +99,11 @@ class SavePeftModelCallback(TrainerCallback):
         checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
 
         peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
-        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
         kwargs["model"].save_pretrained(peft_model_path)
-        # pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
-        # if os.path.exists(pytorch_model_path):
-        #     os.remove(pytorch_model_path)
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        if os.path.exists(pytorch_model_path):
+            os.remove(pytorch_model_path)
         return control
 
 
@@ -120,6 +120,7 @@ if __name__ == "__main__":
     parser.add_argument('--lang', help='Language to tune', default="fr", type=str, choices=TO_LANGUAGE_CODE.values())
     parser.add_argument('--task', help='Task to tune', default="transcribe", type=str)
     parser.add_argument('--peft', help='To use PEFT method', default=False, action = "store_true")
+    parser.add_argument('--int4', help='To quantize the model to 4-bits', default=False, action = "store_true")
     parser.add_argument('--gpus', help="List of GPU index to use (starting from 0)", default= None)
     parser.add_argument('--offline', help="do not load and process training audio files on the fly (precompute all MFCC)", default=False, action="store_true")
     parser.add_argument('--offline_dev', help="do not load and process validation audio files on the fly (precompute all MFCC)", default=False, action="store_true")
@@ -166,6 +167,7 @@ if __name__ == "__main__":
     NUM_EPOCH = args.num_epochs
     MAX_TEXT_LENGTH = args.max_text_length
     PEFT = args.peft
+    INT4 = args.int4
     SEED = args.seed
     WARMUP_STEPS = args.warmup_steps
     
@@ -235,7 +237,6 @@ if __name__ == "__main__":
     processor = WhisperProcessor.from_pretrained(base_model, language=language, task=task)
 
     tokenizer_func = lambda x: processor.tokenizer(x).input_ids
-
     trainsetmeta, train_dataset = kaldi_folder_to_dataset(
         args.train,
         shuffle = True,
@@ -364,41 +365,66 @@ if __name__ == "__main__":
         text_processor = text_processor,
         logstream = readme
     )
+    
+    
     if readme is not None:
         readme.flush()
-
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
     
     if PEFT:
 
         from transformers import BitsAndBytesConfig
-        from peft import LoraConfig, PeftModel, LoraModel, get_peft_model, prepare_model_for_int8_training , TaskType
-
-        quantization_config = BitsAndBytesConfig(
-            llm_int8_enable_fp32_cpu_offload=True,
-            load_in_8bit=True,
-        )
-
-        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
-        lora_config = LoraConfig(
-            r=32, 
-            lora_alpha=64, 
-            target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
-            lora_dropout=0.05, 
-            bias="none",
-        )
-
+        from peft import LoraConfig, get_peft_model 
+        from peft import prepare_model_for_kbit_training
+        
+        if INT4:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                )
+            
+            lora_config = LoraConfig(
+                r=8, 
+                lora_alpha=32, 
+                target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+                lora_dropout=0.05, 
+                bias="none",
+                )
+        else:
+            quantization_config = BitsAndBytesConfig(
+                llm_int8_enable_fp32_cpu_offload=True,
+                load_in_8bit=True,
+                )
+            
+            lora_config = LoraConfig(
+                r=32, 
+                lora_alpha=64, 
+                target_modules=".*decoder.*(self_attn|encoder_attn).*(q_proj|v_proj)$",
+                lora_dropout=0.05, 
+                bias="none",
+                )
+            
+        
         model = WhisperForConditionalGeneration.from_pretrained(
             base_model, 
-            load_in_8bit=True,
             device_map="auto" if use_gpu() else None, 
             quantization_config=quantization_config,
-            # peft_config = lora_config,
         ) 
-
+        
+        # we need to apply some post-processing on the 8-bit model to enable training, let's freeze all our layers, and cast all non int8 layers in float32 for stability.
+        model = prepare_model_for_kbit_training(model)
         # Useless
         # model = prepare_model_for_int8_training(model)
+        def make_inputs_require_grad(module, input, output):
+            output.requires_grad_(True)
 
+        model.model.encoder.conv1.register_forward_hook(make_inputs_require_grad)
+        
+        # Apply LoRA :load a PeftModel and specify that we are going to use low-rank adapters (LoRA) using get_peft_model utility function from peft
+
+        
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
     else:
@@ -406,14 +432,22 @@ if __name__ == "__main__":
         model = WhisperForConditionalGeneration.from_pretrained(base_model, load_in_8bit=False, device_map="auto")
         model.gradient_checkpointing_enable()
     
+    device_map = model.hf_device_map.copy()
+    device_map["model.decoder.embed_tokens"] = model._hf_hook.execution_device
+    device_map["model.decoder.embed_positions"] = model._hf_hook.execution_device
+    device_map["proj_out"] = model._hf_hook.execution_device
+    dispatch_model(model, device_map=device_map)
+    model.hf_device_map
+    
     # Note: we do not train language identification, but rather focus on the target language
     special_tokens_ids = processor.tokenizer.additional_special_tokens_ids
     special_tokens = processor.tokenizer.additional_special_tokens
-    model.config.forced_decoder_ids =  [
-        [1, special_tokens_ids[special_tokens.index(f"<|{language}|>")]],
-        [2, special_tokens_ids[special_tokens.index("<|transcribe|>")]],
-        [3, special_tokens_ids[special_tokens.index("<|notimestamps|>")]],
-    ]
+    model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language="ar", task="transcribe")
+    # model.config.forced_decoder_ids =  [
+    #     [1, special_tokens_ids[special_tokens.index(f"<|{language}|>")]],
+    #     [2, special_tokens_ids[special_tokens.index("<|transcribe|>")]],
+    #     [3, special_tokens_ids[special_tokens.index("<|notimestamps|>")]],
+    # ]
     model.config.suppress_tokens = []
     model.train(True)
        

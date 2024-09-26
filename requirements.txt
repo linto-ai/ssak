@@ -30,6 +30,7 @@ pyctcdecode
 pypi-kenlm
 python-magic
 python-slugify
+so-vits-svc-fork
 soxbindings
 speechbrain
 tensorboard
