@@ -66,7 +66,7 @@ def write_split(split_data, split_name, kaldi_dir, wavs_path, subset=None):
                     "id": f"{audio_id}_{id_ct}",
                     "speaker": speaker,
                     "audio_id": audio_id,
-                    "audio_path": audio_path,
+                    "audio_path": audio_full_path,
                     "text": text,
                     "start": seg['start'],
                     "end": seg['end']
