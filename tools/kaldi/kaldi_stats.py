@@ -180,9 +180,9 @@ if __name__ == "__main__":
     parser.add_argument("--warn-if-longer-than", default=1800, type=float, help="Warn if duration is longer than this value (in seconds).")
     parser.add_argument("--warn-if-shorter-than", default=0.005, type=float, help="Warn if duration is shorter than this value (in seconds).")
     parser.add_argument("--dataset_list", default=None, type=str, help="Path to a file containing a list of dataset to process.")
-    parser.add_argument("--subset_pattern", default=None, type=str)
+    parser.add_argument("--subset_pattern", default=None, nargs='+', type=str)
     args = parser.parse_args()
-    
+
     datasets=[]
     if args.dataset_list is not None:
         with open(args.dataset_list, 'r') as f:
@@ -194,13 +194,13 @@ if __name__ == "__main__":
         else:
             all_files = []
             for root, dirs, files in os.walk(file_or_folder):
+                path = root.split("/")
                 if len(datasets)>0:
-                    path = root.split("/")
                     if not any([d in path for d in datasets]):
                         continue
-                    if not args.subset_pattern is None:
-                        if not args.subset_pattern in path:
-                            continue
+                if not args.subset_pattern is None:
+                    if not any([d in path for d in args.subset_pattern]):
+                        continue
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
@@ -212,5 +212,4 @@ if __name__ == "__main__":
                     warn_if_shorter_than=args.warn_if_shorter_than,
                 )
             )
-
     print_stats(all_stats)
