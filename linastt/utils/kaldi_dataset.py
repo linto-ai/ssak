@@ -13,6 +13,18 @@ logger = logging.getLogger(__name__)
 class KaldiDatasetRow:
     """
     Dataclass for a row (/segment) in a kaldi dataset
+    
+    Attributes:
+        id (str): Segment id
+        text (str): Text of the segment
+        audio_id (str): Audio id
+        audio_path (str): Path to the audio file
+        normalized_text (str) : Optional. Normalized text of the segment
+        duration (float): Optional if start and end are specified. Duration of the segment
+        start (float): Start time of the segment
+        end (float): Optional if start and duration are specified. End time of the segment
+        speaker (str): Speaker id
+        gender (str): Optional. Must be "M" or "F".
     """
     id: str
     text: str
@@ -26,6 +38,9 @@ class KaldiDatasetRow:
     gender: str = None
     
     def check_row(self, show_warnings=True):
+        """
+        Check if the row is valid and fill missing attributes if possible. If not, it will log (or throw an error) a warning and skip.
+        """
         if self.duration is not None:
             self.duration = float(self.duration)
         if self.start is not None:
@@ -52,10 +67,25 @@ class KaldiDatasetRow:
         return True
 
 class KaldiDataset:
+    """
+    Iterator class for kaldi datasets.
+    You can load, save, add, iterate over and normalize the dataset.
+    
+    Main attributes:
+        name (str): Name of the dataset
+        dataset (list): List of KaldiDatasetRow objects (See KaldiDatasetRow doc for more info)
+
+    Main methods:
+        append(row): Append a row to the dataset
+        save(output_dir): Save the dataset to a kaldi directory
+        load(input_dir): Load a kaldi dataset from a directory and adds it to the dataset
+        normalize_dataset(apply_text_normalization): Normalize the texts in the dataset using the format_text_latin function from linastt.utils.text_latin
+        normalize_audios(output_wavs_conversion_folder, target_sample_rate): Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels
+    """
+    
     def __init__(self, name=None, show_warnings=True):
         """
-        Iterator class for kaldi datasets. You need to load it before iterating over it.
-        
+        Initialize the dataset        
         Args:
             name (str): Name of the dataset
         """
@@ -87,6 +117,13 @@ class KaldiDataset:
             self.dataset.append(row)
 
     def save(self, output_dir, check_durations_if_missing=False):
+        """
+        Save the dataset to a kaldi directory
+        
+        Args:
+            output_dir (str): Path to the output directory            
+            check_durations_if_missing (bool): If True, it will check the duration of the audio files if it is not specified in the dataset
+        """
         os.makedirs(output_dir, exist_ok=True)
         speakers_to_gender = dict()
         no_spk = True
@@ -130,6 +167,12 @@ class KaldiDataset:
         logger.info(f"Saved {len(self.dataset)} rows to {output_dir}")
 
     def normalize_dataset(self, apply_text_normalization=False):
+        """
+        Normalize the texts in the dataset using the format_text_latin function from linastt.utils.text_latin
+        
+        Args:
+            apply_text_normalization (bool): If True, the normalized text will replace the original text in the dataset, otherwise it will be stored in the normalized_text attribute
+        """
         if len(self.dataset)==0:
             raise ValueError("Dataset is empty")
         if self.dataset[0].normalized_text is not None:
@@ -142,12 +185,24 @@ class KaldiDataset:
                 row.text = row.normalized_text
             
     def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000):
+        """
+        Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels. 
+        
+        Updates the audio_path in the dataset with the new path if the audio file was converted.
+        
+        Args:
+            output_wavs_conversion_folder (str): Folder where to save the transformed audio files
+            target_sample_rate (int): Target sample rate for the audio files
+        """
         for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
             row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
 
     def load(self, input_dir):
         """
-        Load a kaldi dataset from a directory
+        Load a kaldi dataset from a directory and adds it to the dataset
+        
+        Args:
+            input_dir (str): Path to the kaldi dataset directory
         """
         texts = dict()
         with open(os.path.join(input_dir, "text"), encoding="utf-8") as f:
@@ -191,6 +246,14 @@ class KaldiDataset:
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         
     def audio_checks(self, audio_path, new_folder, target_sample_rate=16000):
+        """
+        Check audio file sample rate and number of channels and convert it if it doesn't match the target sample rate/number of channels.
+        
+        Args:
+            audio_path (str): Path to the audio file
+            new_folder (str): Folder where to save the transformed audio file
+            target_sample_rate (int): Target sample rate for the audio file
+        """
         max_channel = 1 # not implemented for higher values yet
         if new_folder:
             new_path = os.path.join(new_folder, os.path.basename(audio_path))
