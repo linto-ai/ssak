@@ -36,6 +36,7 @@ class KaldiDatasetRow:
     end: float = None
     speaker: str = None
     gender: str = None
+    split: str = None
     
     def check_row(self, show_warnings=True):
         """
@@ -92,7 +93,8 @@ class KaldiDataset:
         if name:
             self.name = name
         self.show_warnings = show_warnings
-        self.dataset = []
+        self.dataset = list()
+        self.splits = set()
 
     def __len__(self):
         return len(self.dataset)
@@ -124,47 +126,61 @@ class KaldiDataset:
             output_dir (str): Path to the output directory            
             check_durations_if_missing (bool): If True, it will check the duration of the audio files if it is not specified in the dataset
         """
-        os.makedirs(output_dir, exist_ok=True)
         speakers_to_gender = dict()
         no_spk = True
         saved_wavs = set()
-        with open(os.path.join(output_dir, "text"), "w", encoding="utf-8") as text_file,\
-            open(os.path.join(output_dir, "wav.scp"), "w") as wav_file,\
-            open(os.path.join(output_dir, "utt2spk"), "w") as uttspkfile,\
-            open(os.path.join(output_dir, "utt2dur"), "w") as uttdurfile,\
-            open(os.path.join(output_dir, "segments"), "w") as segmentfile:  
-            for row in tqdm(self.dataset, total=len(self.dataset), desc=f"Saving kaldi to {output_dir}"):
-                text_file.write(f"{row.id} {row.text}\n")
-                if not row.audio_id in saved_wavs: 
-                    wav_file.write(f"{row.audio_id} {row.audio_path}\n")
-                    saved_wavs.add(row.audio_id)
-                if row.speaker is not None:
-                    no_spk = False
-                    uttspkfile.write(f"{row.id} {row.speaker}\n")
-                    if row.gender is not None:
-                        speakers_to_gender[row.speaker] = row.gender
-                duration = row.duration if row.duration is not None else None
-                if duration is None and row.end is not None and row.start is not None:
-                    duration = row.end - row.start
-                elif duration is None:
-                    if check_durations_if_missing:
-                        infos = torchaudio.info(row.audio_path)
-                        duration = infos.num_frames / infos.sample_rate
-                    else:
-                        raise ValueError(f"Duration (or end and start) must be specified for row {row.id}")
-                uttdurfile.write(f"{row.id} {duration:.3f}\n")
-                start = row.start if row.start is not None else 0
-                end = row.end if row.end is not None else start+duration
-                segmentfile.write(f"{row.id} {row.audio_id} {start:.3f} {end:.3f}\n")
-        if no_spk:
-            os.remove(os.path.join(output_dir, "utt2spk"))
-        if len(speakers_to_gender) > 0:
-            with open(os.path.join(output_dir, "spk2gender"), "w") as f:
-                for i in speakers_to_gender:
-                    f.write(f"{i} {speakers_to_gender[i].lower()}\n")
-        logger.info(f"Validating dataset {output_dir}")
-        check_kaldi_dir(output_dir)
-        logger.info(f"Saved {len(self.dataset)} rows to {output_dir}")
+        output_dirs = [output_dir]
+        total_saved_rows = 0
+        if self.splits is not None and len(self.splits)>0:
+            output_dirs  = [os.path.join(output_dir, i) for i in self.splits]
+        for output_dir in output_dirs:
+            nb_rows = 0
+            os.makedirs(output_dir, exist_ok=True)
+            with open(os.path.join(output_dir, "text"), "w", encoding="utf-8") as text_file,\
+                open(os.path.join(output_dir, "wav.scp"), "w") as wav_file,\
+                open(os.path.join(output_dir, "utt2spk"), "w") as uttspkfile,\
+                open(os.path.join(output_dir, "utt2dur"), "w") as uttdurfile,\
+                open(os.path.join(output_dir, "segments"), "w") as segmentfile:  
+                for row in tqdm(self.dataset, total=len(self.dataset), desc=f"Saving kaldi to {output_dir}"):
+                    if row.split is not None and row.split != os.path.basename(output_dir):
+                        continue
+                    nb_rows += 1
+                    text_file.write(f"{row.id} {row.text}\n")
+                    if not row.audio_id in saved_wavs: 
+                        wav_file.write(f"{row.audio_id} {row.audio_path}\n")
+                        saved_wavs.add(row.audio_id)
+                    if row.speaker is not None:
+                        no_spk = False
+                        uttspkfile.write(f"{row.id} {row.speaker}\n")
+                        if row.gender is not None:
+                            speakers_to_gender[row.speaker] = row.gender
+                    duration = row.duration if row.duration is not None else None
+                    if duration is None and row.end is not None and row.start is not None:
+                        duration = row.end - row.start
+                    elif duration is None:
+                        if check_durations_if_missing:
+                            infos = torchaudio.info(row.audio_path)
+                            duration = infos.num_frames / infos.sample_rate
+                        else:
+                            raise ValueError(f"Duration (or end and start) must be specified for row {row.id}")
+                    uttdurfile.write(f"{row.id} {duration:.3f}\n")
+                    start = row.start if row.start is not None else 0
+                    end = row.end if row.end is not None else start+duration
+                    segmentfile.write(f"{row.id} {row.audio_id} {start:.3f} {end:.3f}\n")
+            if no_spk:
+                os.remove(os.path.join(output_dir, "utt2spk"))
+            if len(speakers_to_gender) > 0:
+                with open(os.path.join(output_dir, "spk2gender"), "w") as f:
+                    for i in speakers_to_gender:
+                        f.write(f"{i} {speakers_to_gender[i].lower()}\n")
+            logger.info(f"Validating dataset {output_dir}")
+            check_kaldi_dir(output_dir)
+            logger.info(f"Saved {nb_rows} rows to {output_dir}")
+            total_saved_rows += nb_rows
+        if len(self.splits)>0:
+            logger.info(f"Saved {total_saved_rows} rows in total")
+        if total_saved_rows != len(self.dataset):
+            logger.warning(f"Saved {total_saved_rows} rows but dataset has {len(self.dataset)} rows")
 
     def normalize_dataset(self, apply_text_normalization=False):
         """
@@ -196,6 +212,18 @@ class KaldiDataset:
         """
         for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
             row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+
+    def add_splits(self, splits, function_id_to_id=None):
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Adding splits"):
+            id = row.id
+            if function_id_to_id is not None:
+                id = function_id_to_id(id)
+            if id not in splits:
+                print(f"Missing split for {id}")
+                continue
+            if splits[id] not in self.splits:
+                self.splits.add(splits[id])
+            row.split = splits[id]
 
     def load(self, input_dir):
         """
