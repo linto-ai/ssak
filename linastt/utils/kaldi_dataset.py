@@ -85,11 +85,6 @@ class KaldiDataset:
     """
     
     def __init__(self, name=None, show_warnings=True):
-        """
-        Initialize the dataset        
-        Args:
-            name (str): Name of the dataset
-        """
         if name:
             self.name = name
         self.show_warnings = show_warnings
@@ -105,7 +100,16 @@ class KaldiDataset:
 
     def __iter__(self):
         return self.__next__()
+    
+    def extend(self, dataset):
+        """
+        Extend the dataset with another dataset. Do not make any checks on the dataset.
         
+        Args:
+            dataset (KaldiDataset): Dataset to append to the current dataset
+        """
+        self.dataset.extend(dataset.dataset)
+    
     def append(self, row):
         """
         Append a row to the dataset
@@ -117,6 +121,136 @@ class KaldiDataset:
             row = KaldiDatasetRow(**row)
         if row.check_row(self.show_warnings):
             self.dataset.append(row)
+            
+    def get_ids(self, unique=True):
+        """
+        Get the ids of the dataset
+        
+        Args:
+            unique (bool): If True, it will return a set of ids, otherwise a list
+        Returns:
+            set: Set of ids
+        """
+        if unique:
+            return set([i.id for i in self.dataset])
+        return [i.id for i in self.dataset]
+
+    def get_speakers(self, unique=True):
+        """
+        Get the speakers of the dataset
+        
+        Args:
+            unique (bool): If True, it will return a set of speakers, otherwise a list
+        Returns:
+            set (or list if unique is False): Set of speakers 
+        """
+        if unique:
+            return set([i.speaker for i in self.dataset])
+        return [i.speaker for i in self.dataset]
+    
+    def get_audio_ids(self, unique=True):
+        """
+        Get the audio ids of the dataset
+        
+        Returns:
+            set (or list if unique is False): Set of audio ids
+        """
+        if unique:
+            return set([i.audio_id for i in self.dataset])
+        return [i.audio_id for i in self.dataset]
+    
+    def get_speaker_segments(self, speaker):
+        """
+        Get the segments of a speaker
+        
+        Args:
+            speaker (str): Speaker id
+        
+        Returns:
+            list: List of KaldiDatasetRow objects
+        """
+        return [i for i in self.dataset if i.speaker==speaker]
+    
+    def get_duration(self):
+        return sum([i.duration for i in self.dataset])
+    
+    def filter_by_audio_ids(self, audio_ids):
+        """
+        Filter the dataset by audio ids
+        
+        Args:
+            audio_ids (list): List of audio ids
+        
+        Returns:
+            KaldiDataset: New KaldiDataset object with the filtered dataset
+        """
+        new_dataset = KaldiDataset()
+        for row in self.dataset:
+            if row.audio_id in audio_ids:
+                new_dataset.append(row)
+        return new_dataset
+    
+    def filter_by_speakers(self, speakers):
+        """
+        Filter the dataset by speakers
+        
+        Args:
+            speakers (list or set): Set of speaker ids
+        
+        Returns:
+            KaldiDataset: New KaldiDataset object with the filtered dataset
+        """
+        if not isinstance(speakers, set): # set are infinitely faster for lookups
+            speakers = set(speakers)
+        new_dataset = KaldiDataset()
+        for row in self.dataset:
+            if row.speaker in speakers:
+                new_dataset.append(row)
+        return new_dataset
+
+    
+    def normalize_dataset(self, apply_text_normalization=False):
+        """
+        Normalize the texts in the dataset using the format_text_latin function from linastt.utils.text_latin
+        
+        Args:
+            apply_text_normalization (bool): If True, the normalized text will replace the original text in the dataset, otherwise it will be stored in the normalized_text attribute
+        """
+        if len(self.dataset)==0:
+            raise ValueError("Dataset is empty")
+        if self.dataset[0].normalized_text is not None:
+            logger.warning("Dataset is already normalized (or at least first segment), skipping normalization")
+            return
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Normalizing texts"):
+            from linastt.utils.text_latin import format_text_latin
+            row.normalized_text = format_text_latin(row.text)
+            if apply_text_normalization:
+                row.text = row.normalized_text
+            
+    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000):
+        """
+        Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels. 
+        
+        Updates the audio_path in the dataset with the new path if the audio file was converted.
+        
+        Args:
+            output_wavs_conversion_folder (str): Folder where to save the transformed audio files
+            target_sample_rate (int): Target sample rate for the audio files
+        """
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
+            row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+
+    def add_splits(self, splits, function_id_to_id=None):
+        for row in tqdm(self.dataset, total=len(self.dataset), desc="Adding splits"):
+            id = row.id
+            if function_id_to_id is not None:
+                id = function_id_to_id(id)
+            if id not in splits:
+                print(f"Missing split for {id}")
+                continue
+            if splits[id] not in self.splits:
+                self.splits.add(splits[id])
+            row.split = splits[id]
 
     def save(self, output_dir, check_durations_if_missing=False):
         """
@@ -182,49 +316,6 @@ class KaldiDataset:
         if total_saved_rows != len(self.dataset):
             logger.warning(f"Saved {total_saved_rows} rows but dataset has {len(self.dataset)} rows")
 
-    def normalize_dataset(self, apply_text_normalization=False):
-        """
-        Normalize the texts in the dataset using the format_text_latin function from linastt.utils.text_latin
-        
-        Args:
-            apply_text_normalization (bool): If True, the normalized text will replace the original text in the dataset, otherwise it will be stored in the normalized_text attribute
-        """
-        if len(self.dataset)==0:
-            raise ValueError("Dataset is empty")
-        if self.dataset[0].normalized_text is not None:
-            logger.warning("Dataset is already normalized (or at least first segment), skipping normalization")
-            return
-        for row in tqdm(self.dataset, total=len(self.dataset), desc="Normalizing texts"):
-            from linastt.utils.text_latin import format_text_latin
-            row.normalized_text = format_text_latin(row.text)
-            if apply_text_normalization:
-                row.text = row.normalized_text
-            
-    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000):
-        """
-        Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels. 
-        
-        Updates the audio_path in the dataset with the new path if the audio file was converted.
-        
-        Args:
-            output_wavs_conversion_folder (str): Folder where to save the transformed audio files
-            target_sample_rate (int): Target sample rate for the audio files
-        """
-        for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
-            row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
-
-    def add_splits(self, splits, function_id_to_id=None):
-        for row in tqdm(self.dataset, total=len(self.dataset), desc="Adding splits"):
-            id = row.id
-            if function_id_to_id is not None:
-                id = function_id_to_id(id)
-            if id not in splits:
-                print(f"Missing split for {id}")
-                continue
-            if splits[id] not in self.splits:
-                self.splits.add(splits[id])
-            row.split = splits[id]
-
     def load(self, input_dir):
         """
         Load a kaldi dataset from a directory and adds it to the dataset
@@ -233,13 +324,13 @@ class KaldiDataset:
             input_dir (str): Path to the kaldi dataset directory
         """
         texts = dict()
-        with open(os.path.join(input_dir, "text"), encoding="utf-8") as f:
+        with open(os.path.join(input_dir, "text"), "r", encoding="utf-8") as f:
             text_lines = f.readlines()
             for line in text_lines:
                 line = line.strip().split()
                 texts[line[0]] = " ".join(line[1:])
         wavs = dict()
-        with open(os.path.join(input_dir, "wav.scp")) as f:
+        with open(os.path.join(input_dir, "wav.scp"), "r") as f:
             for line in f.readlines():
                 line = line.strip().split()
                 if line[1] == "sox":
@@ -247,14 +338,14 @@ class KaldiDataset:
                 else:
                     wavs[line[0]] = line[1]
         spks = dict()
-        with open(os.path.join(input_dir, "utt2spk")) as f:
+        with open(os.path.join(input_dir, "utt2spk"), "r") as f:
             for line in f.readlines():
                 line = line.strip().split()
                 spks[line[0]] = line[1]
         file = "segments"
         if not os.path.exists(os.path.join(input_dir, "segments")):
             file = "wav.scp"
-        with open(os.path.join(input_dir, file)) as f:
+        with open(os.path.join(input_dir, file), "r") as f:
             for line in tqdm(f.readlines(), desc=f"Loading {input_dir}"):
                 line = line.strip().split()
                 if file=="segments":
