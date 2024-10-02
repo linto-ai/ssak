@@ -36,7 +36,7 @@ def convert_to_seconds(time_str):
     else:
         raise ValueError("Invalid time format")
 
-def print_result_infos(train_dataset, test_dataset):
+def print_result_infos(train_dataset, test_dataset, dev_dataset=None):
     print(f" TRAIN SPLIT ".center(40, "-"))
     print(f"ROWS: {len(train_dataset)}")
     print(f"SPEAKERS: {len(train_dataset.get_speakers())}")
@@ -45,6 +45,17 @@ def print_result_infos(train_dataset, test_dataset):
     minutes = (hours - int(hours)) * 60
     seconds = (minutes - int(minutes)) * 60
     print(f"DURATION: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+    
+    if dev_dataset is not None:
+        print(f" DEV SPLIT ".center(40, "-"))
+        print(f"ROWS: {len(dev_dataset)}")
+        print(f"SPEAKERS: {len(dev_dataset.get_speakers())}")
+        print(f"AUDIOS: {len(dev_dataset.get_audio_ids())}")
+        hours = dev_dataset.get_duration() / 3600
+        minutes = (hours - int(hours)) * 60
+        seconds = (minutes - int(minutes)) * 60
+        print(f"DURATION: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+    
     print(f" TEST SPLIT ".center(40, "-"))
     print(f"ROWS: {len(test_dataset)}")
     print(f"SPEAKERS: {len(test_dataset.get_speakers())}")
@@ -65,8 +76,8 @@ def split(dataset, test_size, random_seed=42, show_tqdm=False):
             spks_ids.add(i)
     
     train_spks, test_spks = train_test_split(spks, test_size=test_size, random_state=random_seed)
-    del spks_ids
-    del spks
+    del spks_ids    # free some ram in case of big dataset
+    del spks        # free some ram in case of big dataset
     
     logger.debug(f"Base splits done: {len(train_spks)} speakers in train and {len(test_spks)} speakers in test")
 
@@ -114,11 +125,8 @@ def split_by_speakers(kaldi_dir, output, test_size, random_seed=42):
     print_result_infos(train_dataset, test_dataset)
     train_dataset.save(os.path.join(output, "train"))
     test_dataset.save(os.path.join(output, "test"))
-    
-def grid_search(kaldi_dir, output, target_test_duration, speakers_to_test=range(1, 20), seed_to_test=range(2, 12)):
-    dataset = KaldiDataset("dataset")
-    dataset.load(kaldi_dir)
-    
+
+def grid_search(dataset, target_test_duration, speakers_to_test, seed_to_test):
     closest_duration = None
     closest_duration_speakers = None
     closest_duration_seed = 1
@@ -142,7 +150,20 @@ def grid_search(kaldi_dir, output, target_test_duration, speakers_to_test=range(
     logger.info(f"Best split found with seed {closest_duration_seed} ({closest_duration} seconds, target: {target_test_duration} seconds)")
     
     train_dataset, test_dataset = split(dataset, closest_duration_speakers, closest_duration_seed)
-    print_result_infos(train_dataset, test_dataset)
+    return train_dataset, test_dataset
+
+def split_by_duration(kaldi_dir, output, target_test_duration, target_dev_duration, speakers_to_test=range(1, 20), seed_to_test=range(2, 12)):
+    dataset = KaldiDataset("dataset")
+    dataset.load(kaldi_dir)
+    
+    logger.info(f"Starting grid search for test set with target duration of {target_test_duration} seconds")
+    train_dataset, test_dataset = grid_search(dataset, target_test_duration, speakers_to_test, seed_to_test)
+    dev_dataset = None
+    if target_dev_duration is not None:
+        logger.info(f"Starting grid search for dev set with target duration of {target_dev_duration} seconds")
+        train_dataset, dev_dataset = grid_search(train_dataset, target_dev_duration, speakers_to_test, seed_to_test)
+        dev_dataset.save(os.path.join(output, "dev"))
+    print_result_infos(train_dataset, test_dataset, dev_dataset)
     train_dataset.save(os.path.join(output, "train"))
     test_dataset.save(os.path.join(output, "test"))
 
@@ -154,7 +175,8 @@ if __name__ == '__main__':
     parser.add_argument("output_folder", type=str, help="Output folder where the split will be saved")
     parser.add_argument("--test_size", type=float, default=None, help="Wanted number of speakers in test. Example: 5")
     parser.add_argument("--test_duration", type=str, default=None, help="Duration of the test set. Example: 5h15m")
-    parser.add_argument("--random_seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--dev_duration", type=str, default=None, help="Duration of the dev set. Example: 5h15m")
+    parser.add_argument("--random_seed", type=int, default=42, help="Random seed (used if test_size is specified)")
     args = parser.parse_args()
     if args.test_size is None and args.test_duration is None:
         raise Exception("You must specify either test_size or test_duration")
@@ -162,6 +184,7 @@ if __name__ == '__main__':
         raise Exception("You must specify either test_size or test_duration, not both")
     if args.test_duration is not None:
         test_duration = convert_to_seconds(args.test_duration)
-        grid_search(args.input_folder, args.output_folder, test_duration)
+        dev_duration = convert_to_seconds(args.dev_duration) if args.dev_duration is not None else None
+        split_by_duration(args.input_folder, args.output_folder, test_duration, dev_duration)
     else:
         split(args.input_folder, args.output_folder, args.test_size, args.random_seed)
