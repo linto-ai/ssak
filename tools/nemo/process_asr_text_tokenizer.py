@@ -272,18 +272,21 @@ def process_asr_text_tokenizer(manifests=None, data_file=None, data_root=None, v
                                 spe_type="bpe", spe_character_coverage=1.0, spe_bos=False, spe_eos=False, spe_pad=False,
                                 spe_user_defined_symbols=None, spe_control_symbols=None, spe_split_digits=False,
                                 spe_sample_size=-1, spe_train_extremely_large_corpus=False, spe_max_sentencepiece_length=-1,
-                                spe_split_by_unicode_script=True, spe_byte_fallback=False, lower_case=True, log=False):
+                                spe_split_by_unicode_script=True, spe_byte_fallback=False, lower_case=True, log=True):
                                 
     if not os.path.exists(data_root):
         os.makedirs(data_root)
-
     if log:
         logging.basicConfig(level=logging.INFO)
-
+        logger = logging.getLogger(__name__)
+    logger.info('Starting tokenizer creation')
     if manifests:
+        logger.info('Building document from manifests')
         text_corpus_path = __build_document_from_manifests(data_root, manifests)
+        logger.info('Document built')
     else:
         text_corpus_path = data_file
+    logger.info('Building tokenizer')
     tokenizer_path = __process_data(
         text_corpus_path,
         data_root,
@@ -306,7 +309,7 @@ def process_asr_text_tokenizer(manifests=None, data_file=None, data_root=None, v
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)
-    logging.info('Done!')
+    logger.info('Done!')
 
 
 if __name__ == "__main__":
