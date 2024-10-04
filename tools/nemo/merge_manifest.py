@@ -11,6 +11,7 @@ def merge_manifests(inputs, output):
     if os.path.exists(output):
         raise FileExistsError(f"Output file {output} already exists")
     input_files = inputs
+    os.makedirs(os.path.dirname(output), exist_ok=True)
     if len(input_files) == 1:
         logger.warning("One input file, considering it as containing a list of files or a folder containing manifest files")
         if os.path.isdir(inputs[0]):

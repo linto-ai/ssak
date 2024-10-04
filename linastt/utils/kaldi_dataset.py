@@ -159,6 +159,17 @@ class KaldiDataset:
             return set([i.audio_id for i in self.dataset])
         return [i.audio_id for i in self.dataset]
     
+    def get_audio_paths(self, unique=True):
+        """
+        Get the audio paths of the dataset
+        
+        Returns:
+            set (or list if unique is False): Set of audio paths
+        """
+        if unique:
+            return set([i.audio_path for i in self.dataset])
+        return [i.audio_path for i in self.dataset]
+    
     def get_speaker_segments(self, speaker):
         """
         Get the segments of a speaker
@@ -237,8 +248,13 @@ class KaldiDataset:
             output_wavs_conversion_folder (str): Folder where to save the transformed audio files
             target_sample_rate (int): Target sample rate for the audio files
         """
-        for row in tqdm(self.dataset, total=len(self.dataset), desc="Checking audio files"):
-            row.audio_path = self.audio_checks(row.audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+        updated_audio_paths = dict()
+        for audio_path in tqdm(self.get_audio_paths(unique=True), desc="Checking audio files"):
+            new_path = self.audio_checks(audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+            if new_path != audio_path:
+                updated_audio_paths[audio_path] = new_path
+        for row in self.dataset:
+            row.audio_path = updated_audio_paths.get(row.audio_path, row.audio_path)
 
     def add_splits(self, splits, function_id_to_id=None):
         for row in tqdm(self.dataset, total=len(self.dataset), desc="Adding splits"):
@@ -281,6 +297,9 @@ class KaldiDataset:
                     nb_rows += 1
                     text_file.write(f"{row.id} {row.text}\n")
                     if not row.audio_id in saved_wavs: 
+                        audio_path = row.audio_path
+                        if " " in audio_path:
+                            audio_path = f"'{audio_path}'"
                         wav_file.write(f"{row.audio_id} {row.audio_path}\n")
                         saved_wavs.add(row.audio_id)
                     if row.speaker is not None:
@@ -333,10 +352,18 @@ class KaldiDataset:
         with open(os.path.join(input_dir, "wav.scp"), "r") as f:
             for line in f.readlines():
                 line = line.strip().split()
-                if line[1] == "sox":
-                    wavs[line[0]] = line[2]
-                else:
-                    wavs[line[0]] = line[1]
+                audio_id = line[0]
+                line = line[1:]
+                if line[0] == "sox":
+                    line = line[1:]
+                audio_path = line[0]
+                if audio_path.startswith("'") and not audio_path.endswith("'"):     # in case of spaces in the path
+                    for i in range(1, len(line)):
+                        audio_path += " " + line[i]
+                        if audio_path.endswith("'"):
+                            break
+                    audio_path = audio_path[1:-1]
+                wavs[audio_id] = audio_path
         spks = dict()
         with open(os.path.join(input_dir, "utt2spk"), "r") as f:
             for line in f.readlines():
