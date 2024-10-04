@@ -29,6 +29,7 @@ def kaldi_to_nemo(kaldi_dataset, output_file):
             row_data.pop("id")
             row_data.pop("end")
             row_data.pop("audio_id")
+            row_data['audio_filepath'] = row_data.pop("audio_path")
             row_data['offset'] = row_data.pop("start")
             row_data['text'] = row_data.pop("text")
             row_data.pop("normalized_text")
@@ -41,10 +42,18 @@ def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, chec
     logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to NeMo format")
     splitted_path = kaldi_input_dataset.split(os.sep)
     idx = -1
-    if splitted_path[idx].startswith("case") or splitted_path[idx].startswith("nocase"):
-        idx -= 1
-    if splitted_path[idx].startswith("train") or splitted_path[idx].startswith("dev") or splitted_path[idx].startswith("valid") or splitted_path[idx].startswith("test"):
-        idx -= 1
+    moved = True
+    while moved:
+        moved = True
+        if splitted_path[idx].startswith("case") or splitted_path[idx].startswith("nocase"):
+            idx -= 1
+        elif splitted_path[idx].startswith("train") or splitted_path[idx].startswith("dev") or splitted_path[idx].startswith("valid") or splitted_path[idx].startswith("test"):
+            idx -= 1
+        elif splitted_path[idx].startswith("split"):
+            idx -= 1
+        else:
+            moved = False
+        
     kaldi_dataset = KaldiDataset("_".join(splitted_path[idx:]))
     file = get_output_file(kaldi_dataset, output_dir)
     if os.path.exists(file):
