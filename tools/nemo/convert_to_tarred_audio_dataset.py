@@ -703,14 +703,14 @@ def convert_to_tarred_audio_dataset(manifest_path=None, concat_manifest_paths=No
         bucket_length = (max_duration - min_duration) / float(buckets_num)
         for i in range(buckets_num):
             bucket_min_duration = min_duration + i * bucket_length
-            bucket_max_duration = min_duration + bucket_length
+            bucket_max_duration = bucket_min_duration + bucket_length
             if i == buckets_num - 1:
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 max_duration += 1e-5
-            target_dir = os.path.join(target_dir, f"bucket{i+1}")
+            bucket_dir = os.path.join(target_dir, f"bucket{i+1}")
             print(f"Creating bucket {i+1} with min_duration={bucket_min_duration} and max_duration={bucket_max_duration} ...")
-            print(f"Results are being saved at: {target_dir}.")
-            create_tar_datasets(min_duration=bucket_min_duration, max_duration=bucket_max_duration, target_dir=target_dir,
+            print(f"Results are being saved at: {bucket_dir}.")
+            create_tar_datasets(min_duration=bucket_min_duration, max_duration=bucket_max_duration, target_dir=bucket_dir,
                                 num_shards=num_shards, shuffle=shuffle, shuffle_seed=shuffle_seed, sort_in_shards=sort_in_shards,
                                 buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num, keep_files_together=keep_files_together,
                                 force_codec=force_codec, workers=workers, write_metadata=write_metadata, no_shard_manifests=no_shard_manifests,

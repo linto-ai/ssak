@@ -63,7 +63,7 @@ def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, chec
     kaldi_dataset.load(kaldi_input_dataset)
     if check_audio:
         logger.info(f"Checking (and transforming if needed) audio files")
-        kaldi_dataset.normalize_audios(os.path.join(new_audio_folder, kaldi_dataset.name), target_sample_rate=16000)
+        kaldi_dataset.normalize_audios(os.path.join(new_audio_folder, kaldi_dataset.name), target_sample_rate=16000, target_extension="wav") # target extension is maybe not needed
     logger.info(f"Writing to {file}")
     os.makedirs(output_dir, exist_ok=True)
     kaldi_to_nemo(kaldi_dataset, file)
