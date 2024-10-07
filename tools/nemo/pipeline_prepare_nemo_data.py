@@ -72,14 +72,16 @@ if __name__=="__main__":
             logger.info(f"Merged manifest for tokenizer already exists")
     else:
         import shutil
-        logger.info(f"Copying {splits_to_process[0]} manifest to all manifest")
-        shutil.copy2(os.path.join(f"{tmp_manifest_dir}", f"{splits_to_process[0]}_manifest_clean.jsonl"), os.path.join(f"{tmp_manifest_dir}", f"all_manifest_clean.jsonl"))
+        if not os.path.exists(os.path.join(f"{tmp_manifest_dir}", f"all_manifest_clean.jsonl")):
+            logger.info(f"Copying {splits_to_process[0]} manifest to all manifest")
+            shutil.copy2(os.path.join(f"{tmp_manifest_dir}", f"{splits_to_process[0]}_manifest_clean.jsonl"), os.path.join(f"{tmp_manifest_dir}", f"all_manifest_clean.jsonl"))
     if args.create_tokenizer:
         from process_asr_text_tokenizer import process_asr_text_tokenizer
         path_to_tokenizer = "tokenizer" if args.create_tokenizer is True else args.create_tokenizer
-        process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
+        if not os.path.exists(path_to_tokenizer):
+            process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
                                vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
     if args.create_tarred:
         from convert_to_tarred_audio_dataset import convert_to_tarred_audio_dataset
-        convert_to_tarred_audio_dataset(manifest_path=os.path.join(tmp_manifest_dir,"train_manifest_clean.jsonl"), target_dir=output_tarred_dir, num_shards=32, max_duration=31, min_duration=0.1, 
+        convert_to_tarred_audio_dataset(manifest_path=os.path.join(tmp_manifest_dir,"train_manifest_clean.jsonl"), target_dir=output_tarred_dir, num_shards=24, max_duration=30.5, min_duration=0.1, 
                                     workers=12, buckets_num=12, shuffle_seed=42, shuffle=True, sort_in_shards=False)

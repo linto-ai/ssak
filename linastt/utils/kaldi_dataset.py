@@ -238,7 +238,7 @@ class KaldiDataset:
             if apply_text_normalization:
                 row.text = row.normalized_text
             
-    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000):
+    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000, target_extension=None):
         """
         Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels. 
         
@@ -247,10 +247,11 @@ class KaldiDataset:
         Args:
             output_wavs_conversion_folder (str): Folder where to save the transformed audio files
             target_sample_rate (int): Target sample rate for the audio files
+            target_extension (str): Optional. Target extension for the audio files. If set to None, it will keep the original extension
         """
         updated_audio_paths = dict()
         for audio_path in tqdm(self.get_audio_paths(unique=True), desc="Checking audio files"):
-            new_path = self.audio_checks(audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate)
+            new_path = self.audio_checks(audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate, target_extension=target_extension)
             if new_path != audio_path:
                 updated_audio_paths[audio_path] = new_path
         for row in self.dataset:
@@ -391,7 +392,7 @@ class KaldiDataset:
                     audio_id=audio_id, start=start, end=end, speaker=spks.get(seg_id, None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         
-    def audio_checks(self, audio_path, new_folder, target_sample_rate=16000):
+    def audio_checks(self, audio_path, new_folder, target_sample_rate=16000, target_extension=None):
         """
         Check audio file sample rate and number of channels and convert it if it doesn't match the target sample rate/number of channels.
         
@@ -399,17 +400,21 @@ class KaldiDataset:
             audio_path (str): Path to the audio file
             new_folder (str): Folder where to save the transformed audio file
             target_sample_rate (int): Target sample rate for the audio file
+            target_extension (str): Optional. Target extension for the audio file. If set to None, it will keep the original extension
         """
         max_channel = 1 # not implemented for higher values yet
         if new_folder:
-            new_path = os.path.join(new_folder, os.path.basename(audio_path))
+            if target_extension:
+                new_path = os.path.join(new_folder, os.path.basename(audio_path).replace(os.path.splitext(audio_path)[1], target_extension))
+            else:
+                new_path = os.path.join(new_folder, os.path.basename(audio_path))
         else:
             raise ValueError("New folder must be specified for audio conversion")
         if not os.path.exists(new_path):
             if not os.path.exists(audio_path):
                 raise FileNotFoundError(f"Audio file {audio_path} does not exist")
             infos = torchaudio.info(audio_path)
-            if infos.num_channels > max_channel or infos.sample_rate != target_sample_rate:
+            if infos.num_channels > max_channel or infos.sample_rate != target_sample_rate or (target_extension is not None and not audio_path.endswith(target_extension)):
                 waveform, original_sample_rate = torchaudio.load(audio_path)
                 if infos.num_channels > max_channel:
                     logger.debug(f"Audio file {audio_path} has {infos.num_channels} channels. Converting to 1 channel...")
