@@ -38,7 +38,8 @@ class KaldiDatasetRow:
     gender: str = None
     split: str = None
     
-    def check_row(self, show_warnings=True):
+    def check_row(self, show_warnings=True, accept_warnings=False, warn_if_shorter_than=0.05, \
+        warn_if_longer_than=None, check_if_segments_in_audio=False):
         """
         Check if the row is valid and fill missing attributes if possible. If not, it will log (or throw an error) a warning and skip.
         """
@@ -55,14 +56,34 @@ class KaldiDatasetRow:
         if self.audio_id is None:
             self.audio_id = self.id
         self.text = re.sub(r'\s+', ' ', self.text)
-        if self.duration <= 0.05:
+        if warn_if_shorter_than is not None and self.duration <= warn_if_shorter_than:
             if show_warnings:
                 logger.warning(f"Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (with text: {self.text} and file: {self.audio_id})")
-            return False
+            if not accept_warnings:
+                return False
+        if warn_if_longer_than is not None and self.duration >= warn_if_longer_than:
+            if show_warnings:
+                logger.warning(f"Duration too long for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (with text: {self.text} and file: {self.audio_id})")
+            if not accept_warnings:
+                return False
         if len(self.text)==0:
             if show_warnings:
                 logger.warning(f"Empty text for {self.id} (with file: {self.audio_id})")
-            return False
+            if not accept_warnings:
+                return False
+        if check_if_segments_in_audio:
+            from linastt.utils.audio import get_audio_duration
+            dur = get_audio_duration(self.audio_path)
+            if self.start > dur:
+                if show_warnings:
+                    logger.warning(f"Start time is greater than audio duration ({self.start}>{dur}) for {self.id} (with file: {self.audio_id})")
+                if not accept_warnings:
+                    return False
+            elif self.end > dur:
+                if show_warnings:
+                    logger.warning(f"End time is greater than audio duration ({self.end}>{dur}) for {self.id} (with file: {self.audio_id})")
+                if not accept_warnings:
+                    return False
         if self.speaker is None:
             raise ValueError(f"Speaker must be specified for self {self.id} (with file: {self.audio_id})")
         return True
@@ -84,10 +105,15 @@ class KaldiDataset:
         normalize_audios(output_wavs_conversion_folder, target_sample_rate): Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels
     """
     
-    def __init__(self, name=None, show_warnings=True):
+    def __init__(self, name=None, show_warnings=True, accept_warnings=False, warn_if_shorter_than=0.05, \
+        warn_if_longer_than=None, check_if_segments_in_audio=False):
         if name:
             self.name = name
         self.show_warnings = show_warnings
+        self.accept_warnings = accept_warnings
+        self.warn_if_shorter_than = warn_if_shorter_than
+        self.warn_if_longer_than = warn_if_longer_than
+        self.check_if_segments_in_audio = check_if_segments_in_audio
         self.dataset = list()
         self.splits = set()
 
@@ -119,7 +145,7 @@ class KaldiDataset:
         """
         if not isinstance(row, KaldiDatasetRow):
             row = KaldiDatasetRow(**row)
-        if row.check_row(self.show_warnings):
+        if row.check_row(self.show_warnings, self.accept_warnings, self.warn_if_shorter_than, self.warn_if_longer_than, self.check_if_segments_in_audio):
             self.dataset.append(row)
             
     def get_ids(self, unique=True):
@@ -182,8 +208,16 @@ class KaldiDataset:
         """
         return [i for i in self.dataset if i.speaker==speaker]
     
-    def get_duration(self):
-        return sum([i.duration for i in self.dataset])
+    def get_duration(self, mode=sum):
+        if mode=="wav":
+            from linastt.utils.audio import get_audio_duration
+            sum = 0
+            for i in self.get_audio_paths(unique=True):
+                sum += get_audio_duration(i)
+            return sum
+        elif mode=="sum" or mode=="min" or mode=="max":
+            mode = eval(mode)
+        return mode([i.duration for i in self.dataset])
     
     def filter_by_audio_ids(self, audio_ids):
         """
@@ -336,7 +370,7 @@ class KaldiDataset:
         if total_saved_rows != len(self.dataset):
             logger.warning(f"Saved {total_saved_rows} rows but dataset has {len(self.dataset)} rows")
 
-    def load(self, input_dir):
+    def load(self, input_dir, show_progress=True):
         """
         Load a kaldi dataset from a directory and adds it to the dataset
         
@@ -374,7 +408,11 @@ class KaldiDataset:
         if not os.path.exists(os.path.join(input_dir, "segments")):
             file = "wav.scp"
         with open(os.path.join(input_dir, file), "r") as f:
-            for line in tqdm(f.readlines(), desc=f"Loading {input_dir}"):
+            if show_progress:
+                loop = tqdm(f.readlines(), desc=f"Loading {input_dir}")
+            else:
+                loop = f.readlines()
+            for line in loop:
                 line = line.strip().split()
                 if file=="segments":
                     start, end = round(float(line[2]), 3), round(float(line[3]), 3)
@@ -423,7 +461,8 @@ class KaldiDataset:
                     logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to {target_sample_rate}Hz...")
                     resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=target_sample_rate)
                     resampled_waveform = resampler(waveform)
-                os.makedirs(new_folder, exist_ok=True)
+                if not os.path.exists(new_folder):
+                    os.makedirs(new_folder, exist_ok=True)
                 torchaudio.save(new_path, resampled_waveform, target_sample_rate)
                 return new_path
             else:

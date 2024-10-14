@@ -20,7 +20,7 @@ class Reader2Kaldi:
                         raise FileNotFoundError(f"File {i.input} not found")
         self.processors = processors
     
-    def load(self):
+    def load(self, warn_if_shorter_than=0.05, warn_if_longer_than=None, check_if_segments_in_audio=False):
         dataset = []
         self.processors = sorted(self.processors, key=lambda x: x.execute_order)
         pbar = tqdm(self.processors, desc="Processing pipeline")
@@ -29,7 +29,8 @@ class Reader2Kaldi:
             dataset = processor.process(dataset)
         logger.info(f"Dataset processed with {len(dataset)} rows")
         logger.info(f"First row: {dataset[0]}")
-        kaldi_dataset = KaldiDataset(show_warnings=True)
+        kaldi_dataset = KaldiDataset(show_warnings=True, warn_if_shorter_than=warn_if_shorter_than, \
+            warn_if_longer_than=warn_if_longer_than, check_if_segments_in_audio=check_if_segments_in_audio)
         keys_to_keep = ['id', 'audio_id', 'audio_path', 'text', 'speaker', 'gender', 'start', 'end', 'duration', 'normalized_text']
         for row in tqdm(dataset, desc="Creating Kaldi dataset"):
             row = {k: row[k] for k in keys_to_keep if k in row}
