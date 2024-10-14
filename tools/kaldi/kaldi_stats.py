@@ -28,7 +28,7 @@ def get_utt2dur_duration(
         dataset_folder = os.path.dirname(dataset_folder)
 
     dataset = KaldiDataset(dataset_folder, show_warnings=True, accept_warnings=True,\
-        warn_if_shorter_than=warn_if_shorter_than, warn_if_longer_than=warn_if_longer_than)
+        warn_if_shorter_than=warn_if_shorter_than, warn_if_longer_than=warn_if_longer_than, check_if_segments_in_audio=check_if_segments_in_audio)
     dataset.load(dataset_folder, show_progress=False)
     wav_files = dataset.get_audio_paths(unique=True)
 
@@ -38,7 +38,6 @@ def get_utt2dur_duration(
     min_duration = float("inf")
     max_duration = 0
     total_duration = 0
-    
     duration_wav = 0
     
     for row in dataset:          # not using dataset.get_duration because faster to make only one pass
@@ -48,14 +47,6 @@ def get_utt2dur_duration(
         if duration > max_duration:
             max_duration = duration
         total_duration += duration
-        if check_if_segments_in_audio :
-            from linastt.utils.audio import get_audio_duration
-            dur = get_audio_duration(row.audio_path)
-            if row.start > dur:
-                logger.warning(f"Start time is greater than audio duration ({row.start}>{dur}) for {row.id} in {dataset_folder}")
-            elif row.end > dur:
-                logger.warning(f"End time is greater than audio duration ({row.end}>{dur}) for {row.id} in {dataset_folder}")
-            
 
     if check_wav_duration:
         from linastt.utils.audio import get_audio_duration
