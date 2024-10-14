@@ -511,6 +511,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug_folder', help="Folder to store cutted files", default = None, type = str)
     parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
     parser.add_argument('--verbose', default=False, action="store_true", help="To print more information")
+    parser.add_argument('--skip_warnings', default=False, action="store_true", help="To skip warnings")
     args = parser.parse_args()
 
     if args.model is None:
@@ -533,4 +534,5 @@ if __name__ == "__main__":
         regex_rm_full = args.regex_rm_full,
         plot = args.plot,
         verbose = args.verbose,
+        skip_warnings=args.skip_warnings,
     )
