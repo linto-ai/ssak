@@ -27,9 +27,9 @@ class KaldiDatasetRow:
         gender (str): Optional. Must be "M" or "F".
     """
     id: str
-    text: str
-    audio_id: str
-    audio_path: str
+    text: str = None
+    audio_id: str = None
+    audio_path: str = None
     normalized_text: str = None
     duration: float = None
     start: float = None
@@ -39,7 +39,7 @@ class KaldiDatasetRow:
     split: str = None
     
     def check_row(self, show_warnings=True, accept_warnings=False, warn_if_shorter_than=0.05, \
-        warn_if_longer_than=None, check_if_segments_in_audio=False):
+        warn_if_longer_than=3600, check_if_segments_in_audio=False, accept_missing_speaker=False):
         """
         Check if the row is valid and fill missing attributes if possible. If not, it will log (or throw an error) a warning and skip.
         """
@@ -55,37 +55,38 @@ class KaldiDatasetRow:
             self.end = self.start + self.duration
         if self.audio_id is None:
             self.audio_id = self.id
-        self.text = re.sub(r'\s+', ' ', self.text)
         if warn_if_shorter_than is not None and self.duration <= warn_if_shorter_than:
             if show_warnings:
-                logger.warning(f"Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (with text: {self.text} and file: {self.audio_id})")
+                logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (file: {self.audio_id})")
             if not accept_warnings:
                 return False
         if warn_if_longer_than is not None and self.duration >= warn_if_longer_than:
             if show_warnings:
-                logger.warning(f"Duration too long for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (with text: {self.text} and file: {self.audio_id})")
+                logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Duration too long for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (file: {self.audio_id})")
             if not accept_warnings:
                 return False
-        if len(self.text)==0:
-            if show_warnings:
-                logger.warning(f"Empty text for {self.id} (with file: {self.audio_id})")
-            if not accept_warnings:
-                return False
+        if self.text is not None:   # should not check if None (Should only be None when load_text is False)
+            self.text = re.sub(r'\s+', ' ', self.text)
+            if len(self.text)==0:
+                if show_warnings:
+                    logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Empty text for {self.id} (with file: {self.audio_id})")
+                if not accept_warnings:
+                    return False
         if check_if_segments_in_audio:
             from linastt.utils.audio import get_audio_duration
-            dur = get_audio_duration(self.audio_path)
+            dur = round(get_audio_duration(self.audio_path), 3)
             if self.start > dur:
                 if show_warnings:
-                    logger.warning(f"Start time is greater than audio duration ({self.start}>{dur}) for {self.id} (with file: {self.audio_id})")
+                    logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Start time is greater than audio duration ({self.start}>{dur}) for {self.id} (with file: {self.audio_id})")
                 if not accept_warnings:
                     return False
-            elif self.end > dur:
+            elif self.end > dur+0.1:
                 if show_warnings:
-                    logger.warning(f"End time is greater than audio duration ({self.end}>{dur}) for {self.id} (with file: {self.audio_id})")
+                    logger.warning(f"{'Skipping: ' if not accept_warnings else ''}End time is greater than audio duration ({self.end}>{dur}) for {self.id} (with file: {self.audio_id})")
                 if not accept_warnings:
                     return False
-        if self.speaker is None:
-            raise ValueError(f"Speaker must be specified for self {self.id} (with file: {self.audio_id})")
+        if self.speaker is None and not accept_missing_speaker:
+            raise ValueError(f"Speaker must be specified for {self.id} (with file: {self.audio_id})")
         return True
 
 class KaldiDataset:
@@ -105,15 +106,11 @@ class KaldiDataset:
         normalize_audios(output_wavs_conversion_folder, target_sample_rate): Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels
     """
     
-    def __init__(self, name=None, show_warnings=True, accept_warnings=False, warn_if_shorter_than=0.05, \
-        warn_if_longer_than=None, check_if_segments_in_audio=False):
+    def __init__(self, name=None, row_checking_kwargs=None, accept_missing_speaker=False):
         if name:
             self.name = name
-        self.show_warnings = show_warnings
-        self.accept_warnings = accept_warnings
-        self.warn_if_shorter_than = warn_if_shorter_than
-        self.warn_if_longer_than = warn_if_longer_than
-        self.check_if_segments_in_audio = check_if_segments_in_audio
+        self.row_checking_kwargs = row_checking_kwargs
+        self.accept_missing_speaker = accept_missing_speaker
         self.dataset = list()
         self.splits = set()
 
@@ -145,7 +142,7 @@ class KaldiDataset:
         """
         if not isinstance(row, KaldiDatasetRow):
             row = KaldiDatasetRow(**row)
-        if row.check_row(self.show_warnings, self.accept_warnings, self.warn_if_shorter_than, self.warn_if_longer_than, self.check_if_segments_in_audio):
+        if row.check_row(accept_missing_speaker=self.accept_missing_speaker, **self.row_checking_kwargs):
             self.dataset.append(row)
             
     def get_ids(self, unique=True):
@@ -362,7 +359,10 @@ class KaldiDataset:
                     for i in speakers_to_gender:
                         f.write(f"{i} {speakers_to_gender[i].lower()}\n")
             logger.info(f"Validating dataset {output_dir}")
-            check_kaldi_dir(output_dir)
+            if self.accept_missing_speaker:
+                logger.info("Skipping check_kaldi_dir because it will raise and error since accept_missing_speaker is True")
+            else:
+                check_kaldi_dir(output_dir)
             logger.info(f"Saved {nb_rows} rows to {output_dir}")
             total_saved_rows += nb_rows
         if len(self.splits)>0:
@@ -370,43 +370,28 @@ class KaldiDataset:
         if total_saved_rows != len(self.dataset):
             logger.warning(f"Saved {total_saved_rows} rows but dataset has {len(self.dataset)} rows")
 
-    def load(self, input_dir, show_progress=True):
+    def load(self, input_dir, show_progress=True, load_texts=True, load_speakers=True):
         """
         Load a kaldi dataset from a directory and adds it to the dataset
         
         Args:
             input_dir (str): Path to the kaldi dataset directory
         """
-        texts = dict()
-        with open(os.path.join(input_dir, "text"), "r", encoding="utf-8") as f:
-            text_lines = f.readlines()
-            for line in text_lines:
-                line = line.strip().split()
-                texts[line[0]] = " ".join(line[1:])
-        wavs = dict()
-        with open(os.path.join(input_dir, "wav.scp"), "r") as f:
-            for line in f.readlines():
-                line = line.strip().split()
-                audio_id = line[0]
-                line = line[1:]
-                if line[0] == "sox":
-                    line = line[1:]
-                audio_path = line[0]
-                if audio_path.startswith("'") and not audio_path.endswith("'"):     # in case of spaces in the path
-                    for i in range(1, len(line)):
-                        audio_path += " " + line[i]
-                        if audio_path.endswith("'"):
-                            break
-                    audio_path = audio_path[1:-1]
-                wavs[audio_id] = audio_path
+        texts = None
+        if load_texts:
+            texts = parse_text_file(os.path.join(input_dir, "text"))
         spks = dict()
-        with open(os.path.join(input_dir, "utt2spk"), "r") as f:
-            for line in f.readlines():
-                line = line.strip().split()
-                spks[line[0]] = line[1]
-        file = "segments"
+        if load_speakers:
+            spks = parse_utt2spk_file(os.path.join(input_dir, "utt2spk"))
+        else:
+            self.accept_missing_speaker = True
+            logger.info("Accept_missing_speaker is set to True since load_speakers is set to False")
         if not os.path.exists(os.path.join(input_dir, "segments")):
             file = "wav.scp"
+            durations = parse_utt2dur_file(os.path.join(input_dir, "utt2dur"))
+        else:
+            file = "segments"
+            wavs = parse_wav_scp_file(os.path.join(input_dir, "wav.scp"))
         with open(os.path.join(input_dir, file), "r") as f:
             if show_progress:
                 loop = tqdm(f.readlines(), desc=f"Loading {input_dir}")
@@ -422,11 +407,14 @@ class KaldiDataset:
                     wav_path = wavs[audio_id]
                 else:
                     seg_id = audio_id = line[0]
-                    wav_path = wavs[audio_id]
-                    infos = torchaudio.info(wav_path)
-                    duration = infos.num_frames / infos.sample_rate
+                    wav_path = get_audio_from_wav_scp_line(line)
+                    if durations is not None:
+                        duration = durations[seg_id]
+                    else:
+                        from linastt.utils.audio import get_audio_duration
+                        duration = get_audio_duration(wav_path)
                     start, end = 0, duration
-                self.append(KaldiDatasetRow(id=seg_id, text=texts[seg_id], audio_path=wav_path, duration=duration, \
+                self.append(KaldiDatasetRow(id=seg_id, text=texts[seg_id] if texts else None, audio_path=wav_path, duration=duration, \
                     audio_id=audio_id, start=start, end=end, speaker=spks.get(seg_id, None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         
@@ -468,3 +456,50 @@ class KaldiDataset:
             else:
                 return audio_path
         return new_path
+
+def get_audio_from_wav_scp_line(line):
+    line = line[1:]
+    if line[0] == "sox" or line[0] == "flac" or line[0] == "/usr/bin/sox":
+        line = line[1:]
+    audio_path = line[0]
+    if audio_path.startswith("'") and not audio_path.endswith("'"):     # in case of spaces in the path
+        for i in range(1, len(line)):
+            audio_path += " " + line[i]
+            if audio_path.endswith("'"):
+                break
+        audio_path = audio_path[1:-1]
+    return audio_path
+
+def parse_wav_scp_file(file):
+    wavs = dict()
+    with open(file, "r") as f:
+        for line in f.readlines():
+            line = line.strip().split()
+            audio_id = line[0]
+            wavs[audio_id] = get_audio_from_wav_scp_line(line)
+    return wavs
+
+def parse_text_file(file):
+    texts = dict()
+    with open(file, "r", encoding="utf-8") as f:
+        text_lines = f.readlines()
+        for line in text_lines:
+            line = line.strip().split()
+            texts[line[0]] = " ".join(line[1:])
+    return texts
+
+def parse_utt2spk_file(file):
+    spks = dict()
+    with open(file, "r") as f:
+        for line in f.readlines():
+            line = line.strip().split()
+            spks[line[0]] = line[1]
+    return spks
+
+def parse_utt2dur_file(file):
+    durs = dict()
+    with open(file, "r") as f:
+        for line in f.readlines():
+            line = line.strip().split()
+            durs[line[0]] = round(float(line[1]), 3)
+    return durs

@@ -3,66 +3,104 @@
 
 import os
 import logging
+import warnings
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 from linastt.utils.misc import commonprefix
-from linastt.utils.kaldi_dataset import KaldiDataset
+from linastt.utils.kaldi_dataset import KaldiDataset, parse_utt2dur_file
+from linastt.utils.kaldi import parse_kaldi_wavscp
 
 UNK = "_"
 
 ALL_WAVS = set()
 
 def get_utt2dur_duration(
-    dataset_folder,
+    utt2dur_file,
     check_wav_duration=False,
     warn_if_longer_than=3600,
     warn_if_shorter_than=0.005,
     check_if_segments_in_audio=False
     ):
 
-    if not os.path.exists(dataset_folder):
-        raise FileNotFoundError(f"Missing folder: {dataset_folder}")
-    if os.path.isfile(dataset_folder):
-        dataset_folder = os.path.dirname(dataset_folder)
-
-    dataset = KaldiDataset(dataset_folder, show_warnings=True, accept_warnings=True,\
-        warn_if_shorter_than=warn_if_shorter_than, warn_if_longer_than=warn_if_longer_than, check_if_segments_in_audio=check_if_segments_in_audio)
-    dataset.load(dataset_folder, show_progress=False)
-    wav_files = dataset.get_audio_paths(unique=True)
-
-    global ALL_WAVS
-    ALL_WAVS = ALL_WAVS.union(wav_files)
+    if os.path.isdir(utt2dur_file):
+        utt2dur_file += "/utt2dur"
+    assert os.path.isfile(utt2dur_file), f"Missing file: {utt2dur_file}"
 
     min_duration = float("inf")
     max_duration = 0
     total_duration = 0
-    duration_wav = 0
-    
-    for row in dataset:          # not using dataset.get_duration because faster to make only one pass
-        duration = row.duration
-        if duration < min_duration:
-            min_duration = duration
-        if duration > max_duration:
-            max_duration = duration
-        total_duration += duration
+    number = 0
 
-    if check_wav_duration:
-        from linastt.utils.audio import get_audio_duration
-        for i in wav_files:
-            duration_wav += get_audio_duration(i)
+    line = None
+    try:
+        with open(utt2dur_file, 'r') as f:
+            for line in f:
+                id, duration = line.strip().split(" ")
+                duration = float(duration)
+                if duration < min_duration:
+                    min_duration = duration
+                    if warn_if_shorter_than and duration < warn_if_shorter_than:
+                        warnings.warn(f"Duration of {id} in {utt2dur_file} is short: {duration}")
+                if duration > max_duration:
+                    max_duration = duration
+                    if warn_if_longer_than and duration > warn_if_longer_than:
+                        warnings.warn(f"Duration of {id} in {utt2dur_file} is long: {duration}")
+                total_duration += duration
+                number += 1
+
+    except Exception as e:
+        raise RuntimeError(f"Error while reading {utt2dur_file} (line: {line})") from e
+
+    number_wav = UNK
+    duration_wav = UNK
+    wavscp = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "wav.scp")
+    segments = os.path.join(os.path.dirname(os.path.realpath(utt2dur_file)), "segments")
+    if os.path.isfile(wavscp):
+        wav = parse_kaldi_wavscp(wavscp)
+        with open(wavscp, 'r') as f:
+            number_wav = len(wav.values())
+            if number_wav != len(set(wav.values())):
+                warnings.warn(f"Duplicate entries in {wavscp}")
+            global ALL_WAVS
+            ALL_WAVS = ALL_WAVS.union(set([os.path.splitext(os.path.basename(path))[0] for path in wav.values()]))
+        if check_wav_duration:
+            from linastt.utils.audio import get_audio_duration
+            
+            if not os.path.isfile(segments):
+                duration_wav = total_duration
+            else:
+                duration_wav = 0
+                for _, path in wav.items():
+                    if os.path.isfile(path):
+                        duration_wav += get_audio_duration(path)
+                    else:
+                        print(f"WARNING: missing file {path}")
+                        duration_wav = UNK
+                        break
+        if check_if_segments_in_audio:
+            from linastt.utils.audio import get_audio_duration
+            if os.path.isfile(segments):
+                with open(segments, 'r') as f:
+                    for line in f:
+                        id, audio_id, start, end = line.strip().split(" ")
+                        start = float(start)
+                        end = float(end)
+                        audio_duration = get_audio_duration(wav[audio_id])
+                        if start < 0 or start > audio_duration:
+                            warnings.warn(f"Segment {id} in {segments} is not in audio duration {audio_id}: {start} -> {end} (audio duration: {audio_duration})")
 
     res = {
-        "name": dataset_folder,
-        "# wav": len(wav_files)
+        "name": os.path.dirname(utt2dur_file),
+        "# wav": number_wav
     }
     if check_wav_duration:
         res.update({
             "wav duration": duration_wav,
         })
     res.update({
-        "# segments": len(dataset),
+        "# segments": number,
         "total duration": total_duration,
         "min duration": min_duration,
         "max duration": max_duration,
