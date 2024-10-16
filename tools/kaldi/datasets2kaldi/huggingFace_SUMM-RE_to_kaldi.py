@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Download and convert a dataset HuggingFace to Kaldi")
     parser.add_argument("--dataset", type=str, default="linagora/SUMM-RE",help="Dataset name")
     parser.add_argument("--kaldi_path", type=str, default="SUMM-RE",help="Path to new Kaldi directory")
-    parser.add_argument("--existing_wavs_path", type=str, default="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/SUMM-RE_French_corpus/audio/individual",help="Path to store the audio files")
+    parser.add_argument("--existing_wavs_path", type=str, default="/media/nas/CORPUS_FINAL/Corpus_audio/Corpus_FR/SUMM-RE_French_corpus/individual_files/audio",help="Path to store the audio files")
     parser.add_argument("--wavs_path", type=str, default="/media/nas/CORPUS_PENDING/Corpus_audio/Corpus_FR/SUMM-RE/wavs",help="Path to store the audio files")
     parser.add_argument("--language", type=str, default=None,help="Language of the dataset if applicable")
     parser.add_argument("--subset", type=str, default=None,help="Language of the dataset if applicable")
