@@ -106,7 +106,7 @@ class KaldiDataset:
         normalize_audios(output_wavs_conversion_folder, target_sample_rate): Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels
     """
     
-    def __init__(self, name=None, row_checking_kwargs=None, accept_missing_speaker=False):
+    def __init__(self, name=None, row_checking_kwargs=dict(), accept_missing_speaker=False):
         if name:
             self.name = name
         self.row_checking_kwargs = row_checking_kwargs

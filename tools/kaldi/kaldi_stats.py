@@ -88,7 +88,7 @@ def get_utt2dur_duration(
                         start = float(start)
                         end = float(end)
                         audio_duration = get_audio_duration(wav[audio_id])
-                        if start < 0 or start > audio_duration:
+                        if start < 0 or start >= audio_duration-warn_if_shorter_than:
                             warnings.warn(f"Segment {id} in {segments} is not in audio duration {audio_id}: {start} -> {end} (audio duration: {audio_duration})")
 
     res = {
@@ -216,7 +216,7 @@ if __name__ == "__main__":
                     if not any([d in path for d in datasets]):
                         continue
                 if not args.subset_pattern is None:
-                    if not any([d in path for d in args.subset_pattern]):
+                    if not any([pattern in root for pattern in args.subset_pattern]):
                         continue
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
