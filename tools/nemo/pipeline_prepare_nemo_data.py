@@ -19,6 +19,10 @@ if __name__=="__main__":
     parser.add_argument('--vocab_size', help="Vocab size", type=int, default=1024)
     parser.add_argument('--create_tarred', action="store_true", default=False)
     parser.add_argument('--output_tarred_dir', help="Output tarred directory", type=str, default="tarred_dataset")
+    parser.add_argument('--num_shards', default=24, type=int)
+    parser.add_argument('--num_buckets', default=12, type=int)
+    parser.add_argument('--num_workers', default=12, type=int)
+    parser.add_argument('--max_duration', default=30.1, type=float)
     args = parser.parse_args()
     
     logging.basicConfig(level=logging.INFO)
@@ -83,5 +87,5 @@ if __name__=="__main__":
                                vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
     if args.create_tarred:
         from convert_to_tarred_audio_dataset import convert_to_tarred_audio_dataset
-        convert_to_tarred_audio_dataset(manifest_path=os.path.join(tmp_manifest_dir,"train_manifest_clean.jsonl"), target_dir=output_tarred_dir, num_shards=24, max_duration=30.5, min_duration=0.1, 
-                                    workers=12, buckets_num=12, shuffle_seed=42, shuffle=True, sort_in_shards=False)
+        convert_to_tarred_audio_dataset(manifest_path=os.path.join(tmp_manifest_dir,"train_manifest_clean.jsonl"), target_dir=output_tarred_dir, num_shards=args.num_shards, max_duration=args.max_duration, min_duration=0.1, 
+                                    workers=args.num_workers, buckets_num=args.num_buckets, shuffle_seed=42, shuffle=True, sort_in_shards=False)
