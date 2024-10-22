@@ -278,7 +278,7 @@ class KaldiDataset:
         Args:
             output_wavs_conversion_folder (str): Folder where to save the transformed audio files
             target_sample_rate (int): Target sample rate for the audio files
-            target_extension (str): Optional. Target extension for the audio files. If set to None, it will keep the original extension
+            target_extension (str): Optional. Target extension for the audio files (wav, mp3...). If set to None, it will keep the original extension
         """
         updated_audio_paths = dict()
         for audio_path in tqdm(self.get_audio_paths(unique=True), desc="Checking audio files"):
@@ -418,7 +418,7 @@ class KaldiDataset:
                     audio_id=audio_id, start=start, end=end, speaker=spks.get(seg_id, None)))
         logger.info(f"Loaded {len(self.dataset)} rows from {input_dir}")
         
-    def audio_checks(self, audio_path, new_folder, target_sample_rate=16000, target_extension=None):
+    def audio_checks(self, audio_path, new_folder, target_sample_rate=16000, target_extension=None, max_channel=1):
         """
         Check audio file sample rate and number of channels and convert it if it doesn't match the target sample rate/number of channels.
         
@@ -427,10 +427,12 @@ class KaldiDataset:
             new_folder (str): Folder where to save the transformed audio file
             target_sample_rate (int): Target sample rate for the audio file
             target_extension (str): Optional. Target extension for the audio file. If set to None, it will keep the original extension
+            max_channel (int): Maximum number of channels for the audio file. If the audio file has more channels, it will keep only the first channel. TODO: Add option to keep all channels in different files
         """
-        max_channel = 1 # not implemented for higher values yet
         if new_folder:
             if target_extension:
+                if not target_extension.startswith("."):
+                    target_extension = "." + target_extension
                 new_path = os.path.join(new_folder, os.path.basename(audio_path).replace(os.path.splitext(audio_path)[1], target_extension))
             else:
                 new_path = os.path.join(new_folder, os.path.basename(audio_path))
@@ -453,6 +455,10 @@ class KaldiDataset:
                     os.makedirs(new_folder, exist_ok=True)
                 torchaudio.save(new_path, resampled_waveform, target_sample_rate)
                 return new_path
+            elif not audio_path.endswith(target_extension):
+                logger.debug(f"Audio file has the wrong extension {audio_path}. Converting to {target_extension}...")
+                waveform, original_sample_rate = torchaudio.load(audio_path)
+                torchaudio.save(new_path, waveform, original_sample_rate)
             else:
                 return audio_path
         return new_path
