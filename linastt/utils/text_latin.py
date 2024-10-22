@@ -70,7 +70,7 @@ def format_text_latin(text,
             in_parenthesis = re.findall(r"\(([^\(\)]*?)\)", text)
             if len(in_parenthesis):
                 in_parenthesis = [s.rstrip(")").lstrip("(") for s in in_parenthesis]
-                regex = "("+")|(".join(["\("+regex_escape(p)+"\)" for p in in_parenthesis])+")"
+                regex = "("+")|(".join([r"\("+regex_escape(p)+r"\)" for p in in_parenthesis])+")"
                 without_parenthesis = re.sub(regex, "", text)
                 # assert without_parenthesis != text
                 if without_parenthesis != text: # Avoid infinite recursion
@@ -114,11 +114,11 @@ def format_text_latin(text,
         # Replace "." by "point" and "/" by "slash" in internet websites
         # Find all the websites in the text
         if lang == "fr":
-            websites = [w for w in re.findall('(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
+            websites = [w for w in re.findall(r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', text) if ".." not in w]
             websites = sorted(set(websites), key = len, reverse = True)
             for w in websites:
                 w2 = w
-                w2 = re.sub("\.", " point ", w2)
+                w2 = re.sub(r"\.", " point ", w2)
                 w2 = re.sub(":", " deux points ", w2)
                 w2 = re.sub("/", " slash ", w2)
                 w2 = re.sub("-", " tiret ", w2)
@@ -134,12 +134,12 @@ def format_text_latin(text,
         # text = re.sub(", ", " , ", text)
         # text = re.sub("\!", " ! ", text)        
         if lang == "fr":
-            text = re.sub("\?", " ? ", text)
+            text = re.sub(r"\?", " ? ", text)
             text = re.sub(":", " : ", text)
             text = re.sub(";", " ; ", text)
         #text = re.sub("^ *-+", "", text)
         text = re.sub("'","' ", text)
-        text = re.sub("\^+","", text)
+        text = re.sub(r"\^+","", text)
         text = re.sub(" +(- +)+", " ", text)
         text = re.sub("- ", " ", text)
         #text = re.sub("([a-zàâäçèéêëîïôùûü]+)- +", r"\1-", text)
@@ -163,7 +163,7 @@ def format_text_latin(text,
             text = re.sub(reg, replacement, text)
 
         if convert_numbers:
-            heures=re.findall("\d+ *h *\d+",text)
+            heures=re.findall(r"\d+ *h *\d+",text)
             for h in heures:
                 split_h=h.split('h')
                 text_rep=re.sub('^0+','',split_h[0])+' heures '+re.sub('^0+','',split_h[1])
@@ -510,6 +510,7 @@ _corrections_caracteres_speciaux = {
 
                     # Diacritics not present in French
                     ("á","a"),
+                    ("á","a"),
                     ("ä","a"),
                     ("å","a"),
                     ("а","a"),
@@ -531,8 +532,10 @@ _corrections_caracteres_speciaux = {
                     ("į","i"),
                     ("į","i"),
                     ("ı","i"),
+                    ("ì","i"),
                     ("ñ","n"),
                     ("ό","ο"),
+                    ("õ","o"),
                     ("ǒ","o"),
                     ("ō","o"),
                     ("ő","o"),
