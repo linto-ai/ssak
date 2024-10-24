@@ -19,9 +19,9 @@ if __name__=="__main__":
     
     output_path = args.output
     
-    raw = os.path.join(output_path, "casepunc/PFC")
+    raw = os.path.join(output_path, "casepunc")
     
-    nocasepunc = os.path.join(output_path, "nocasepunc/PFC")
+    nocasepunc = os.path.join(output_path, "nocasepunc")
     
     if os.path.exists(nocasepunc) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")

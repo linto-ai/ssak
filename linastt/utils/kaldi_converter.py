@@ -13,7 +13,7 @@ class Reader2Kaldi:
     
     def __init__(self, root, processors) -> None:
         for i in processors:
-            if not isinstance(i, Row2Info):
+            if not isinstance(i, Row2KaldiInfo):
                 if not os.path.exists(i.input):
                     i.input = os.path.join(root, i.input)
                     if not os.path.exists(i.input):
@@ -104,7 +104,7 @@ class AudioFolder2Kaldi(ToKaldi):
                 break
     
         # Decide whether to use a progress bar based on the file count
-        use_progress_bar = file_count > 5000
+        use_progress_bar = file_count >= 5000
         pbar = tqdm(desc="Processing files") if use_progress_bar else None
         
         for root, _, files in os.walk(self.input):
@@ -118,10 +118,52 @@ class AudioFolder2Kaldi(ToKaldi):
         if pbar is not None:
             pbar.close()
         return self.merge_data(dataset, new_data=data)
-        
-class Row2Info(ToKaldi):
+
+class TextFolder2Kaldi(ToKaldi):
+
+    def __init__(self, input, execute_order, sort_merging=True, extracted_id="id", supported_extensions=[".txt"]) -> None:
+        super().__init__(input, [extracted_id, "text"], execute_order, extracted_id, sort_merging=sort_merging)
+        self.supported_extensions = supported_extensions
+
+    def process(self, dataset):
+        data = []
+        file_count = 0
+        for _, _, files in os.walk(self.input):
+            file_count += len([f for f in files if os.path.splitext(f)[1] in self.supported_extensions])
+            if file_count>=5000:
+                break
     
-    def __init__(self, input, return_columns, execute_order, separator, info_position, sort_merging=True) -> None:
+        # Decide whether to use a progress bar based on the file count
+        use_progress_bar = file_count >= 5000
+        pbar = tqdm(desc="Processing files") if use_progress_bar else None
+        
+        for root, _, files in os.walk(self.input):
+            texts = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
+            ids = [os.path.splitext(i)[0] for i in texts]
+            for id, audio in zip(ids, texts):
+                text = open(os.path.join(root, audio), encoding="utf-8").read()
+                data.append({self.return_columns[0]: id, self.return_columns[1]: text})
+                if pbar is not None:
+                    pbar.update(1)
+                
+        if pbar is not None:
+            pbar.close()
+        return self.merge_data(dataset, new_data=data)
+
+class Row2KaldiInfo(ToKaldi):
+
+    def __call__(self, row):
+        raise NotImplementedError("This method must be implemented in the child class")
+
+    def process(self, dataset):
+        for row in dataset:
+            info = self(row)
+            row.update(info)
+        return dataset
+
+class Row2Info(Row2KaldiInfo):
+ 
+    def __init__(self, input, return_columns, execute_order, separator=None, info_position=None, sort_merging=True) -> None:
         super().__init__(input, return_columns, execute_order, sort_merging=sort_merging)
         self.separator = separator
         self.info_position = info_position
@@ -137,11 +179,14 @@ class Row2Info(ToKaldi):
             return {self.return_columns[0]: self.separator.join(row[self.input].split(self.separator)[start:end])}
         return {self.return_columns[0]: row[self.input].split(self.separator)[self.info_position]}
     
-    def process(self, dataset):
-        for row in dataset:
-            info = self(row)
-            row.update(info)
-        return dataset
+class Row2Duration(Row2KaldiInfo):
+
+    def __init__(self, execute_order, sort_merging=True) -> None:
+        super().__init__(input="audio_path", return_columns=['duration'], execute_order=execute_order, sort_merging=sort_merging)
+
+    def __call__(self, row):
+        from linastt.utils.audio import get_audio_duration
+        return {self.return_columns[0]: round(get_audio_duration(row[self.input]), 2)}
 
 class ColumnFile2Kaldi(ToKaldi):
     

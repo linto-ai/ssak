@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from linastt.utils.kaldi import check_kaldi_dir
 import torchaudio
 import logging
+from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,13 @@ class KaldiDatasetRow:
             self.duration = self.end - self.start
         elif self.end is None and self.start is not None and self.duration is not None:
             self.end = self.start + self.duration
+        elif self.duration is not None and self.start is None and self.end is None:
+            self.start = 0
+            self.end = self.duration
         if self.audio_id is None:
             self.audio_id = self.id
+        if self.duration is None:
+            raise ValueError(f"Duration (or end and start) must be specified for row {self}")
         if warn_if_shorter_than is not None and self.duration <= warn_if_shorter_than:
             if show_warnings:
                 logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (file: {self.audio_id})")
@@ -67,11 +73,19 @@ class KaldiDatasetRow:
                 return False
         if self.text is not None:   # should not check if None (Should only be None when load_text is False)
             self.text = re.sub(r'\s+', ' ', self.text)
+            BOM = '\ufeff'
+            self.text = self.text.replace(BOM, '')
             if len(self.text)==0:
                 if show_warnings:
                     logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Empty text for {self.id} (with file: {self.audio_id})")
                 if not accept_warnings:
                     return False
+        if self.gender is not None:
+            self.gender = self.gender.lower()
+            if self.gender=="h":
+                self.gender = "m"
+            if self.gender!="m" and self.gender!="f":
+                raise ValueError(f"Gender must be 'm' or 'f' not {self.gender} for {self.id} (with file: {self.audio_id})")
         if check_if_segments_in_audio:
             from linastt.utils.audio import get_audio_duration
             dur = round(get_audio_duration(self.audio_path), 3)
@@ -114,14 +128,14 @@ class KaldiDataset:
         self.dataset = list()
         self.splits = set()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dataset)
 
     def __next__(self):
         for row in self.dataset:
             yield row
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator['KaldiDatasetRow']:
         return self.__next__()
     
     def extend(self, dataset):
@@ -251,7 +265,7 @@ class KaldiDataset:
         return new_dataset
 
     
-    def normalize_dataset(self, apply_text_normalization=False):
+    def normalize_dataset(self, apply_text_normalization=True):
         """
         Normalize the texts in the dataset using the format_text_latin function from linastt.utils.text_latin
         
