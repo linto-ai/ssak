@@ -59,11 +59,10 @@ def convert_dataset(kaldi_input_dataset, output_dir, new_audio_folder=None, chec
     if os.path.exists(file):
         logger.warning(f"File {file} already exists. Abording conversion to NeMo...")
         return
-    logger.info(f"Converting Kaldi dataset {kaldi_input_dataset} to NeMo format")
     kaldi_dataset.load(kaldi_input_dataset)
     if check_audio:
         logger.info(f"Checking (and transforming if needed) audio files")
-        kaldi_dataset.normalize_audios(os.path.join(new_audio_folder, kaldi_dataset.name), target_sample_rate=16000, target_extension="wav") # wavs are faster to load than mp3
+        kaldi_dataset.normalize_audios(os.path.join(new_audio_folder, kaldi_dataset.name), target_sample_rate=16000, target_extension="wav", num_workers=2) # wavs are faster to load than mp3
     logger.info(f"Writing to {file}")
     os.makedirs(output_dir, exist_ok=True)
     kaldi_to_nemo(kaldi_dataset, file)

@@ -283,7 +283,7 @@ class KaldiDataset:
             if apply_text_normalization:
                 row.text = row.normalized_text
             
-    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000, target_extension=None):
+    def normalize_audios(self, output_wavs_conversion_folder, target_sample_rate=16000, target_extension=None, num_workers=1):
         """
         Check audio files sample rate and number of channels and convert them if they don't match the target sample rate/number of channels. 
         
@@ -294,11 +294,19 @@ class KaldiDataset:
             target_sample_rate (int): Target sample rate for the audio files
             target_extension (str): Optional. Target extension for the audio files (wav, mp3...). If set to None, it will keep the original extension
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         updated_audio_paths = dict()
-        for audio_path in tqdm(self.get_audio_paths(unique=True), desc="Checking audio files"):
-            new_path = self.audio_checks(audio_path, output_wavs_conversion_folder, target_sample_rate=target_sample_rate, target_extension=target_extension)
-            if new_path != audio_path:
-                updated_audio_paths[audio_path] = new_path
+        audio_paths = list(self.get_audio_paths(unique=True))
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(self.audio_checks, audio_path, output_wavs_conversion_folder, target_sample_rate, target_extension): audio_path for audio_path in audio_paths}
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Checking audio files"):
+                audio_path = futures[future]
+                try:
+                    new_path = future.result()  # Get the result of audio_checks for each audio file
+                    if new_path != audio_path:
+                        updated_audio_paths[audio_path] = new_path
+                except Exception as e:
+                    print(f"Error processing {audio_path}: {e}")
         for row in self.dataset:
             row.audio_path = updated_audio_paths.get(row.audio_path, row.audio_path)
 
@@ -464,10 +472,10 @@ class KaldiDataset:
                 if infos.sample_rate != target_sample_rate:
                     logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to {target_sample_rate}Hz...")
                     resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=target_sample_rate)
-                    resampled_waveform = resampler(waveform)
+                    waveform = resampler(waveform)
                 if not os.path.exists(new_folder):
                     os.makedirs(new_folder, exist_ok=True)
-                torchaudio.save(new_path, resampled_waveform, target_sample_rate)
+                torchaudio.save(new_path, waveform, target_sample_rate)
                 return new_path
             elif not audio_path.endswith(target_extension):
                 logger.debug(f"Audio file has the wrong extension {audio_path}. Converting to {target_extension}...")
