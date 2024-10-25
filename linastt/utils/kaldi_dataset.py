@@ -4,7 +4,6 @@ import csv
 import re
 from dataclasses import dataclass
 from linastt.utils.kaldi import check_kaldi_dir
-import torchaudio
 import logging
 from typing import Iterator
 
@@ -306,7 +305,7 @@ class KaldiDataset:
                     if new_path != audio_path:
                         updated_audio_paths[audio_path] = new_path
                 except Exception as e:
-                    print(f"Error processing {audio_path}: {e}")
+                    raise RuntimeError(f"Error processing {audio_path}: {e}")
         for row in self.dataset:
             row.audio_path = updated_audio_paths.get(row.audio_path, row.audio_path)
 
@@ -366,6 +365,7 @@ class KaldiDataset:
                         duration = row.end - row.start
                     elif duration is None:
                         if check_durations_if_missing:
+                            import torchaudio
                             infos = torchaudio.info(row.audio_path)
                             duration = infos.num_frames / infos.sample_rate
                         else:
@@ -451,6 +451,8 @@ class KaldiDataset:
             target_extension (str): Optional. Target extension for the audio file. If set to None, it will keep the original extension
             max_channel (int): Maximum number of channels for the audio file. If the audio file has more channels, it will keep only the first channel. TODO: Add option to keep all channels in different files
         """
+        from pydub import AudioSegment
+        from pydub.utils import mediainfo
         if new_folder:
             if target_extension:
                 if not target_extension.startswith("."):
@@ -463,24 +465,25 @@ class KaldiDataset:
         if not os.path.exists(new_path):
             if not os.path.exists(audio_path):
                 raise FileNotFoundError(f"Audio file {audio_path} does not exist")
-            infos = torchaudio.info(audio_path)
-            if infos.num_channels > max_channel or infos.sample_rate != target_sample_rate or (target_extension is not None and not audio_path.endswith(target_extension)):
-                waveform, original_sample_rate = torchaudio.load(audio_path)
-                if infos.num_channels > max_channel:
-                    logger.debug(f"Audio file {audio_path} has {infos.num_channels} channels. Converting to 1 channel...")
-                    waveform = waveform[0, :].unsqueeze(0)
-                if infos.sample_rate != target_sample_rate:
-                    logger.debug(f"Audio file {audio_path} has sample rate of {infos.sample_rate}. Converting to {target_sample_rate}Hz...")
-                    resampler = torchaudio.transforms.Resample(orig_freq=original_sample_rate, new_freq=target_sample_rate)
-                    waveform = resampler(waveform)
+            infos = mediainfo(audio_path)
+            src_sample_rate = int(infos['sample_rate'])
+            src_n_channels = int(infos['channels'])
+            if src_n_channels > max_channel or src_sample_rate != target_sample_rate or (target_extension is not None and not audio_path.endswith(target_extension)):
+                waveform = AudioSegment.from_file(audio_path)
+                if src_n_channels > max_channel:
+                    logger.debug(f"Audio file {audio_path} has {src_n_channels} channels. Converting to 1 channel...")
+                    waveform = waveform.set_channels(1)
+                if src_sample_rate != target_sample_rate:
+                    logger.debug(f"Audio file {audio_path} has sample rate of {src_sample_rate}. Converting to {target_sample_rate}Hz...")
+                    waveform = waveform.set_frame_rate(target_sample_rate)
                 if not os.path.exists(new_folder):
                     os.makedirs(new_folder, exist_ok=True)
-                torchaudio.save(new_path, waveform, target_sample_rate)
+                waveform.export(new_path, format="wav")
                 return new_path
             elif not audio_path.endswith(target_extension):
                 logger.debug(f"Audio file has the wrong extension {audio_path}. Converting to {target_extension}...")
-                waveform, original_sample_rate = torchaudio.load(audio_path)
-                torchaudio.save(new_path, waveform, original_sample_rate)
+                waveform = AudioSegment.from_file(audio_path)
+                waveform.export(new_path, format="wav")
             else:
                 return audio_path
         return new_path
