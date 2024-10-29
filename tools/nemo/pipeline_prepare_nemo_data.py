@@ -66,7 +66,7 @@ if __name__=="__main__":
         except FileExistsError:
             logger.info(f"{i} merged manifest already exists")
         try:
-            clean_text_fr(input=os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest.jsonl"), output=os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest_clean.jsonl"), empty_string_policy="ignore")
+            clean_text_fr(input=os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest.jsonl"), output=os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest_clean.jsonl"), keep_punc=False, empty_string_policy="ignore")
         except FileExistsError:
             logger.info(f"{i} cleaned manifest already exists")
     if len(splits_to_process) > 1:
@@ -83,7 +83,7 @@ if __name__=="__main__":
         from process_asr_text_tokenizer import process_asr_text_tokenizer
         path_to_tokenizer = "tokenizer" if args.create_tokenizer is True else args.create_tokenizer
         if not os.path.exists(path_to_tokenizer):
-            process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
+            process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, "all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
                                vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
     if args.create_tarred:
         from convert_to_tarred_audio_dataset import convert_to_tarred_audio_dataset
