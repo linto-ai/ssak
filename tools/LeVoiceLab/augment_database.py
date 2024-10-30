@@ -137,20 +137,22 @@ def run_command(command, doit=True, verbose=True):
     
     return subprocess.run(command, shell=True, check=True)
 
-def post_to_minio_and_clean(dir_in, s3server, s3user, fake_it=False):
+def post_to_minio_and_clean(dir_in, s3server, s3user, initialize=False):
 
     USERNAME = os.environ.get("LVL_MINIO_USERNAME")
     PASSWD = os.environ.get("LVL_MINIO_PASSWD")
     if not USERNAME or not PASSWD:
         raise ValueError("Please set LVL_MINIO_USERNAME and LVL_MINIO_PASSWD environment variables")
     
-    command = f"mc alias set voicelab {s3server} {USERNAME} {PASSWD} && mc mirror --overwrite {dir_in} voicelab/upload-data-linagora/{s3user}/{os.path.basename(dir_in)}"
-    if fake_it:
-        print("### Upload to minio will be done with command:")
-        print(command)
+    alias_command = f"mc alias set voicelab {s3server} {USERNAME} {PASSWD}"
+    sync_command = f"mc mirror --overwrite {dir_in} voicelab/upload-data-linagora/{s3user}/{os.path.basename(dir_in)}"
+    if initialize:
+        print("### Initialize mc:\n"+alias_command)
+        run_command(alias_command)
+        print("### Upload to minio will be done with command:\n"+sync_command)
         return
 
-    run_command(command)
+    run_command(sync_command)
     
     # Clean data
     for root, dirs, files in os.walk(dir_in):
@@ -196,7 +198,7 @@ if __name__ == "__main__":
     upload_and_clean = bool(args.s3user)
     post_to_minio_each = 20
     if upload_and_clean:
-        post_to_minio_and_clean(dir_out, args.s3server, args.s3user, fake_it=True)
+        post_to_minio_and_clean(dir_out, args.s3server, args.s3user, initialize=True)
 
     annotation_dirs = [d for d in os.listdir(dir_in) if os.path.isdir(dir_in + "/" + d)]
 
