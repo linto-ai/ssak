@@ -7,6 +7,7 @@ from datetime import datetime
 import shutil
 import time
 import glob
+import subprocess
 
 def json_dump(dic, f):
     json.dump(dic, f, indent = 2, ensure_ascii = False)
@@ -14,6 +15,12 @@ def json_dump(dic, f):
 import sys
 sys.path = [os.path.join(os.path.dirname(os.path.realpath(__file__)), "data_augmentation")] + sys.path
 from augmentation import SpeechAugment, transform2str, transform2genericstr, transform2description
+
+import warnings
+
+# Suppress specific warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="audiomentations")
+warnings.filterwarnings("ignore", message="formats: mp3 can't encode")
 
 def load_audio(path, start = None, end = None, sampling_rate = None, mono = True):
     """ 
@@ -119,6 +126,39 @@ def uncamel(s):
     # Add spaces before capital letters
     return "".join([" " + c if c.isupper() else c for c in s]).strip()
 
+def run_command(command, doit=True, verbose=True):
+    if isinstance(command, list):
+        command = " ".join(command)
+    
+    if verbose or not doit:
+        print(f"... Running command ...\n{command}")
+    if not doit:
+        return
+    
+    return subprocess.run(command, shell=True, check=True)
+
+def post_to_minio_and_clean(dir_in, s3server, s3user, fake_it=False):
+
+    USERNAME = os.environ.get("LVL_MINIO_USERNAME")
+    PASSWD = os.environ.get("LVL_MINIO_PASSWD")
+    if not USERNAME or not PASSWD:
+        raise ValueError("Please set LVL_MINIO_USERNAME and LVL_MINIO_PASSWD environment variables")
+    
+    command = f"mc alias set voicelab {s3server} {USERNAME} {PASSWD} && mc mirror --overwrite {dir_in} voicelab/upload-data-linagora/{s3user}/{os.path.basename(dir_in)}"
+    if fake_it:
+        print("### Upload to minio will be done with command:")
+        print(command)
+        return
+
+    run_command(command)
+    
+    # Clean data
+    for root, dirs, files in os.walk(dir_in):
+        for file in files:
+            if any([file.endswith(ext) for ext in [".audio.mp3", ".annotations.json", ".meta.json"]]):
+                os.remove(os.path.join(root, file))
+        
+
 if __name__ == "__main__":
 
     import random
@@ -133,32 +173,53 @@ if __name__ == "__main__":
     parser.add_argument("--split_by_augmentation_type", default=False, action="store_true", help="Split in sub-folders depending on the augmentation type")
     parser.add_argument("--continue", dest="continue_", default=False, action="store_true", help="Continue from where we stopped")
     parser.add_argument("--to16k", default=False, action="store_true", help="Convert audio to 16kHz")
+    parser.add_argument("--s3user", default=None, help="A minio username. If specified, data will be uploaded while being generated, and cleaned. Example: linagora-jerome-louradour")
+    parser.add_argument("--s3server", default="https://s3.levoicelab.org", help="A minio server. Example: https://s3.levoicelab.org")
+    parser.add_argument("--verbose", default=False, action="store_true", help="Print more information")
     args = parser.parse_args()
 
     SEED = 1
     MAX = None
     random.seed(SEED)
 
-    NUM_MULTI_AUG = get_augmenter().get_num_transforms()
-    print(f"{NUM_MULTI_AUG} transformations (augmentation types)")
-
     dir_in = args.input
     dir_out = args.output
     subdirs_out = {}
+
+    if os.path.isfile(dir_out):
+        raise RuntimeError(f"Output directory {dir_out} is a file. Please remove it or specify another directory.")
+    if not args.continue_ and os.path.exists(dir_out):
+        print(f"Output directory {dir_out} already exists. Please remove it or use --continue.")
+        sys.exit(0)
+    os.makedirs(dir_out, exist_ok=True)
+
+    upload_and_clean = bool(args.s3user)
+    post_to_minio_each = 20
+    if upload_and_clean:
+        post_to_minio_and_clean(dir_out, args.s3server, args.s3user, fake_it=True)
 
     annotation_dirs = [d for d in os.listdir(dir_in) if os.path.isdir(dir_in + "/" + d)]
 
     now = time2str(datetime.now())
 
-    done = 0
-    for fname in tqdm(os.listdir(dir_in)):
+    def is_audio(fname):
         f = fname.split(".")
-        if len(f) < 3 or f[-2] != "audio": continue
+        return len(f) >= 3 and f[-2] == "audio"
+    audio_files = sorted(os.listdir(dir_in))
+    audio_files = [f for f in audio_files if is_audio(f)]
+    print(f"{len(audio_files)} audio files to be processed")    
+
+    NUM_MULTI_AUG = get_augmenter().get_num_transforms()
+    print(f"{NUM_MULTI_AUG} transformations (augmentation types)")
+
+    done = 0
+    for fname in tqdm(audio_files):
+        f = fname.split(".")
         base = ".".join(f[:-2]) 
         audio = os.path.join(dir_in, fname)
         meta = os.path.join(dir_in, base + ".meta.json")
-        assert os.path.isfile(audio)
-        assert os.path.isfile(meta)
+        assert os.path.isfile(audio), f"File {audio} does not exist"
+        assert os.path.isfile(meta), f"File {meta} does not exist"
 
         meta = json.load(open(meta))
         meta["is_natural"] = False
@@ -187,7 +248,8 @@ if __name__ == "__main__":
                 target_sr = 16_000 if args.to16k else None,
                 append_transform_to_dir = args.split_by_augmentation_type,
             )
-            print(fname, "({} sec)".format(time.time() - tic))
+            if args.verbose:
+                print(fname, "({} sec)".format(time.time() - tic))
             subdir_out = os.path.dirname(fname)
             if subdir_out not in subdirs_out:
                 description = transform2description(transform)
@@ -214,12 +276,26 @@ if __name__ == "__main__":
         if MAX is not None and done >= MAX:
             break
 
+        if upload_and_clean and (done == 1 or (done % post_to_minio_each == 0)):
+            post_to_minio_and_clean(dir_out, args.s3server, args.s3user)
+
     RATIO = 1 if args.split_by_augmentation_type else NUM_MULTI_AUG
+
+    if upload_and_clean:
+        post_to_minio_and_clean(dir_out, args.s3server, args.s3user)
 
     for dir_out, augmentation_meta in subdirs_out.items():
 
         # global meta.json
         meta = json.load(open(os.path.join(dir_in, "meta.json")))
+        
+        # new in version 0.0.2
+        version = "0.0.2"
+        meta["version"] = version
+        meta["format_specification_uri"] = f"http://levoicelab.org/schemas/{version}/main-db.schema.json"
+        meta["languages"] = meta.get("languages", ["fr"])
+
+        # from version 0.0.1
         meta["description"] = f"Augmentation de la base {meta['name']}."
         if args.split_by_augmentation_type:
             description = augmentation_meta["description"]
