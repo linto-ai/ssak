@@ -232,8 +232,9 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
         utt_spk = {}
         spk_metadata = {}
         for row in reader:
-            utt_prefix = None
+            channel = None
             spk = None
+            call_id = None
             for k,v in row.items():
 
                 k = normalize_key(k)
@@ -245,15 +246,14 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                     assert v>0
 
                 if k == "id":
-                    utt_prefix = v
+                    assert not call_id
+                    call_id = v
                 elif k == "channel":
-                    assert utt_prefix
-                    utt_prefix = (utt_prefix, v)
+                    assert not channel
+                    channel = v
                 elif k == "speaker":
-                    assert utt_prefix
+                    assert not spk
                     spk = v
-                    assert spk
-                    utt_spk[utt_prefix] = spk
                 else:
                     assert spk
                     spk_metadata[spk] = spk_metadata.get(spk, {})
@@ -261,6 +261,9 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
                         assert spk_metadata[spk][k] == v, f"Conflicting metadata for speaker {spk} and key {k}: {spk_metadata[spk][k]} != {v}"
                     else:
                         spk_metadata[spk][k] = v
+
+            utt_spk[(call_id, channel)] = spk
+
 
     database_name = slugify(os.path.basename(output_folder))
 
@@ -339,18 +342,32 @@ def srt2kaldi(srt_folder, audio_folder, output_folder,
 
             extra_wav.writerow([wav_id, datetime.fromtimestamp(max([os.path.getmtime(f) for f in audio_files])).isoformat(timespec="seconds")+"+00:00"])
 
-            missing_spk_info = 0
+            use_dummy_meta_if_missing = True
+
+            missing_spk_info = []
             if utt_spk:
                 for channel in range(1, 1+len(expected_channels)):
                     if (basename, channel) not in utt_spk:
-                        missing_spk_info += 1
-                        break
+                        missing_spk_info.append((basename, channel))
                 if missing_spk_info:
-                    msg = f"Speaker info missing on {missing_spk_info} channel(s) for {basename}"
+                    msg = f"Speaker info missing on {missing_spk_info} (expected {len(expected_channels)} channels)"
                     if stop_on_error:
                         raise ValueError("ERROR: "+msg)
                     print(f"WARNING: {msg}")
-                    continue
+
+                    if not use_dummy_meta_if_missing:
+                        print("Skipping sample!!!")
+                        continue
+
+                    # Put dummy info
+                    for (basename, channel) in missing_spk_info:
+                        spk = f"{basename}_{channel}"
+                        utt_spk[(basename, channel)] = spk
+                        assert len(spk_metadata)
+                        first_spk = list(spk_metadata.keys())[0]
+                        spk_metadata[spk] = {}
+                        for k in spk_metadata[first_spk].keys():
+                            spk_metadata[spk][k] = "" if k != "gender" else "f" # More female speakers by default
 
             for iturn, turn in enumerate(turns):
                 channel = turn["channel"]
