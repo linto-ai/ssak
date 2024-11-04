@@ -215,7 +215,7 @@ if __name__ == "__main__":
     print(f"{NUM_MULTI_AUG} transformations (augmentation types)")
 
     done = 0
-    for fname in tqdm(audio_files):
+    for ifile, fname in enumerate(tqdm(audio_files, desc="Augmenting audio files")):
         f = fname.split(".")
         base = ".".join(f[:-2]) 
         audio = os.path.join(dir_in, fname)
@@ -283,9 +283,6 @@ if __name__ == "__main__":
 
     RATIO = 1 if args.split_by_augmentation_type else NUM_MULTI_AUG
 
-    if upload_and_clean:
-        post_to_minio_and_clean(dir_out, args.s3server, args.s3user)
-
     for dir_out, augmentation_meta in subdirs_out.items():
 
         # global meta.json
@@ -339,3 +336,7 @@ if __name__ == "__main__":
         
         for annotation_dir in annotation_dirs:
             shutil.copy(os.path.join(dir_in, annotation_dir, "meta.json"), os.path.join(dir_out, annotation_dir, "meta.json"))
+
+
+    if upload_and_clean:
+        post_to_minio_and_clean(dir_out, args.s3server, args.s3user)
