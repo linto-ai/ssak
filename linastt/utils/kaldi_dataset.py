@@ -484,6 +484,7 @@ class KaldiDataset:
                 logger.debug(f"Audio file has the wrong extension {audio_path}. Converting to {target_extension}...")
                 waveform = AudioSegment.from_file(audio_path)
                 waveform.export(new_path, format="wav")
+                return new_path
             else:
                 return audio_path
         return new_path

@@ -29,8 +29,7 @@ def generate_dataset_list_files(dateset_list, dataset_folder, dest, mode, subset
             continue
         dataset_path_subset = os.path.join(dataset_folder, dataset, subset_pattern)
         if os.path.exists(os.path.join(dataset_path_subset, "wav.scp")):
-            if mode=="train":
-                new_list.append(dataset_path_subset)
+            new_list.append(dataset_path_subset)
         elif os.path.exists(os.path.join(dataset_path, "wav.scp")):
             if "eval" in dataset or "test" in dataset:
                 if mode=="test":
