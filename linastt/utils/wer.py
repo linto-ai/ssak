@@ -1135,13 +1135,18 @@ if __name__ == "__main__":
 
     if args.plot:
         import matplotlib.pyplot as plt
+        kwargs = dict(
+            sort_best=0,
+        )
         if words_list:
             plot_f1_scores(
                 results,
                 show=False,
+                **kwargs
             )
             plt.figure()
         plot_wer(
             results,
             show=True,
+            **kwargs
         )
