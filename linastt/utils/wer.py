@@ -6,6 +6,8 @@ import re
 import os
 import csv
 
+DEFAULT_INTERVAL_TYPE = "errorbar" # "boxplot"
+
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
 
@@ -472,7 +474,7 @@ def str2bool(string):
         raise ValueError(f"Expected True or False")
 
 
-def list_to_confidence_intervals(measures):
+def list_to_confidence_intervals(measures, n_bootstraps=10000, min_samples=100, max_samples=1000):
 
     keys_to_sum = [k for k in measures.keys() if k.endswith("_list")]
     assert len(keys_to_sum)
@@ -481,13 +483,13 @@ def list_to_confidence_intervals(measures):
         if n is None:
             n = len(measures[k])
         assert n == len(measures[k]), f"Length mismatch for {k} : {n} != {len(measures[k])}"
+    n_samples = min(max_samples, max(min_samples, n))
 
     # bootstrap
-    n_bootstraps = 1000
     samples = []
     np.random.seed(51)
     for _ in range(n_bootstraps):
-        indices = np.random.choice(n, n)
+        indices = np.random.choice(n, n_samples)
         sample = {k: [measures[k][i] for i in indices] for k in keys_to_sum}
         sample = {k[:-5]: np.sum(v) for k, v in sample.items()}
         sample.update(aggregate_wer(sample))
@@ -498,8 +500,12 @@ def list_to_confidence_intervals(measures):
     keys = samples[0].keys()
     intervals = {}
     for k in keys:
+        if k not in ["wer", "F1", "recall", "precision"]:
+            continue
         vals = [s[k] for s in samples]
         intervals[k+"_stdev"] = np.std(vals)
+        intervals[k+"_median"] = np.median(vals)
+        intervals[k+"_mean"] = np.mean(vals)
         intervals[k+"_low"] = np.percentile(vals, 5)
         intervals[k+"_high"] = np.percentile(vals, 95)
         intervals[k+"_samples"] = vals
@@ -555,7 +561,7 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=True,
+    interval_type=DEFAULT_INTERVAL_TYPE,
     show_axisnames=True,
     x_axisname=None,
     colors=None,
@@ -574,6 +580,7 @@ def plot_wer(
     :param small_hatch: whether to use small hatches for the bars
     :param colors: list of colors
     :param legend_hatches: True, False, "before", "after"
+    :param interval_type: "none", "boxplot", "violinplot" or "errorbar"
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
     import matplotlib.pyplot as plt
@@ -681,14 +688,23 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         do_legend_hatches()
 
     if all_vals and all_vals[0] and len(all_vals[0]) > 1:
-        if show_boxplot is False:
+        if interval_type == "violinplot":
             if use_colors:
                 for i_x in range(len(all_vals)):
                     plot_violinplot([all_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
             else:
                 plot_violinplot(all_vals, positions = positions, alpha=0.5)
-        elif show_boxplot is True:
+        elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = positions, whis=100)
+        elif interval_type  == "errorbar":
+            highs = np.array([np.percentile(v, 97.5) for v in all_vals])
+            lows = np.array([np.percentile(v, 2.5) for v in all_vals])
+            medians = np.array([np.median(v) for v in all_vals])
+            plt.errorbar(positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
+        elif interval_type in ["none", None]:
+            pass
+        else:
+            raise ValueError(f"Invalid interval_type {interval_type}")
 
     if not use_colors:
         plt.xticks(
@@ -815,7 +831,7 @@ def plot_f1_scores(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=True,
+    interval_type=DEFAULT_INTERVAL_TYPE,
     x_axisname=None,
     colors=None,
     scale=100,
@@ -831,6 +847,7 @@ def plot_f1_scores(
     :param sort_best: whether to sort the results by best WER
     :param small_hatch: whether to use small hatches for the bars
     :param colors: list of colors
+    :param interval_type: "none", "boxplot", "violinplot" or "errorbar"
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
     import matplotlib.pyplot as plt
@@ -881,9 +898,9 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if compute_intervals:
         all_vals = []
         all_positions = []
-        for pos, k in zip(positions, keys):
-            val_list = []
-            for (offset, stat) in [(0, "F1"), (offset_recall, "recall"), (offset_precision, "precision")]:
+        for (offset, stat) in [(0, "F1"), (offset_recall, "recall"), (offset_precision, "precision")]:
+            for pos, k in zip(positions, keys):
+                val_list = []
                 if f"{stat}_samples" in wer_dict[k]:
                     for l in get_stat_list(wer_dict[k], f"{stat}_samples"):
                         val_list.extend(l)
@@ -918,11 +935,20 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     # plt.bar([pos], [0], label="Precision", **kwargs_precision, **add_opts)
 
     if all_vals and all_vals[0] and len(all_vals[0]) > 1:
-        if show_boxplot is False:
+        if interval_type == "violinplot":
             for i_x in range(len(all_vals)):
                 plot_violinplot([all_vals[i_x]], positions = [all_positions[i_x]], color=colors[(i_x//3) %len(colors)], alpha=0.5)
-        elif show_boxplot is True:
+        elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = all_positions, whis=100)
+        elif interval_type  == "errorbar":
+            highs = np.array([np.percentile(v, 97.5) for v in all_vals])
+            lows = np.array([np.percentile(v, 2.5) for v in all_vals])
+            medians = np.array([np.median(v) for v in all_vals])
+            plt.errorbar(all_positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
+        elif interval_type in ["none", None]:
+            pass
+        else:
+            raise ValueError(f"Invalid interval_type {interval_type}")
 
     middle = (len(positions) - 1) / 2
     perf_names = ["F1", "Recall", "Precision"]
