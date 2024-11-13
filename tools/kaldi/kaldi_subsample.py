@@ -4,6 +4,7 @@
 import os
 import random
 import regex as re
+import tqdm
 
 
 from linastt.utils.kaldi import check_kaldi_dir
@@ -16,6 +17,7 @@ def kaldi_subsample(
     min_duration=None,
     max_duration=None,
     regex_id=None,
+    regex_exclude_id=None,
     regex_exclude_text=None,
     random_seed=None,
     throw_if_output_exists=True,
@@ -26,6 +28,8 @@ def kaldi_subsample(
 
     if regex_id and isinstance(regex_id, str):
         regex_id = [regex_id]
+    if regex_exclude_id and isinstance(regex_exclude_id, str):
+        regex_exclude_id = [regex_exclude_id]
     if regex_exclude_text and isinstance(regex_exclude_text, str):
         regex_exclude_text = [regex_exclude_text]
 
@@ -103,9 +107,9 @@ def kaldi_subsample(
                     random.seed(random_seed)
                     lines = f.readlines()
                     random.shuffle(lines)
-                    num_dones = 0
-                    for i, line in enumerate(lines):
-                        if maximum and num_dones == maximum:
+                    num_total = -1
+                    for num_total, line in enumerate(tqdm.tqdm(lines, desc=f"Processing text")):
+                        if maximum and num_selected == maximum:
                             break
                         id = _get_first_field(line)
                         try:
@@ -115,17 +119,19 @@ def kaldi_subsample(
                         if utt_to_filter_out and id in utt_to_filter_out:
                             continue
                         if regex_id and not max(bool(re.match(reg + r"$", id)) for reg in regex_id):
+                            continue
+                        if regex_exclude_id and max(bool(re.match(reg + r"$", id)) for reg in regex_exclude_id):
                             continue
                         if regex_exclude_text and min(bool(re.match(reg+ r"$", text)) for reg in regex_exclude_text):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
                         text_file.write(line)
-                        num_dones += 1
                 else:
-                    num_dones = 0
-                    for i, line in enumerate(f):
-                        if maximum and num_dones == maximum:
+                    num_total = -1
+                    lines = f.readlines()
+                    for num_total, line in enumerate(tqdm.tqdm(lines, desc=f"Processing text")):
+                        if maximum and num_selected == maximum:
                             break
                         id = _get_first_field(line)
                         try:
@@ -136,20 +142,28 @@ def kaldi_subsample(
                             continue
                         if regex_id and not max(bool(re.match(reg + r"$", id)) for reg in regex_id):
                             continue
+                        if regex_exclude_id and max(bool(re.match(reg + r"$", id)) for reg in regex_exclude_id):
+                            continue
                         if regex_exclude_text and min(bool(re.match(reg + r"$", text)) for reg in regex_exclude_text):
                             continue
                         assert id not in utt_ids, f"Utterance {id} already exists"
                         utt_ids.append(id)
                         text_file.write(line)
-                        num_dones += 1
 
-            if len(utt_ids) == 0:
+                num_total += 1
+                num_selected = len(utt_ids)
+
+            print(f"Selected {num_selected} out of {num_total} utterances")
+
+            if num_selected == num_total:
+                raise RuntimeError("All utterances were selected")
+            elif len(utt_ids) == 0:
                 raise RuntimeError("No utterances found")
 
             if os.path.isfile(input_folder + "/segments"):
                 with open(input_folder + "/segments", 'r') as f, \
                     open(output_folder + "/segments", 'a') as segments:
-                    for line in f:
+                    for line in tqdm.tqdm(f, total=num_total, desc=f"Processing segments"):
                         id = _get_first_field(line)
                         if id in utt_ids:
                             wav_id = line.split(" ")[1]
@@ -159,20 +173,14 @@ def kaldi_subsample(
             else:
                 wav_ids = utt_ids
 
-            with open(input_folder + "/wav.scp", 'r') as f:
-                for line in f:
-                    id = _get_first_field(line)
-                    if id in wav_ids:
-                        wavscp_file.write(line)
-
             with open(input_folder + "/utt2dur", 'r') as f:
-                for line in f:
+                for line in tqdm.tqdm(f, total=num_total, desc=f"Processing utt2dur"):
                     id = _get_first_field(line)
                     if id in utt_ids:
                         utt2dur.write(line)
 
             with open(input_folder + "/utt2spk", 'r') as f:
-                for line in f:
+                for line in tqdm.tqdm(f, total=num_total, desc=f"Processing utt2spk"):
                     id = _get_first_field(line)
                     if id in utt_ids:
                         utt2spk.write(line)
@@ -180,8 +188,17 @@ def kaldi_subsample(
                         if spk not in spk_ids:
                             spk_ids.append(spk)
 
+            with open(input_folder + "/wav.scp", 'r') as f:
+                lines = f.readlines()
+                for line in tqdm.tqdm(lines, desc=f"Processing wav.scp"):
+                    id = _get_first_field(line)
+                    if id in wav_ids:
+                        wavscp_file.write(line)
+
             with open(input_folder + "/spk2utt", 'r') as f:
-                for line in f:
+                lines = f.readlines()
+                num_speakers = len(lines)
+                for line in tqdm.tqdm(lines, desc=f"Processing spk2utt"):
                     spk = _get_first_field(line)
                     if spk in spk_ids:
                         utt_s = line.strip().split(" ")[1:]
@@ -195,7 +212,7 @@ def kaldi_subsample(
             if os.path.isfile(input_folder + "/spk2gender"):
                 with open(input_folder + "/spk2gender", 'r') as f, \
                     open(output_folder + "/spk2gender", 'w') as spk2gender:
-                    for line in f:
+                    for line in tqdm.tqdm(f, total=num_speakers, desc=f"Processing spk2gender"):
                         spk = _get_first_field(line)
                         if spk in spk_ids:
                             spk2gender.write(line)
@@ -217,6 +234,7 @@ if __name__ == '__main__':
     parser.add_argument("output_folder", type=str, help="Output folder")
     parser.add_argument("--maximum", type=int, help="Maximum number of lines to keep (if --random_seed is not specified, the first utterances will be taken)", default=None)
     parser.add_argument("--regex_id", default=[], type=str, help="One or several regular expressions to select an id", nargs='*')
+    parser.add_argument("--regex_exclude_id", default=[], type=str, help="One or several regular expressions to exclude an id", nargs='*')
     parser.add_argument("--regex_exclude_text", default=[], type=str, help="One or several regular expressions to exclude a text", nargs='*')
     parser.add_argument("--min_duration", default=None, type=float, help="Minimum duration for a utterance")
     parser.add_argument("--max_duration", default=None, type=float, help="Maximum duration for a utterance")
@@ -228,6 +246,7 @@ if __name__ == '__main__':
         maximum=args.maximum,
         random_seed=args.random_seed,
         regex_id=args.regex_id,
+        regex_exclude_id=args.regex_exclude_id,
         regex_exclude_text=args.regex_exclude_text,
         min_duration=args.min_duration,
         max_duration=args.max_duration,

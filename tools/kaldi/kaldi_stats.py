@@ -35,9 +35,12 @@ def get_utt2dur_duration(
                 id, duration = line.strip().split(" ")
                 duration = float(duration)
                 if duration < min_duration:
-                    min_duration = duration
-                    if warn_if_shorter_than and duration < warn_if_shorter_than:
-                        warnings.warn(f"Duration of {id} in {utt2dur_file} is short: {duration}")
+                    if duration > 0:
+                        min_duration = duration
+                        if warn_if_shorter_than and duration < warn_if_shorter_than:
+                            warnings.warn(f"Duration of {id} in {utt2dur_file} is short: {duration}")
+                    else:
+                        warnings.warn(f"Duration of {id} in {utt2dur_file} is negative! ({duration})-> ignored")
                 if duration > max_duration:
                     max_duration = duration
                     if warn_if_longer_than and duration > warn_if_longer_than:
@@ -94,6 +97,8 @@ def get_utt2dur_duration(
 def second2time(val):
     if val == float("inf"):
         return "_"
+    if val < 0:
+        return f"-{second2time(-val)}"
     # Convert seconds to time
     hours = int(val // 3600)
     minutes = int((val % 3600) // 60)
