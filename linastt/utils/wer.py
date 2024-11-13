@@ -790,10 +790,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('references', help="File with reference text lines (ground-truth)", type=str)
-    parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
+    parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str, nargs="+")
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--alignment', '--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
     parser.add_argument('--intervals', help="Add confidence intervals", default=False, action="store_true")
+    parser.add_argument('--names', help="System names", default=[], nargs="+")
     parser.add_argument('--plot', help="See plots", default=False, action="store_true")
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
@@ -806,17 +807,17 @@ if __name__ == "__main__":
     parser.add_argument('--replacements_pred', help="Files with list of replacements to perform in predicions only", default=None)
     args = parser.parse_args()
 
-    target_test = args.references
-    target_pred = args.predictions
+    targets = args.references
+    predictions = args.predictions
 
-    if not os.path.isfile(target_test):
-        assert not os.path.isfile(target_pred), f"File {target_pred} exists but {target_test} doesn't"
-        if " " not in target_test and " " not in target_pred:
+    if not os.path.isfile(targets):
+        assert not os.path.isfile(predictions), f"File {predictions} exists but {targets} doesn't"
+        if " " not in targets and " " not in predictions:
             # Assume file instead of isolated word
-            assert os.path.isfile(target_test), f"File {target_test} doesn't exist"
-            assert os.path.isfile(target_pred), f"File {target_pred} doesn't exist"
-        target_test = [target_test]
-        target_pred = [target_pred]
+            assert os.path.isfile(targets), f"File {targets} doesn't exist"
+            assert os.path.isfile(predictions), f"File {predictions} doesn't exist"
+        targets = [targets]
+        predictions = [predictions]
 
     words_list = None
     if args.words_list:
@@ -870,45 +871,60 @@ if __name__ == "__main__":
         details_words_list = eval(details_words_list.title())
     use_ids = args.use_ids
 
-    result = compute_wer(
-        target_test, target_pred,
-        use_ids=use_ids,
-        normalization=args.norm,
-        character_level=args.char,
-        alignment=alignment,
-        include_correct_in_alignement=args.include_correct_in_alignement,
-        words_list=words_list,
-        words_blacklist=words_blacklist,
-        replacements_ref=replacements_ref,
-        replacements_pred=replacements_pred,
-        details_words_list=details_words_list,
-        bootstrapping=args.intervals
-        )
-    
-    result_str = {}
-    for k in "wer", "del", "ins", "sub", "word_err", "F1", "precision", "recall":
-        result_str[k] = f"{result.get(k, -1) * 100:.2f} %".replace("-100.00 %", "_")
-    for k in "TP", "FN", "FP":
-        result_str[k] = str(result.get(k, "_"))
-    if args.intervals:
-        for k in result_str:
-            if k+"_stdev" in result:
-                result_str[k] += f" ± {result[k+'_stdev']*100:.2f}"
+    results = {}
+    system_names = args.names or [""]
+    for i, predictions_system in enumerate(predictions):
+        system_name = system_names[i % len(system_names)].strip()
+        system_name_0 = system_name
+        i_0 = 1
+        while system_name in results or (not system_name and len(predictions_system) > 1):
+            system_name = system_name_0 + f" ({i_0})"
+            i_0 += 1
+        results[system_name] = compute_wer(
+            targets, predictions_system,
+            use_ids=use_ids,
+            normalization=args.norm,
+            character_level=args.char,
+            alignment=alignment,
+            include_correct_in_alignement=args.include_correct_in_alignement,
+            words_list=words_list,
+            words_blacklist=words_blacklist,
+            replacements_ref=replacements_ref,
+            replacements_pred=replacements_pred,
+            details_words_list=details_words_list,
+            bootstrapping=args.intervals
+            )
 
-    line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
-    if "word_err" in result:
-        line = f" {word_list_name} err: {result_str['word_err']} |" + line
-    print('-' * len(line))
-    print(line)
-    print('-' * len(line))
-    if words_list:
-        extra = f"Details for {len(words_list)} words:\n"
-        extra += " | ".join([f"{w}: {result_str[w]}" for w in ["F1", "precision", "recall"]])
-        extra += " | " + " | ".join([f"{w}: {result_str[w]}" for w in ["TP", "FN", "FP"]])
-        print(extra)
+    for system_name, result in results.items():
+
+        if system_name:
+            print('=' * 100)
+            print(f"Results for {system_name}:")
+    
+        result_str = {}
+        for k in "wer", "del", "ins", "sub", "word_err", "F1", "precision", "recall":
+            result_str[k] = f"{result.get(k, -1) * 100:.2f} %".replace("-100.00 %", "_")
+        for k in "TP", "FN", "FP":
+            result_str[k] = str(result.get(k, "_"))
+        if args.intervals:
+            for k in result_str:
+                if k+"_stdev" in result:
+                    result_str[k] += f" ± {result[k+'_stdev']*100:.2f}"
+
+        line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
+        if "word_err" in result:
+            line = f" {word_list_name} err: {result_str['word_err']} |" + line
+        print('-' * len(line))
+        print(line)
+        print('-' * len(line))
+        if words_list:
+            extra = f"Details for {len(words_list)} words:\n"
+            extra += " | ".join([f"{w}: {result_str[w]}" for w in ["F1", "precision", "recall"]])
+            extra += " | " + " | ".join([f"{w}: {result_str[w]}" for w in ["TP", "FN", "FP"]])
+            print(extra)
 
     if args.plot:
         plot_wer(
-            result,
+            results,
             show=True,
         )
