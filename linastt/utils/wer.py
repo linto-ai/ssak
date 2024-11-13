@@ -552,7 +552,7 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=False,
+    show_boxplot=True,
     show_axisnames=True,
     x_axisname=None,
     colors=None,
@@ -910,14 +910,4 @@ if __name__ == "__main__":
         plot_wer(
             result,
             show=True,
-            # title="Experiment",
-            # label_rotation=0,
-            # label_fontdict={'size': 'large'},
-            # label=True,
-            # legend=True,
-            # sort_best=-1,
-            # small_hatch=True,
-            # show_boxplot=True,
-            # show_axisnames=True,
-            # x_axisname=None*
         )
