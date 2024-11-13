@@ -560,6 +560,7 @@ def plot_wer(
     x_axisname=None,
     colors=None,
     use_colors=None,
+    legend_hatches=True,
     **kwargs
     ):
     """
@@ -572,6 +573,7 @@ def plot_wer(
     :param sort_best: whether to sort the results by best WER
     :param small_hatch: whether to use small hatches for the bars
     :param colors: list of colors
+    :param legend_hatches: True, False, "before", "after"
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
     import matplotlib.pyplot as plt
@@ -598,7 +600,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
 
     plt.clf()
 
-    kwargs.update(width=0.5, edgecolor="black")
+    kwargs.update(width=0.8, edgecolor="black")
     kwargs_ins = kwargs.copy()
     kwargs_del = kwargs.copy()
     kwargs_sub = kwargs.copy()
@@ -621,18 +623,28 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     S = [get_stat_average(wer_dict[k], "sub") for k in keys]
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     
-    all_wer_vals = None
+    all_vals = None
     compute_intervals = max([len(get_stat_list(v, "wer") if "wer_samples" not in v else v["wer_samples"]) for v in wer_dict.values()]) > 1
     if compute_intervals:
-        all_wer_vals = []
+        all_vals = []
         for k in keys:
-            wer_vals = []
+            val_list = []
             if "wer_samples" in wer_dict[k]:
                 for l in get_stat_list(wer_dict[k], "wer_samples"):
-                    wer_vals.extend(l)
+                    val_list.extend(l)
             else:
-                wer_vals.extend(get_stat_list(wer_dict[k], "wer"))
-            all_wer_vals.append(wer_vals)
+                val_list.extend(get_stat_list(wer_dict[k], "wer"))
+            all_vals.append(val_list)
+
+    def do_legend_hatches():
+        add_opts_legend = add_opts | {"color": "white"}
+        if not small_hatch:
+            kwargs_ins_legend = kwargs_ins | {"hatch": kwargs_ins["hatch"] * 2}
+            kwargs_del_legend = kwargs_del | {"hatch": kwargs_del["hatch"] * 2}
+            kwargs_sub_legend = kwargs_sub | {"hatch": kwargs_sub["hatch"] * 2}
+        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins_legend, **add_opts_legend)
+        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del_legend, **add_opts_legend)
+        plt.bar([pos], [0], label="Substitution", **kwargs_sub_legend, **add_opts_legend)
 
     for i_x, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
         assert abs(w - (d + i + s)) < 0.0001, f"{w=} != {d + i + s} = {d=} + {i=} + {s=}"
@@ -644,6 +656,8 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         if use_colors:
             add_opts["color"] = colors[i_x % len(colors)]
             add_opts["alpha"] = 0.5
+            if complete_label and legend_hatches == "before":
+                do_legend_hatches()
             if label:
                 system_label = keys[i_x]
                 if system_label in [None, ""]:
@@ -655,36 +669,38 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [i], bottom=[d+s], label=label_ins, **kwargs_ins, **add_opts)
         plt.bar([pos], [d], bottom=[s], label=label_del, **kwargs_del, **add_opts)
         plt.bar([pos], [s], label=label_sub, **kwargs_sub, **add_opts)
-    
-    if use_colors:
-        # Add legend Ins/Subs/Dels
-        add_opts["color"] = "white"
-        if not small_hatch:
-            kwargs_ins["hatch"] *= 2
-            kwargs_del["hatch"] *= 2
-            kwargs_sub["hatch"] *= 2
-        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins, **add_opts)
-        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del, **add_opts)
-        plt.bar([pos], [0], label="Substitution", **kwargs_sub, **add_opts)
 
-    if all_wer_vals and all_wer_vals[0] and len(all_wer_vals[0]) > 1:
+    if use_colors and legend_hatches and legend_hatches != "before":
+        if len(keys) <= 2:
+            # Add empty label to have Ins/Del/Sub in the last column
+            for n in range(3 - len(keys)):
+                add_opts["color"] = "white"
+                kwargs_ins_color["hatch"] = ""
+                kwargs_ins_color["edgecolor"] = "white"
+                plt.bar([pos], [0], bottom=[d+s], label=" ", **kwargs_ins_color, **add_opts)
+        do_legend_hatches()
+
+    if all_vals and all_vals[0] and len(all_vals[0]) > 1:
         if show_boxplot is False:
             if use_colors:
-                for i_x in range(len(all_wer_vals)):
-                    plot_violinplot([all_wer_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
+                for i_x in range(len(all_vals)):
+                    plot_violinplot([all_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
             else:
-                plot_violinplot(all_wer_vals, positions = positions, alpha=0.5)
+                plot_violinplot(all_vals, positions = positions, alpha=0.5)
         elif show_boxplot is True:
-            plt.boxplot(all_wer_vals, positions = positions, whis=100)
+            plt.boxplot(all_vals, positions = positions, whis=100)
 
-    plt.xticks(
-        range(len(keys)),
-        keys,
-        rotation=label_rotation,
-        fontdict=label_fontdict,
-        ha='right'
-    ) # , 'size': 'x-large'
-    # plt.title(f"{len(wer)} values")
+    if not use_colors:
+        plt.xticks(
+            range(len(keys)),
+            keys,
+            rotation=label_rotation,
+            fontdict=label_fontdict,
+            ha='right'
+        )
+    else:
+        # Remove xticks
+        plt.xticks([])
     label_size = label_fontdict.get('size')
     plt.yticks(fontsize=label_size)
     if ymax is None:
@@ -693,7 +709,10 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
-        plt.legend(fontsize=label_size)
+        plt.legend(
+            fontsize=label_size,
+            ncols=2,
+        )
     if show_axisnames:
         plt.ylabel("WER (%)", fontsize=label_size)
         if x_axisname:
@@ -783,6 +802,156 @@ def adjacent_values(vals, q1, q3):
     lower_adjacent_value = q1 - (q3 - q1) * 1.5
     lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
     return lower_adjacent_value, upper_adjacent_value
+
+
+def plot_f1_scores(
+    wer_dict,
+    label=True,
+    legend=True,
+    show=True,
+    sort_best=-1,
+    small_hatch=False,
+    title=None,
+    label_fontdict={'weight': 'bold'},
+    ymin=0,
+    ymax=None,
+    show_boxplot=True,
+    x_axisname=None,
+    colors=None,
+    scale=100,
+    **kwargs
+    ):
+    """
+    Plot F1/Recall/Precision statistics.
+    :param wer_dict: dictionary of results, or a list of results, or a dictionary of results,
+        where a result is a dictionary as returned by compute_wer, or a list of such dictionaries
+    :param label: whether to add a label to the bars (as xticks)
+    :param legend: whether to add a legend (Deletion/Substition/Insertion)
+    :param show: whether to show the plot (if True) or save it to the given file name (if string)
+    :param sort_best: whether to sort the results by best WER
+    :param small_hatch: whether to use small hatches for the bars
+    :param colors: list of colors
+    :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
+    """
+    import matplotlib.pyplot as plt
+
+    if colors is None:
+        # rainbow colors
+        num_colors = 8
+        colors = [plt.cm.gist_rainbow(i / num_colors) for i in range(num_colors)]
+        colors = colors[::2] + colors[1::2]
+        colors = colors[3:] + colors[:3]
+    if isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
+        wer_dict = dict(enumerate(wer_dict))
+    elif check_result(wer_dict):
+        wer_dict = {"Evaluation": wer_dict}
+    elif isinstance(wer_dict, dict) and min([check_result(w) for w in wer_dict.values()]):
+        pass
+    else:
+        raise ValueError(
+            f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
+where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
+
+    plt.clf()
+
+    kwargs.update(width=0.8, edgecolor="black")
+    kwargs_f1 = kwargs.copy()
+    kwargs_recall = kwargs.copy()
+    kwargs_precision = kwargs.copy()
+    n = 2 if small_hatch else 1
+    kwargs_f1["hatch"] = ""*n
+    kwargs_recall["hatch"] = "/"*n
+    kwargs_precision["hatch"] = "\\"*n
+    
+    keys = list(wer_dict.keys())
+    if sort_best:
+        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k], "F1"), reverse=not (sort_best<0))
+    positions = range(len(keys))
+
+    offset_recall = len(positions) + 1
+    offset_precision = 2 * offset_recall
+
+    F1_list = [get_stat_average(wer_dict[k], "F1")*scale for k in keys]
+    recall_list = [get_stat_average(wer_dict[k], "recall")*scale for k in keys]
+    precision_list = [get_stat_average(wer_dict[k], "precision")*scale for k in keys]
+    
+    all_vals = None
+    all_positions = None
+    compute_intervals = max([len(get_stat_list(v, "F1") if "F1_samples" not in v else v["F1_samples"]) for v in wer_dict.values()]) > 1
+    if compute_intervals:
+        all_vals = []
+        all_positions = []
+        for pos, k in zip(positions, keys):
+            val_list = []
+            for (offset, stat) in [(0, "F1"), (offset_recall, "recall"), (offset_precision, "precision")]:
+                if f"{stat}_samples" in wer_dict[k]:
+                    for l in get_stat_list(wer_dict[k], f"{stat}_samples"):
+                        val_list.extend(l)
+                else:
+                    val_list.extend(get_stat_list(wer_dict[k], stat))
+                all_vals.append([v * scale for v in val_list])
+                all_positions.append(pos + offset)
+
+    for i_x, (pos, f1, recall, precision) in enumerate(zip(positions, F1_list, recall_list, precision_list)):
+        add_opts = {}
+        label_f1 = label_recall = label_prec = None
+        add_opts["color"] = colors[i_x % len(colors)]
+        add_opts["alpha"] = 0.5
+        if label:
+            system_label = keys[i_x]
+            if system_label in [None, ""]:
+                system_label = "_"
+            label_f1 = system_label
+            label_recall = label_prec = None
+        plt.bar([pos], [f1], label=label_f1, **kwargs_f1, **add_opts)
+        plt.bar([pos + offset_recall], [recall], label=label_recall, **kwargs_recall, **add_opts)
+        plt.bar([pos + offset_precision], [precision], label=label_prec, **kwargs_precision, **add_opts)
+    
+    # # Add legend F1/Recall/Precision
+    # add_opts["color"] = "white"
+    # if not small_hatch:
+    #     kwargs_f1["hatch"] *= 2
+    #     kwargs_recall["hatch"] *= 2
+    #     kwargs_precision["hatch"] *= 2
+    # plt.bar([pos], [0], label="F1", **kwargs_f1, **add_opts)
+    # plt.bar([pos], [0], label="Recall", **kwargs_recall, **add_opts)
+    # plt.bar([pos], [0], label="Precision", **kwargs_precision, **add_opts)
+
+    if all_vals and all_vals[0] and len(all_vals[0]) > 1:
+        if show_boxplot is False:
+            for i_x in range(len(all_vals)):
+                plot_violinplot([all_vals[i_x]], positions = [all_positions[i_x]], color=colors[(i_x//3) %len(colors)], alpha=0.5)
+        elif show_boxplot is True:
+            plt.boxplot(all_vals, positions = all_positions, whis=100)
+
+    middle = (len(positions) - 1) / 2
+    perf_names = ["F1", "Recall", "Precision"]
+    if scale == 100:
+        perf_names = [f"{p} (%)" for p in perf_names]
+    plt.xticks(
+        (middle, middle+offset_recall, middle+offset_precision),
+        perf_names,
+        rotation=0,
+        fontdict=label_fontdict,
+        ha='center'
+    )
+    label_size = label_fontdict.get('size')
+    plt.yticks(fontsize=label_size)
+    if ymax is None:
+        _, maxi = plt.ylim()
+        plt.ylim(bottom=ymin, top=min(100, maxi))
+    else:
+        plt.ylim(bottom=ymin, top=ymax)
+    if legend:
+        plt.legend(fontsize=label_size)
+    if x_axisname:
+        plt.xlabel(x_axisname, fontsize=label_size)
+    if title:
+        plt.title(title, fontsize=label_size)
+    if isinstance(show, str):
+        plt.savefig(show, bbox_inches="tight")
+    elif show:
+        plt.show()
 
 if __name__ == "__main__":
 
@@ -924,6 +1093,13 @@ if __name__ == "__main__":
             print(extra)
 
     if args.plot:
+        import matplotlib.pyplot as plt
+        if words_list:
+            plot_f1_scores(
+                results,
+                show=False,
+            )
+            plt.figure()
         plot_wer(
             results,
             show=True,
