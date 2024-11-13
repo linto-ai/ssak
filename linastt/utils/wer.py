@@ -567,6 +567,7 @@ def plot_wer(
     colors=None,
     use_colors=None,
     legend_hatches=True,
+    scale=100,
     **kwargs
     ):
     """
@@ -625,10 +626,10 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if sort_best:
         keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
     positions = range(len(keys))
-    D = [get_stat_average(wer_dict[k], "del") for k in keys]
-    I = [get_stat_average(wer_dict[k], "ins") for k in keys]
-    S = [get_stat_average(wer_dict[k], "sub") for k in keys]
-    W = [get_stat_average(wer_dict[k], "wer") for k in keys]
+    D = [get_stat_average(wer_dict[k], "del")*scale for k in keys]
+    I = [get_stat_average(wer_dict[k], "ins")*scale for k in keys]
+    S = [get_stat_average(wer_dict[k], "sub")*scale for k in keys]
+    W = [get_stat_average(wer_dict[k], "wer")*scale for k in keys]
     
     all_vals = None
     compute_intervals = max([len(get_stat_list(v, "wer") if "wer_samples" not in v else v["wer_samples"]) for v in wer_dict.values()]) > 1
@@ -641,7 +642,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
                     val_list.extend(l)
             else:
                 val_list.extend(get_stat_list(wer_dict[k], "wer"))
-            all_vals.append(val_list)
+            all_vals.append([v*scale for v in val_list])
 
     def do_legend_hatches():
         add_opts_legend = add_opts | {"color": "white"}
@@ -714,10 +715,21 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             fontdict=label_fontdict,
             ha='right'
         )
+        func_ylabel = plt.ylabel
     else:
         # Remove xticks
         plt.xticks([])
+        def func_ylabel(title, *args, **kwargs):
+            middle = (len(positions) - 1) / 2
+            plt.xticks(
+                [middle],
+                [title],
+                rotation=0,
+                fontdict=label_fontdict,
+                ha='center'
+            )
     label_size = label_fontdict.get('size')
+    label_weight = label_fontdict.get('weight')
     plt.yticks(fontsize=label_size)
     if ymax is None:
         _, maxi = plt.ylim()
@@ -725,16 +737,19 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
+        (y_min, y_max) = plt.ylim()
+        plt.ylim(y_min, (y_max - y_min) * 1.2 + y_min)
         plt.legend(
             fontsize=label_size,
             ncols=2,
+            loc='best',
         )
     if show_axisnames:
-        plt.ylabel("WER (%)", fontsize=label_size)
+        func_ylabel("WER (%)" if scale==100 else "WER", fontsize=label_size, weight=label_weight)
         if x_axisname:
-            plt.xlabel(x_axisname, fontsize=label_size)
+            plt.xlabel(x_axisname, fontsize=label_size, weight=label_weight)
     if title:
-        plt.title(title, fontsize=label_size)
+        plt.title(title, fontsize=label_size, weight=label_weight)
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
@@ -882,7 +897,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     
     keys = list(wer_dict.keys())
     if sort_best:
-        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k], "F1"), reverse=not (sort_best<0))
+        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=not (sort_best<0))
     positions = range(len(keys))
 
     offset_recall = len(positions) + 1
