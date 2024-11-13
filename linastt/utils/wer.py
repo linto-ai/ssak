@@ -357,6 +357,10 @@ def compute_wer(refs, preds,
 
     res.update(aggregate_wer(res, scale=scale, count=count))
 
+    if bootstrapping:
+        intervals = list_to_confidence_intervals(res)
+        res.update(intervals)
+
     return res
 
 def compute_wer_differences(refs, preds1, preds2, **kwargs):
@@ -498,8 +502,7 @@ def list_to_confidence_intervals(measures):
         intervals[k+"_stdev"] = np.std(vals)
         intervals[k+"_low"] = np.percentile(vals, 5)
         intervals[k+"_high"] = np.percentile(vals, 95)
-        if k+"_list" not in intervals:
-            intervals[k+"_list"] = vals
+        intervals[k+"_samples"] = vals
 
     return intervals
     
@@ -619,13 +622,13 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
     
     all_wer_vals = None
-    compute_intervals = max([len(get_stat_list(v, "wer") if "wer_list" not in v else v["wer_list"]) for v in wer_dict.values()]) > 1
+    compute_intervals = max([len(get_stat_list(v, "wer") if "wer_samples" not in v else v["wer_samples"]) for v in wer_dict.values()]) > 1
     if compute_intervals:
         all_wer_vals = []
         for k in keys:
             wer_vals = []
-            if "wer_list" in wer_dict[k]:
-                for l in get_stat_list(wer_dict[k], "wer_list"):
+            if "wer_samples" in wer_dict[k]:
+                for l in get_stat_list(wer_dict[k], "wer_samples"):
                     wer_vals.extend(l)
             else:
                 wer_vals.extend(get_stat_list(wer_dict[k], "wer"))
@@ -888,11 +891,9 @@ if __name__ == "__main__":
     for k in "TP", "FN", "FP":
         result_str[k] = str(result.get(k, "_"))
     if args.intervals:
-        intervals = list_to_confidence_intervals(result)
         for k in result_str:
-            if k+"_stdev" in intervals:
-                result_str[k] += f" ± {intervals[k+'_stdev']*100:.2f}"
-        result.update(intervals)
+            if k+"_stdev" in result:
+                result_str[k] += f" ± {result[k+'_stdev']*100:.2f}"
 
     line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
     if "word_err" in result:
@@ -908,6 +909,6 @@ if __name__ == "__main__":
 
     if args.plot:
         plot_wer(
-            result,
+            [result] * 5,
             show=True,
         )
