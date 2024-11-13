@@ -36,6 +36,7 @@ def compute_wer(refs, preds,
                 replacements_ref=None,
                 replacements_pred=None,
                 details_words_list=False,
+                bootstrapping=False
                 ):
     """
     Compute WER between two files.
@@ -52,6 +53,7 @@ def compute_wer(refs, preds,
     :param replacements_ref: dictionary of replacements to perform in the reference
     :param replacements_pred: dictionary of replacements to perform in the hypothesis
     :param details_words_list: whether to output information about words that are well recognized (among the specified words_list)
+    :param bootstrapping: whether to compute bootstrapping intervals (might be slow)
     """
     # Open the test dataset human translation file
     if isinstance(refs, str):
@@ -185,6 +187,7 @@ def compute_wer(refs, preds,
     refs, preds, hits_bias = ensure_not_empty_reference(refs, preds, character_level)
 
     # Calculate WER for the whole corpus
+    kwargs = {}
     if character_level:
         cer_transform = jiwer.transforms.Compose(
             [
@@ -194,12 +197,31 @@ def compute_wer(refs, preds,
                 jiwer.transforms.ReduceToListOfListOfChars(),
             ]
         )
-        measures = jiwer.compute_measures(refs, preds,
+        kwargs = dict(
             truth_transform=cer_transform,
             hypothesis_transform=cer_transform,
         )
+    if bootstrapping:
+        measures_list = [
+            jiwer.compute_measures([r], [p], **kwargs)
+            for r, p in zip(refs, preds)
+        ]
+        measures = {}
+        for i, meas in enumerate(measures_list):
+            for k, v in meas.items():
+                if k not in measures:
+                    measures[k] = []
+                if isinstance(v, list) and len(v) == 1:
+                    v = v[0]
+                measures[k].append(v)
+
+        # Compute confidence intervals
+        for stat in "substitutions", "deletions", "hits", "insertions":
+            measures[stat+"_list"] = measures.pop(stat)
+            measures[stat] = np.sum(measures[stat+"_list"])
+
     else:
-        measures = jiwer.compute_measures(refs, preds)
+        measures = jiwer.compute_measures(refs, preds, **kwargs)
 
     extra = {}
     if alignment:
@@ -215,41 +237,47 @@ def compute_wer(refs, preds,
             }
 
     if words_list:
-        TP = 0
-        FP = 0
-        FN = 0
+        TP_list = []
+        FP_list = []
+        FN_list = []
         if details_words_list:
             detailed_tp = {w: 0 for w in words_list}
             detailed_fp = {w: 0 for w in words_list}
             detailed_fn = {w: 0 for w in words_list}
             detailed_total = {w: 0 for w in words_list}
         for r, p in zip(refs, preds):
+            TP_list.append(0)
+            FP_list.append(0)
+            FN_list.append(0)
             for w in words_list:
                 num_in_ref = len(re.findall(r"\b" + w + r"\b", r))
                 num_in_pred = len(re.findall(r"\b" + w + r"\b", p))
                 tp = min(num_in_ref, num_in_pred)
                 fp = max(0, num_in_pred - num_in_ref)
                 fn = max(0, num_in_ref - num_in_pred)
-                TP += tp
-                FP += fp
-                FN += fn
+                TP_list[-1] += tp
+                FP_list[-1] += fp
+                FN_list[-1] += fn
                 if details_words_list:
                     detailed_total[w] += num_in_ref
                     detailed_tp[w] += tp
                     detailed_fp[w] += fp
                     detailed_fn[w] += fn
-        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
-        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
-        F1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-
+        TP = sum(TP_list)
+        FP = sum(FP_list)
+        FN = sum(FN_list)
         extra.update({
             "FP": FP,
             "FN": FN,
             "TP": TP,
-            "precision": precision,
-            "recall": recall,
-            "F1": F1,
         })
+        extra.update(aggregate_f1_recall_precision(extra))
+        if bootstrapping:
+            extra.update({
+                "TP_list": TP_list,
+                "FP_list": FP_list,
+                "FN_list": FN_list,
+            })
         if details_words_list:
             words_list_recall = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fp[w]) if (detailed_tp[w] + detailed_fp[w]) > 0 else 0 for w in words_list}
             words_list_precision = {w: detailed_tp[w] / (detailed_tp[w] + detailed_fn[w]) if (detailed_tp[w] + detailed_fn[w]) > 0 else 0 for w in words_list}
@@ -285,15 +313,29 @@ def compute_wer(refs, preds,
                         f"{detailed_fp[w]:<5}",
                     ])
 
+    scale = 100 if use_percents else 1
+
     sub_score = measures['substitutions']
     del_score = measures['deletions']
     hits_score = measures['hits']
     ins_score = measures['insertions']
 
+    if bootstrapping:
+        for stat in "substitutions", "deletions", "hits", "insertions":
+            vals = measures[stat+"_list"]
+            if scale != 1:
+                vals = [float(v)*scale for v in vals]
+            key = {
+                "deletions": "del",
+                "insertions": "ins",
+                "substitutions": "sub",
+            }.get(stat, stat)
+            extra[key+"_list"] = vals
+
     hits_score -= hits_bias
     count = hits_score + del_score + sub_score
 
-    scale = 100 if use_percents else 1
+    assert "del" not in extra
 
     if count == 0: # This can happen if all references are empty
         return {
@@ -301,19 +343,21 @@ def compute_wer(refs, preds,
             'del': 0,
             'ins': scale if ins_score else 0,
             'sub': 0,
+            'hits': 0,
             'count': 0,
         } | extra
-
-    wer_score = (float(del_score + ins_score + sub_score) / count)
-
-    return {
-        'wer': wer_score * scale,
-        'del': (float(del_score) * scale/ count),
-        'ins': (float(ins_score) * scale/ count),
-        'sub': (float(sub_score) * scale/ count),
+    
+    res = {
+        'del': (float(del_score) * scale / count),
+        'ins': (float(ins_score) * scale / count),
+        'sub': (float(sub_score) * scale / count),
+        'hits': (float(hits_score) * scale / count),
         'count': count,
     } | extra
 
+    res.update(aggregate_wer(res, scale=scale, count=count))
+
+    return res
 
 def compute_wer_differences(refs, preds1, preds2, **kwargs):
     """
@@ -424,21 +468,95 @@ def str2bool(string):
         raise ValueError(f"Expected True or False")
 
 
+def list_to_confidence_intervals(measures):
+
+    keys_to_sum = [k for k in measures.keys() if k.endswith("_list")]
+    assert len(keys_to_sum)
+    n = None
+    for k in keys_to_sum:
+        if n is None:
+            n = len(measures[k])
+        assert n == len(measures[k]), f"Length mismatch for {k} : {n} != {len(measures[k])}"
+
+    # bootstrap
+    n_bootstraps = 1000
+    samples = []
+    np.random.seed(51)
+    for _ in range(n_bootstraps):
+        indices = np.random.choice(n, n)
+        sample = {k: [measures[k][i] for i in indices] for k in keys_to_sum}
+        sample = {k[:-5]: np.sum(v) for k, v in sample.items()}
+        sample.update(aggregate_wer(sample))
+        sample.update(aggregate_f1_recall_precision(sample))
+        samples.append(sample)
+
+    assert len(samples)
+    keys = samples[0].keys()
+    intervals = {}
+    for k in keys:
+        vals = [s[k] for s in samples]
+        intervals[k+"_stdev"] = np.std(vals)
+        intervals[k+"_low"] = np.percentile(vals, 5)
+        intervals[k+"_high"] = np.percentile(vals, 95)
+        if k+"_list" not in intervals:
+            intervals[k+"_list"] = vals
+
+    return intervals
+    
+def aggregate_f1_recall_precision(measures):
+    TP = measures["TP"]
+    FN = measures["FN"]
+    FP = measures["FP"]
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+    F1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+    return {
+        "precision": precision,
+        "recall": recall,
+        "F1": F1,
+    }
+
+def aggregate_wer(measures, scale=1, count=None):
+    if count is None:
+        count = measures.get("count")
+    c_scale = count if count else 1
+    del_count = measures["del"] * c_scale / scale
+    ins_count = measures["ins"] * c_scale / scale
+    hits_count = measures["hits"] * c_scale / scale
+    sub_count = measures["sub"] * c_scale / scale
+    if count is None:
+        count = hits_count + del_count + sub_count
+    assert del_count % 1 == 0, f"{del_count=} ({count=}, {measures['count']=}, {measures['del']=}, {measures['hits']=}, {measures['ins']=}, {measures['sub']=} {scale=})"
+    assert ins_count % 1 == 0, f"{ins_count=} ({count=}, {measures['count']=}, {measures['del']=}, {measures['hits']=}, {measures['ins']=}, {measures['sub']=} {scale=})"
+    assert sub_count % 1 == 0, f"{sub_count=} ({count=}, {measures['count']=}, {measures['del']=}, {measures['hits']=}, {measures['ins']=}, {measures['sub']=} {scale=})"
+    wer = float(del_count + ins_count + sub_count) / count
+    if "wer" in measures:
+        assert abs(measures["wer"] - wer) < 0.0001
+    res = {
+        "count": count,
+        "wer": wer * scale
+    }
+    return res
+
+
 def plot_wer(
     wer_dict,
     label=True,
     legend=True,
     show=True,
     sort_best=-1,
-    small_hatch=True,
+    small_hatch=False,
     title=None,
     label_rotation=15,
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=True,
+    show_boxplot=False,
     show_axisnames=True,
     x_axisname=None,
+    colors=None,
+    use_colors=None,
     **kwargs
     ):
     """
@@ -450,12 +568,19 @@ def plot_wer(
     :param show: whether to show the plot (if True) or save it to the given file name (if string)
     :param sort_best: whether to sort the results by best WER
     :param small_hatch: whether to use small hatches for the bars
+    :param colors: list of colors
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
-    if check_result(wer_dict):
-        wer_dict = {"": wer_dict}
-    elif isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
+    import matplotlib.pyplot as plt
+
+    if colors is None:
+        # rainbow colors
+        num_colors = 8
+        colors = [plt.cm.rainbow(i / num_colors) for i in range(num_colors)]
+    if isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
         wer_dict = dict(enumerate(wer_dict))
+    elif check_result(wer_dict):
+        wer_dict = {"Evaluation": wer_dict}
     elif isinstance(wer_dict, dict) and min([check_result(w) for w in wer_dict.values()]):
         pass
     else:
@@ -463,17 +588,25 @@ def plot_wer(
             f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
 where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
 
-    import matplotlib.pyplot as plt
+    if use_colors is None:
+        use_colors = len(wer_dict) > 1
+
     plt.clf()
+
+    kwargs.update(width=0.5, edgecolor="black")
     kwargs_ins = kwargs.copy()
     kwargs_del = kwargs.copy()
     kwargs_sub = kwargs.copy()
     if "color" not in kwargs:
-        kwargs_ins["color"] = "gold"
-        kwargs_del["color"] = "white"
-        kwargs_sub["color"] = "orangered"
-
-    opts = dict(width=0.5, edgecolor="black")
+        if not use_colors:
+            kwargs_ins["color"] = "gold"
+            kwargs_del["color"] = "white"
+            kwargs_sub["color"] = "orangered"
+    n = 2 if small_hatch else 1
+    kwargs_ins["hatch"] = "*"*n
+    kwargs_del["hatch"] = "O"*n
+    kwargs_sub["hatch"] = "x"*n
+    
     keys = list(wer_dict.keys())
     if sort_best:
         keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
@@ -482,35 +615,86 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     I = [get_stat_average(wer_dict[k], "ins") for k in keys]
     S = [get_stat_average(wer_dict[k], "sub") for k in keys]
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
-    n = 2 if small_hatch else 1
     
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1 and show_boxplot:
-        vals = [get_stat_list(wer_dict[k]) for k in keys]
-        plt.boxplot(vals, positions = positions, whis=100)
-        # plt.violinplot(vals, positions = positions, showmedians=True, quantiles=[[0.25, 0.75] for i in range(len(vals))], showextrema=True)
+    all_wer_vals = None
+    compute_intervals = max([len(get_stat_list(v, "wer") if "wer_list" not in v else v["wer_list"]) for v in wer_dict.values()]) > 1
+    if compute_intervals:
+        all_wer_vals = []
+        for k in keys:
+            wer_vals = []
+            if "wer_list" in wer_dict[k]:
+                for l in get_stat_list(wer_dict[k], "wer_list"):
+                    wer_vals.extend(l)
+            else:
+                wer_vals.extend(get_stat_list(wer_dict[k], "wer"))
+            all_wer_vals.append(wer_vals)
 
-    for _, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
-        assert abs(w - (d + i + s)) < 0.0001
-        do_label = label and _ == 0
-        plt.bar([pos], [i], bottom=[d+s], hatch="*"*n, label="Insertion" if do_label else None, **kwargs_ins, **opts)
-        plt.bar([pos], [d], bottom=[s], hatch="O"*n, label="Deletion" if do_label else None, **kwargs_del, **opts)
-        plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
-    plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
+    for i_x, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
+        assert abs(w - (d + i + s)) < 0.0001, f"{w=} != {d + i + s} = {d=} + {i=} + {s=}"
+        complete_label = label and i_x == 0
+        add_opts = {}
+        label_ins = label_del = label_sub = None
+        if complete_label:
+            (label_ins, label_del, label_sub) = ("Insertion", "Deletion", "Substitution")
+        if use_colors:
+            add_opts["color"] = colors[i_x % len(colors)]
+            add_opts["alpha"] = 0.5
+            if label:
+                system_label = keys[i_x]
+                if system_label in [None, ""]:
+                    system_label = "_"
+                kwargs_ins_color = kwargs_ins.copy()
+                kwargs_ins_color.pop("hatch")
+                plt.bar([pos], [0], bottom=[d+s], label=system_label, **kwargs_ins_color, **add_opts)
+                label_ins = label_del = label_sub = None
+        plt.bar([pos], [i], bottom=[d+s], label=label_ins, **kwargs_ins, **add_opts)
+        plt.bar([pos], [d], bottom=[s], label=label_del, **kwargs_del, **add_opts)
+        plt.bar([pos], [s], label=label_sub, **kwargs_sub, **add_opts)
+    
+    if use_colors:
+        # Add legend Ins/Subs/Dels
+        add_opts["color"] = "white"
+        if not small_hatch:
+            kwargs_ins["hatch"] *= 2
+            kwargs_del["hatch"] *= 2
+            kwargs_sub["hatch"] *= 2
+        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins, **add_opts)
+        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del, **add_opts)
+        plt.bar([pos], [0], label="Substitution", **kwargs_sub, **add_opts)
+
+    if all_wer_vals and all_wer_vals[0] and len(all_wer_vals[0]) > 1:
+        if show_boxplot is False:
+            if use_colors:
+                for i_x in range(len(all_wer_vals)):
+                    plot_violinplot([all_wer_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
+            else:
+                plot_violinplot(all_wer_vals, positions = positions, alpha=0.5)
+        elif show_boxplot is True:
+            plt.boxplot(all_wer_vals, positions = positions, whis=100)
+
+    plt.xticks(
+        range(len(keys)),
+        keys,
+        rotation=label_rotation,
+        fontdict=label_fontdict,
+        ha='right'
+    ) # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
-    plt.yticks(fontsize=label_fontdict['size'])
+    label_size = label_fontdict.get('size')
+    plt.yticks(fontsize=label_size)
     if ymax is None:
         _, maxi = plt.ylim()
         plt.ylim(bottom=ymin, top=min(100, maxi))
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
-        plt.legend(fontsize=label_fontdict['size'])
+        plt.legend(fontsize=label_size)
     if show_axisnames:
-        plt.ylabel("WER (%)", fontsize=label_fontdict['size'])
+        plt.ylabel("WER (%)", fontsize=label_size)
         if x_axisname:
-            plt.xlabel(x_axisname, fontsize=label_fontdict['size'])
+            plt.xlabel(x_axisname, fontsize=label_size)
     if title:
-        plt.title(title, fontsize=label_fontdict['size'])
+        plt.title(title, fontsize=label_size)
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
@@ -536,6 +720,65 @@ def get_stat_list(wer_stats, key="wer"):
 def get_stat_average(wer_stats, key="wer"):
     return np.mean(get_stat_list(wer_stats, key))
 
+def plot_violinplot(data, positions=None, color="red", showquartiles=True, showmedians=True, **kwargs):
+    import matplotlib.pyplot as plt
+
+    if positions is None:
+        positions = range(1, len(data) + 1)
+
+    if isinstance(color, list):
+        assert len(color) == len(data), f"{len(color)=} {len(data)=}"
+        assert len(color) == len(positions)
+        for x, y, c in zip(positions, data, color):
+            if not len(y): continue
+            plot_violinplot([y], positions=[x], color=c, showquartiles=showquartiles, showmedians=showmedians, **kwargs)
+        return
+    
+    alpha = kwargs.pop("alpha", 1)
+
+    parts = plt.violinplot(
+        data,
+        positions=positions,
+        showmedians=showquartiles,
+        showmeans=False,
+        quantiles=([[0.25, 0.75]] * len(data)) if showquartiles else [],
+        showextrema=showquartiles,
+        **kwargs)
+
+    for pc in parts['bodies']:
+        # pc.set_facecolor('#D43F3A')
+        pc.set_facecolor(color)
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.5 * alpha)
+
+    if not showquartiles and not showmedians:
+        return parts
+
+    means = [np.mean(d) for d in data]
+    quartiles = [np.percentile(d, [25, 50, 75]) for d in data]
+    quartile1, medians, quartile3 = zip(*quartiles)
+    whiskers = np.array([
+        adjacent_values(sorted_array, q1, q3)
+        for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
+    whiskers_min, whiskers_max = whiskers[:, 0], whiskers[:, 1]
+
+    plt.scatter(positions, means, marker='o', color=color, s=30, zorder=3)
+    plt.scatter(positions, medians, marker='o', color='k', s=30, zorder=3)
+
+    if not showquartiles:
+        return parts
+
+    plt.vlines(positions, quartile1, quartile3, color='k', linestyle='-', lw=5)
+    plt.vlines(positions, whiskers_min, whiskers_max, color='k', linestyle='-', lw=1)
+
+def adjacent_values(vals, q1, q3):
+    upper_adjacent_value = q3 + (q3 - q1) * 1.5
+    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
+
+    lower_adjacent_value = q1 - (q3 - q1) * 1.5
+    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
+    return lower_adjacent_value, upper_adjacent_value
+
 if __name__ == "__main__":
 
     import argparse
@@ -545,6 +788,8 @@ if __name__ == "__main__":
     parser.add_argument('predictions', help="File with predicted text lines (by an ASR system)", type=str)
     parser.add_argument('--use_ids', help="Whether reference and prediction files includes id as a first field", default=True, type=str2bool, metavar="True/False")
     parser.add_argument('--alignment', '--debug', help="Output file to save debug information, or True / False", type=str, default=False, metavar="FILENAME/True/False")
+    parser.add_argument('--intervals', help="Add confidence intervals", default=False, action="store_true")
+    parser.add_argument('--plot', help="See plots", default=False, action="store_true")
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
@@ -632,16 +877,45 @@ if __name__ == "__main__":
         replacements_ref=replacements_ref,
         replacements_pred=replacements_pred,
         details_words_list=details_words_list,
+        bootstrapping=args.intervals
         )
-    line = ' {}ER: {:.2f} % [ deletions: {:.2f} % | insertions: {:.2f} % | substitutions: {:.2f} % ](count: {})'.format(
-        "C" if args.char else "W", result['wer'] * 100, result['del'] * 100, result['ins'] * 100, result['sub'] * 100, result['count'])
+    
+    result_str = {}
+    for k in "wer", "del", "ins", "sub", "word_err", "F1", "precision", "recall":
+        result_str[k] = f"{result.get(k, -1) * 100:.2f} %".replace("-100.00 %", "_")
+    for k in "TP", "FN", "FP":
+        result_str[k] = str(result.get(k, "_"))
+    if args.intervals:
+        intervals = list_to_confidence_intervals(result)
+        for k in result_str:
+            if k+"_stdev" in intervals:
+                result_str[k] += f" ± {intervals[k+'_stdev']*100:.2f}"
+        result.update(intervals)
+
+    line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
     if "word_err" in result:
-        line = f" {word_list_name} err: {result['word_err'] * 100:.2f} % |" + line
+        line = f" {word_list_name} err: {result_str['word_err']} |" + line
     print('-' * len(line))
     print(line)
     print('-' * len(line))
     if words_list:
         extra = f"Details for {len(words_list)} words:\n"
-        extra += " | ".join([f"{w}: {100*result[w]:.2f}%" for w in ["F1", "precision", "recall"]])
-        extra += " | " + " | ".join([f"{w}: {result[w]}" for w in ["TP", "FN", "FP"]])
+        extra += " | ".join([f"{w}: {result_str[w]}" for w in ["F1", "precision", "recall"]])
+        extra += " | " + " | ".join([f"{w}: {result_str[w]}" for w in ["TP", "FN", "FP"]])
         print(extra)
+
+    if args.plot:
+        plot_wer(
+            result,
+            show=True,
+            # title="Experiment",
+            # label_rotation=0,
+            # label_fontdict={'size': 'large'},
+            # label=True,
+            # legend=True,
+            # sort_best=-1,
+            # small_hatch=True,
+            # show_boxplot=True,
+            # show_axisnames=True,
+            # x_axisname=None*
+        )
