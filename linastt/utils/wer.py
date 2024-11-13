@@ -546,7 +546,7 @@ def plot_wer(
     legend=True,
     show=True,
     sort_best=-1,
-    small_hatch=True,
+    small_hatch=False,
     title=None,
     label_rotation=15,
     label_fontdict={'weight': 'bold'},
@@ -555,6 +555,8 @@ def plot_wer(
     show_boxplot=False,
     show_axisnames=True,
     x_axisname=None,
+    colors=None,
+    use_colors=None,
     **kwargs
     ):
     """
@@ -566,12 +568,19 @@ def plot_wer(
     :param show: whether to show the plot (if True) or save it to the given file name (if string)
     :param sort_best: whether to sort the results by best WER
     :param small_hatch: whether to use small hatches for the bars
+    :param colors: list of colors
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
-    if check_result(wer_dict):
-        wer_dict = {"": wer_dict}
-    elif isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
+    import matplotlib.pyplot as plt
+
+    if colors is None:
+        # rainbow colors
+        num_colors = 8
+        colors = [plt.cm.rainbow(i / num_colors) for i in range(num_colors)]
+    if isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
         wer_dict = dict(enumerate(wer_dict))
+    elif check_result(wer_dict):
+        wer_dict = {"Evaluation": wer_dict}
     elif isinstance(wer_dict, dict) and min([check_result(w) for w in wer_dict.values()]):
         pass
     else:
@@ -579,17 +588,25 @@ def plot_wer(
             f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
 where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
 
-    import matplotlib.pyplot as plt
+    if use_colors is None:
+        use_colors = len(wer_dict) > 1
+
     plt.clf()
+
+    kwargs.update(width=0.5, edgecolor="black")
     kwargs_ins = kwargs.copy()
     kwargs_del = kwargs.copy()
     kwargs_sub = kwargs.copy()
     if "color" not in kwargs:
-        kwargs_ins["color"] = "gold"
-        kwargs_del["color"] = "white"
-        kwargs_sub["color"] = "orangered"
-
-    opts = dict(width=0.5, edgecolor="black")
+        if not use_colors:
+            kwargs_ins["color"] = "gold"
+            kwargs_del["color"] = "white"
+            kwargs_sub["color"] = "orangered"
+    n = 2 if small_hatch else 1
+    kwargs_ins["hatch"] = "*"*n
+    kwargs_del["hatch"] = "O"*n
+    kwargs_sub["hatch"] = "x"*n
+    
     keys = list(wer_dict.keys())
     if sort_best:
         keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
@@ -598,10 +615,10 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     I = [get_stat_average(wer_dict[k], "ins") for k in keys]
     S = [get_stat_average(wer_dict[k], "sub") for k in keys]
     W = [get_stat_average(wer_dict[k], "wer") for k in keys]
-    n = 2 if small_hatch else 1
     
     all_wer_vals = None
-    if max([len(get_stat_list(v)) for v in wer_dict.values()]) > 1 or (len(wer_dict)==1 and "wer_list" in list(wer_dict.values())[0].keys()):
+    compute_intervals = max([len(get_stat_list(v, "wer") if "wer_list" not in v else v["wer_list"]) for v in wer_dict.values()]) > 1
+    if compute_intervals:
         all_wer_vals = []
         for k in keys:
             wer_vals = []
@@ -612,20 +629,56 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
                 wer_vals.extend(get_stat_list(wer_dict[k], "wer"))
             all_wer_vals.append(wer_vals)
 
-    for _, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
+    for i_x, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
         assert abs(w - (d + i + s)) < 0.0001, f"{w=} != {d + i + s} = {d=} + {i=} + {s=}"
-        do_label = label and _ == 0
-        plt.bar([pos], [i], bottom=[d+s], hatch="*"*n, label="Insertion" if do_label else None, **kwargs_ins, **opts)
-        plt.bar([pos], [d], bottom=[s], hatch="O"*n, label="Deletion" if do_label else None, **kwargs_del, **opts)
-        plt.bar([pos], [s], hatch="x"*n, label="Substitution" if do_label else None, **kwargs_sub, **opts)
+        complete_label = label and i_x == 0
+        add_opts = {}
+        label_ins = label_del = label_sub = None
+        if complete_label:
+            (label_ins, label_del, label_sub) = ("Insertion", "Deletion", "Substitution")
+        if use_colors:
+            add_opts["color"] = colors[i_x % len(colors)]
+            add_opts["alpha"] = 0.5
+            if label:
+                system_label = keys[i_x]
+                if system_label in [None, ""]:
+                    system_label = "_"
+                kwargs_ins_color = kwargs_ins.copy()
+                kwargs_ins_color.pop("hatch")
+                plt.bar([pos], [0], bottom=[d+s], label=system_label, **kwargs_ins_color, **add_opts)
+                label_ins = label_del = label_sub = None
+        plt.bar([pos], [i], bottom=[d+s], label=label_ins, **kwargs_ins, **add_opts)
+        plt.bar([pos], [d], bottom=[s], label=label_del, **kwargs_del, **add_opts)
+        plt.bar([pos], [s], label=label_sub, **kwargs_sub, **add_opts)
+    
+    if use_colors:
+        # Add legend Ins/Subs/Dels
+        add_opts["color"] = "white"
+        if not small_hatch:
+            kwargs_ins["hatch"] *= 2
+            kwargs_del["hatch"] *= 2
+            kwargs_sub["hatch"] *= 2
+        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins, **add_opts)
+        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del, **add_opts)
+        plt.bar([pos], [0], label="Substitution", **kwargs_sub, **add_opts)
 
     if all_wer_vals and all_wer_vals[0] and len(all_wer_vals[0]) > 1:
         if show_boxplot is False:
-            plot_violinplot(all_wer_vals, positions = positions, alpha=0.5)
+            if use_colors:
+                for i_x in range(len(all_wer_vals)):
+                    plot_violinplot([all_wer_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
+            else:
+                plot_violinplot(all_wer_vals, positions = positions, alpha=0.5)
         elif show_boxplot is True:
             plt.boxplot(all_wer_vals, positions = positions, whis=100)
 
-    plt.xticks(range(len(keys)), keys, rotation=label_rotation, fontdict=label_fontdict, ha='right') # , 'size': 'x-large'
+    plt.xticks(
+        range(len(keys)),
+        keys,
+        rotation=label_rotation,
+        fontdict=label_fontdict,
+        ha='right'
+    ) # , 'size': 'x-large'
     # plt.title(f"{len(wer)} values")
     label_size = label_fontdict.get('size')
     plt.yticks(fontsize=label_size)
@@ -667,7 +720,7 @@ def get_stat_list(wer_stats, key="wer"):
 def get_stat_average(wer_stats, key="wer"):
     return np.mean(get_stat_list(wer_stats, key))
 
-def plot_violinplot(data, positions=None, color="red", plot_quartiles=True, **kwargs):
+def plot_violinplot(data, positions=None, color="red", showquartiles=True, showmedians=True, **kwargs):
     import matplotlib.pyplot as plt
 
     if positions is None:
@@ -678,7 +731,7 @@ def plot_violinplot(data, positions=None, color="red", plot_quartiles=True, **kw
         assert len(color) == len(positions)
         for x, y, c in zip(positions, data, color):
             if not len(y): continue
-            plot_violinplot([y], positions=[x], color=c, plot_quartiles=plot_quartiles, **kwargs)
+            plot_violinplot([y], positions=[x], color=c, showquartiles=showquartiles, showmedians=showmedians, **kwargs)
         return
     
     alpha = kwargs.pop("alpha", 1)
@@ -686,10 +739,10 @@ def plot_violinplot(data, positions=None, color="red", plot_quartiles=True, **kw
     parts = plt.violinplot(
         data,
         positions=positions,
-        showmedians=plot_quartiles,
+        showmedians=showquartiles,
         showmeans=False,
-        quantiles=([[0.25, 0.75]] * len(data)) if plot_quartiles else [],
-        showextrema=plot_quartiles,
+        quantiles=([[0.25, 0.75]] * len(data)) if showquartiles else [],
+        showextrema=showquartiles,
         **kwargs)
 
     for pc in parts['bodies']:
@@ -698,12 +751,7 @@ def plot_violinplot(data, positions=None, color="red", plot_quartiles=True, **kw
         pc.set_edgecolor('black')
         pc.set_alpha(0.5 * alpha)
 
-    if not plot_quartiles:
-        # parts.keys()
-        # for key in ['bodies', 'cmaxes', 'cmins', 'cbars', 'cmedians', 'cquantiles']:
-        #     for pc in parts[key]:
-        #         pc.set_linewidth(0)
-        #         pc.set_alpha(0)
+    if not showquartiles and not showmedians:
         return parts
 
     means = [np.mean(d) for d in data]
@@ -716,6 +764,10 @@ def plot_violinplot(data, positions=None, color="red", plot_quartiles=True, **kw
 
     plt.scatter(positions, means, marker='o', color=color, s=30, zorder=3)
     plt.scatter(positions, medians, marker='o', color='k', s=30, zorder=3)
+
+    if not showquartiles:
+        return parts
+
     plt.vlines(positions, quartile1, quartile3, color='k', linestyle='-', lw=5)
     plt.vlines(positions, whiskers_min, whiskers_max, color='k', linestyle='-', lw=1)
 
