@@ -908,7 +908,7 @@ if __name__ == "__main__":
 
     if args.plot:
         plot_wer(
-            [result] * 5,
+            result,
             show=True,
             # title="Experiment",
             # label_rotation=0,
