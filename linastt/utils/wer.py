@@ -576,7 +576,9 @@ def plot_wer(
     if colors is None:
         # rainbow colors
         num_colors = 8
-        colors = [plt.cm.rainbow(i / num_colors) for i in range(num_colors)]
+        colors = [plt.cm.gist_rainbow(i / num_colors) for i in range(num_colors)]
+        colors = colors[::2] + colors[1::2]
+        colors = colors[3:] + colors[:3]
     if isinstance(wer_dict, list) and min([check_result(w) for w in wer_dict]):
         wer_dict = dict(enumerate(wer_dict))
     elif check_result(wer_dict):
@@ -906,7 +908,7 @@ if __name__ == "__main__":
 
     if args.plot:
         plot_wer(
-            result,
+            [result] * 5,
             show=True,
             # title="Experiment",
             # label_rotation=0,
