@@ -1026,7 +1026,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     elif show:
         plt.show()
 
-def find_interval_around_median(vals, coverage=0.9, symmetric=False):
+def find_interval_around_median(vals, coverage=0.95, symmetric=False):
     tensor2d = hasattr(vals[0], "__len__")
     if tensor2d:
         low_median_high = [find_interval_around_median(v, coverage=coverage, symmetric=symmetric) for v in vals]
