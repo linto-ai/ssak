@@ -5,6 +5,7 @@ import numpy as np
 import re
 import os
 import csv
+import tqdm
 
 DEFAULT_INTERVAL_TYPE = "errorbar" # "boxplot"
 # LABELS_INS_DEL_SUBS = ("Insertion", "Deletion", "Substitution")
@@ -255,8 +256,14 @@ def compute_wer(refs, preds,
             FP_list.append(0)
             FN_list.append(0)
             for w in words_list:
-                num_in_ref = len(re.findall(r"\b" + w + r"\b", r))
-                num_in_pred = len(re.findall(r"\b" + w + r"\b", p))
+                if w in r:
+                    num_in_ref = len(re.findall(r"\b" + w + r"\b", r))
+                else:
+                    num_in_ref = 0
+                if w in p:
+                    num_in_pred = len(re.findall(r"\b" + w + r"\b", p))
+                else:
+                    num_in_pred = 0
                 tp = min(num_in_ref, num_in_pred)
                 fp = max(0, num_in_pred - num_in_ref)
                 fn = max(0, num_in_ref - num_in_pred)
@@ -491,7 +498,7 @@ def list_to_confidence_intervals(measures, n_bootstraps=10000, max_samples=1000)
     # bootstrap
     samples = []
     np.random.seed(51)
-    for _ in range(n_bootstraps):
+    for _ in tqdm.tqdm(range(n_bootstraps), desc="Bootstrapping (sampling)"):
         indices = np.random.choice(n, n_samples)
         sample = {k: [measures[k][i] for i in indices] for k in keys_to_sum}
         sample = {k[:-5]: np.sum(v) for k, v in sample.items()}
@@ -1027,26 +1034,38 @@ def find_interval_around_median(vals, coverage=0.9, symmetric=False):
         return (np.array(x) for x in zip(*low_median_high))
     median = np.median(vals)
     if symmetric:
+        precision=1e-9
+        min_step = 5 if len(vals) >= 1000 else 1
         vals = np.array(sorted(vals))
         low = high = median
-        current_ratio = 0
+        current_ratio = -1
         current_interval = 0
+        progress_bar = tqdm.tqdm(
+            total=int(coverage*100),
+            desc=f"Finding symmetric interval (for {coverage * 100:.2f} % of {len(vals)} values)",
+            leave=False,
+        )
         while current_ratio < coverage:
-            if current_ratio != 0:
-                dist_to_min = [v for v in np.clip(low - vals, 0, None) if v > 0]
-                dist_to_max = [v for v in np.clip(vals - high, 0, None) if v > 0]
-                if len(dist_to_min + dist_to_max):
-                    min_dist = min(dist_to_min + dist_to_max)
+            if current_ratio >= 0:
+                dist_to_min = [v for v in np.clip(low - vals, 0, None) if v > precision]
+                dist_to_max = [v for v in np.clip(vals - high, 0, None) if v > precision]
+                all_dist = sorted(dist_to_min + dist_to_max)
+                if len(all_dist):
+                    min_dist = all_dist[min(min_step-1, len(all_dist)-1)]
                     assert min_dist > 0
-                    current_interval += min_dist + 1e-6
+                    current_interval += min_dist + precision
+                else:
+                    current_interval += precision
             low = median - current_interval
             high = median + current_interval
             num_on_interval = np.sum((vals >= low) & (vals <= high))
             previous_current_ratio = current_ratio
             current_ratio = float(num_on_interval) / len(vals)
+            progress_bar.n = int(current_ratio * 100)
+            progress_bar.refresh()
             # Sanity checks to avoid infinite loops
-            assert current_ratio > 0
-            assert current_ratio > previous_current_ratio, f"{current_ratio=} {previous_current_ratio=}"
+            assert current_ratio > previous_current_ratio, f"{current_ratio=} {previous_current_ratio=} ({median=} {current_interval=} {low=} {high=} {num_on_interval=})"
+        progress_bar.close()
         return low, median, high
     else:
         low = np.percentile(vals, 50 - coverage * 50)
