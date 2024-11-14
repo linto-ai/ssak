@@ -7,6 +7,8 @@ import os
 import csv
 
 DEFAULT_INTERVAL_TYPE = "errorbar" # "boxplot"
+# LABELS_INS_DEL_SUBS = ("Insertion", "Deletion", "Substitution")
+LABELS_INS_DEL_SUBS = ("Ins.", "Del.", "Subs.")
 
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
@@ -568,6 +570,7 @@ def plot_wer(
     use_colors=None,
     legend_hatches=True,
     scale=100,
+    add_percents_in_ticks=True,
     **kwargs
     ):
     """
@@ -606,7 +609,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if use_colors is None:
         use_colors = len(wer_dict) > 1
 
-    plt.clf()
+    plt.cla()
 
     kwargs.update(width=0.8, edgecolor="black")
     kwargs_ins = kwargs.copy()
@@ -650,9 +653,9 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             kwargs_ins_legend = kwargs_ins | {"hatch": kwargs_ins["hatch"] * 2}
             kwargs_del_legend = kwargs_del | {"hatch": kwargs_del["hatch"] * 2}
             kwargs_sub_legend = kwargs_sub | {"hatch": kwargs_sub["hatch"] * 2}
-        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins_legend, **add_opts_legend)
-        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del_legend, **add_opts_legend)
-        plt.bar([pos], [0], label="Substitution", **kwargs_sub_legend, **add_opts_legend)
+        plt.bar([pos], [0], bottom=[d+s], label=LABELS_INS_DEL_SUBS[0], **kwargs_ins_legend, **add_opts_legend)
+        plt.bar([pos], [0], bottom=[s], label=LABELS_INS_DEL_SUBS[1], **kwargs_del_legend, **add_opts_legend)
+        plt.bar([pos], [0], label=LABELS_INS_DEL_SUBS[2], **kwargs_sub_legend, **add_opts_legend)
 
     for i_x, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
         assert abs(w - (d + i + s)) < 0.0001, f"{w=} != {d + i + s} = {d=} + {i=} + {s=}"
@@ -660,7 +663,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         add_opts = {}
         label_ins = label_del = label_sub = None
         if complete_label:
-            (label_ins, label_del, label_sub) = ("Insertion", "Deletion", "Substitution")
+            (label_ins, label_del, label_sub) = LABELS_INS_DEL_SUBS
         if use_colors:
             add_opts["color"] = colors[i_x % len(colors)]
             add_opts["alpha"] = 0.5
@@ -679,14 +682,18 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], label=label_sub, **kwargs_sub, **add_opts)
 
     if use_colors and legend_hatches and legend_hatches != "before":
+        add_opts["color"] = "white"
+        kwargs_ins_color["hatch"] = ""
+        kwargs_ins_color["edgecolor"] = "white"
+        # Add empty label to have Ins/Del/Sub alone in the last column
+        # - at least 3 elements in the first column
         if len(keys) <= 2:
-            # Add empty label to have Ins/Del/Sub in the last column
             for n in range(3 - len(keys)):
-                add_opts["color"] = "white"
-                kwargs_ins_color["hatch"] = ""
-                kwargs_ins_color["edgecolor"] = "white"
                 plt.bar([pos], [0], bottom=[d+s], label=" ", **kwargs_ins_color, **add_opts)
         do_legend_hatches()
+        # - same elements in the second column
+        for n in range(len(keys) - 3):
+            plt.bar([pos], [0], bottom=[d+s], label=" ", **kwargs_ins_color, **add_opts)
 
     if all_vals and all_vals[0] and len(all_vals[0]) > 1:
         if interval_type == "violinplot":
@@ -707,7 +714,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         else:
             raise ValueError(f"Invalid interval_type {interval_type}")
 
-    if not use_colors:
+    if False: # not use_colors:
         plt.xticks(
             range(len(keys)),
             keys,
@@ -728,6 +735,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
                 fontdict=label_fontdict,
                 ha='center'
             )
+            plt.tick_params(axis='x', length=0)
     label_size = label_fontdict.get('size')
     label_weight = label_fontdict.get('weight')
     plt.yticks(fontsize=label_size)
@@ -745,7 +753,13 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             loc='best',
         )
     if show_axisnames:
-        func_ylabel("WER (%)" if scale==100 else "WER", fontsize=label_size, weight=label_weight)
+        use_percent = (scale == 100)
+        label_wer = "WER (%)" if (use_percent and not add_percents_in_ticks) else "WER"
+        if (use_percent and add_percents_in_ticks):
+            yticks, yticks_labels = plt.yticks()
+            yticks_labels = [f"${y.get_text()}\\%$" for y in yticks_labels]
+            plt.yticks(yticks, labels=yticks_labels)
+        func_ylabel(label_wer, fontsize=label_size, weight=label_weight)
         if x_axisname:
             plt.xlabel(x_axisname, fontsize=label_size, weight=label_weight)
     if title:
@@ -850,6 +864,7 @@ def plot_f1_scores(
     x_axisname=None,
     colors=None,
     scale=100,
+    add_percents_in_ticks=True,
     **kwargs
     ):
     """
@@ -884,7 +899,7 @@ def plot_f1_scores(
             f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
 where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
 
-    plt.clf()
+    plt.cla()
 
     kwargs.update(width=0.8, edgecolor="black")
     kwargs_f1 = kwargs.copy()
@@ -966,9 +981,15 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             raise ValueError(f"Invalid interval_type {interval_type}")
 
     middle = (len(positions) - 1) / 2
-    perf_names = ["F1", "Recall", "Precision"]
-    if scale == 100:
-        perf_names = [f"{p} (%)" for p in perf_names]
+    perf_names = ["F1", "Recall", "Prec."]
+    use_percent = (scale == 100)
+    if use_percent:
+        if not add_percents_in_ticks:
+            perf_names = [f"{p} (%)" for p in perf_names]
+        else:
+            yticks, yticks_labels = plt.yticks()
+            yticks_labels = [f"${y.get_text()}\\%$" for y in yticks_labels]
+            plt.yticks(yticks, labels=yticks_labels)
     plt.xticks(
         (middle, middle+offset_recall, middle+offset_precision),
         perf_names,
@@ -976,6 +997,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         fontdict=label_fontdict,
         ha='center'
     )
+    plt.tick_params(axis='x', length=0)
     label_size = label_fontdict.get('size')
     plt.yticks(fontsize=label_size)
     if ymax is None:
@@ -1006,6 +1028,7 @@ if __name__ == "__main__":
     parser.add_argument('--intervals', help="Add confidence intervals", default=False, action="store_true")
     parser.add_argument('--names', help="System names", default=[], nargs="+")
     parser.add_argument('--plot', help="See plots", default=False, action="store_true")
+    parser.add_argument('--fuse_plots', help="Fuse plots into the same figure when there are several plots (WER and F1/Recall/Precision, when --words_list is given)", default=False, action="store_true")
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
@@ -1084,7 +1107,7 @@ if __name__ == "__main__":
     results = {}
     system_names = args.names or [""]
     for i, predictions_system in enumerate(predictions):
-        system_name = system_names[i % len(system_names)].strip()
+        system_name = system_names[i % len(system_names)].strip().replace("_", " ")
         system_name_0 = system_name
         i_0 = 1
         while system_name in results or (not system_name and len(predictions_system) > 1):
@@ -1138,15 +1161,28 @@ if __name__ == "__main__":
         kwargs = dict(
             sort_best=0,
         )
+        wer_plot = True
         if words_list:
+            if args.fuse_plots:
+                plt.subplot(1, 2, 1)
+                plot_wer(
+                    results,
+                    show=False,
+                    **kwargs
+                )
+                wer_plot = False
+                plt.subplot(1, 2, 2)
             plot_f1_scores(
                 results,
-                show=False,
+                show=args.fuse_plots,
+                legend=not args.fuse_plots,
                 **kwargs
             )
-            plt.figure()
-        plot_wer(
-            results,
-            show=True,
-            **kwargs
-        )
+            if not args.fuse_plots:
+                plt.figure()
+        if wer_plot:
+            plot_wer(
+                results,
+                show=True,
+                **kwargs
+            )
