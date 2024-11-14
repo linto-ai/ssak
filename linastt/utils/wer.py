@@ -712,9 +712,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = positions, whis=100)
         elif interval_type  == "errorbar":
-            highs = np.array([np.percentile(v, 97.5) for v in all_vals])
-            lows = np.array([np.percentile(v, 2.5) for v in all_vals])
-            medians = np.array([np.median(v) for v in all_vals])
+            lows, medians, highs = find_interval_around_median(all_vals)
             plt.errorbar(positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
         elif interval_type in ["none", None]:
             pass
@@ -978,9 +976,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = all_positions, whis=100)
         elif interval_type  == "errorbar":
-            highs = np.array([np.percentile(v, 95) for v in all_vals])
-            lows = np.array([np.percentile(v, 5) for v in all_vals])
-            medians = np.array([np.median(v) for v in all_vals])
+            lows, medians, highs = find_interval_around_median(all_vals)
             plt.errorbar(all_positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
         elif interval_type in ["none", None]:
             pass
@@ -1022,6 +1018,39 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.savefig(show, bbox_inches="tight")
     elif show:
         plt.show()
+
+def find_interval_around_median(vals, coverage=0.9, symmetric=False):
+    tensor2d = hasattr(vals[0], "__len__")
+    if tensor2d:
+        low_median_high = [find_interval_around_median(v, coverage=coverage, symmetric=symmetric) for v in vals]
+        return (np.array(x) for x in zip(*low_median_high))
+    median = np.median(vals)
+    if symmetric:
+        vals = np.array(sorted(vals))
+        low = high = median
+        current_ratio = 0
+        current_interval = 0
+        while current_ratio < coverage:
+            if current_ratio != 0:
+                dist_to_min = [v for v in np.clip(low - vals, 0, None) if v > 0]
+                dist_to_max = [v for v in np.clip(vals - high, 0, None) if v > 0]
+                if len(dist_to_min + dist_to_max):
+                    min_dist = min(dist_to_min + dist_to_max)
+                    assert min_dist > 0
+                    current_interval += min_dist + 1e-6
+            low = median - current_interval
+            high = median + current_interval
+            num_on_interval = np.sum((vals >= low) & (vals <= high))
+            previous_current_ratio = current_ratio
+            current_ratio = float(num_on_interval) / len(vals)
+            # Sanity checks to avoid infinite loops
+            assert current_ratio > 0
+            assert current_ratio > previous_current_ratio, f"{current_ratio=} {previous_current_ratio=}"
+        return low, median, high
+    else:
+        low = np.percentile(vals, 50 - coverage * 50)
+        high = np.percentile(vals, 50 + coverage * 50)
+        return low, median, high
 
 if __name__ == "__main__":
 
@@ -1149,7 +1178,15 @@ if __name__ == "__main__":
                     add_percent = new_result.endswith("%")
                     if add_percent:
                         new_result = new_result[:-1].strip()
-                    new_result += f" ± {result[k+'_stdev']*100:.2f}"
+                    if k+"_samples" in result:
+                        low, median, high = find_interval_around_median(result[k+"_samples"], symmetric=True)
+                        assert abs((high - median) - (median - low)) < 0.0001, f"{low=} {median=} {high=}"
+                        interval = (high - median) * 100
+                    else:
+                        assert k+"_stdev" in result
+                        stdev = result[k+"_stdev"]
+                        interval = stdev * 1.645 * 100 # Note : the 1.645 is the z-score for 90% confidence interval on a Normal distribution
+                    new_result += f" ± {interval:.2f}"
                     if add_percent:
                         new_result += " %"
                     result_str[k] = new_result
