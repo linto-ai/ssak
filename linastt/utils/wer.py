@@ -494,7 +494,7 @@ def list_to_confidence_intervals(measures, n_bootstraps=10000, max_samples=1000)
         indices = np.random.choice(n, n_samples)
         sample = {k: [measures[k][i] for i in indices] for k in keys_to_sum}
         sample = {k[:-5]: np.sum(v) for k, v in sample.items()}
-        sample.update(aggregate_wer(sample))
+        sample.update(aggregate_wer(sample, norm_rates=True))
         sample.update(aggregate_f1_recall_precision(sample))
         samples.append(sample)
 
@@ -502,7 +502,7 @@ def list_to_confidence_intervals(measures, n_bootstraps=10000, max_samples=1000)
     keys = samples[0].keys()
     intervals = {}
     for k in keys:
-        if k not in ["wer", "F1", "recall", "precision"]:
+        if k not in ["wer", "F1", "recall", "precision", "del", "ins", "sub", "hits"]:
             continue
         vals = [s[k] for s in samples]
         intervals[k+"_stdev"] = np.std(vals)
@@ -528,7 +528,7 @@ def aggregate_f1_recall_precision(measures):
         "F1": F1,
     }
 
-def aggregate_wer(measures, scale=1, count=None):
+def aggregate_wer(measures, scale=1, count=None, norm_rates=False):
     if count is None:
         count = measures.get("count")
     c_scale = count if count else 1
@@ -548,6 +548,13 @@ def aggregate_wer(measures, scale=1, count=None):
         "count": count,
         "wer": wer * scale
     }
+    if norm_rates:
+        res = res | {
+            "del": float(del_count) / count,
+            "ins": float(ins_count) / count,
+            "hits": float(hits_count) / count,
+            "sub": float(sub_count) / count,
+        }
     return res
 
 
@@ -1129,10 +1136,6 @@ if __name__ == "__main__":
             )
 
     for system_name, result in results.items():
-
-        if system_name:
-            print('=' * 100)
-            print(f"Results for {system_name}:")
     
         result_str = {}
         for k in "wer", "del", "ins", "sub", "word_err", "F1", "precision", "recall":
@@ -1142,16 +1145,28 @@ if __name__ == "__main__":
         if args.intervals:
             for k in result_str:
                 if k+"_stdev" in result:
-                    result_str[k] += f" ± {result[k+'_stdev']*100:.2f}"
+                    new_result = result_str[k]
+                    add_percent = new_result.endswith("%")
+                    if add_percent:
+                        new_result = new_result[:-1].strip()
+                    new_result += f" ± {result[k+'_stdev']*100:.2f}"
+                    if add_percent:
+                        new_result += " %"
+                    result_str[k] = new_result
 
-        line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
+        line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ del: {result_str['del']} | ins: {result_str['ins']} | subs: {result_str['sub']} ](count: {result['count']})"
         if "word_err" in result:
             line = f" {word_list_name} err: {result_str['word_err']} |" + line
-        print('-' * len(line))
+
+        if system_name:
+            print()
+            print("=" * len(line))
+            print(f"Results for {system_name}:")
+        print("-" * len(line))
         print(line)
-        print('-' * len(line))
+        print("-" * len(line))
         if words_list:
-            extra = f"Details for {len(words_list)} words:\n"
+            extra = f"Details for {len(words_list)} words:\n  "
             extra += " | ".join([f"{w}: {result_str[w]}" for w in ["F1", "precision", "recall"]])
             extra += " | " + " | ".join([f"{w}: {result_str[w]}" for w in ["TP", "FN", "FP"]])
             print(extra)
