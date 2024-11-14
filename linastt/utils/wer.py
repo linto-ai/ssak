@@ -6,6 +6,10 @@ import re
 import os
 import csv
 
+DEFAULT_INTERVAL_TYPE = "errorbar" # "boxplot"
+# LABELS_INS_DEL_SUBS = ("Insertion", "Deletion", "Substitution")
+LABELS_INS_DEL_SUBS = ("Ins.", "Del.", "Subs.")
+
 def normalize_line(line):
     return re.sub("\s+" , " ", line).strip()
 
@@ -472,7 +476,7 @@ def str2bool(string):
         raise ValueError(f"Expected True or False")
 
 
-def list_to_confidence_intervals(measures):
+def list_to_confidence_intervals(measures, n_bootstraps=10000, max_samples=1000):
 
     keys_to_sum = [k for k in measures.keys() if k.endswith("_list")]
     assert len(keys_to_sum)
@@ -481,16 +485,16 @@ def list_to_confidence_intervals(measures):
         if n is None:
             n = len(measures[k])
         assert n == len(measures[k]), f"Length mismatch for {k} : {n} != {len(measures[k])}"
+    n_samples = min(max_samples, n)
 
     # bootstrap
-    n_bootstraps = 1000
     samples = []
     np.random.seed(51)
     for _ in range(n_bootstraps):
-        indices = np.random.choice(n, n)
+        indices = np.random.choice(n, n_samples)
         sample = {k: [measures[k][i] for i in indices] for k in keys_to_sum}
         sample = {k[:-5]: np.sum(v) for k, v in sample.items()}
-        sample.update(aggregate_wer(sample))
+        sample.update(aggregate_wer(sample, norm_rates=True))
         sample.update(aggregate_f1_recall_precision(sample))
         samples.append(sample)
 
@@ -498,8 +502,12 @@ def list_to_confidence_intervals(measures):
     keys = samples[0].keys()
     intervals = {}
     for k in keys:
+        if k not in ["wer", "F1", "recall", "precision", "del", "ins", "sub", "hits"]:
+            continue
         vals = [s[k] for s in samples]
         intervals[k+"_stdev"] = np.std(vals)
+        intervals[k+"_median"] = np.median(vals)
+        intervals[k+"_mean"] = np.mean(vals)
         intervals[k+"_low"] = np.percentile(vals, 5)
         intervals[k+"_high"] = np.percentile(vals, 95)
         intervals[k+"_samples"] = vals
@@ -520,7 +528,7 @@ def aggregate_f1_recall_precision(measures):
         "F1": F1,
     }
 
-def aggregate_wer(measures, scale=1, count=None):
+def aggregate_wer(measures, scale=1, count=None, norm_rates=False):
     if count is None:
         count = measures.get("count")
     c_scale = count if count else 1
@@ -540,6 +548,13 @@ def aggregate_wer(measures, scale=1, count=None):
         "count": count,
         "wer": wer * scale
     }
+    if norm_rates:
+        res = res | {
+            "del": float(del_count) / count,
+            "ins": float(ins_count) / count,
+            "hits": float(hits_count) / count,
+            "sub": float(sub_count) / count,
+        }
     return res
 
 
@@ -555,12 +570,14 @@ def plot_wer(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=True,
+    interval_type=DEFAULT_INTERVAL_TYPE,
     show_axisnames=True,
     x_axisname=None,
     colors=None,
     use_colors=None,
     legend_hatches=True,
+    scale=100,
+    add_percents_in_ticks=True,
     **kwargs
     ):
     """
@@ -574,6 +591,7 @@ def plot_wer(
     :param small_hatch: whether to use small hatches for the bars
     :param colors: list of colors
     :param legend_hatches: True, False, "before", "after"
+    :param interval_type: "none", "boxplot", "violinplot" or "errorbar"
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
     import matplotlib.pyplot as plt
@@ -598,7 +616,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if use_colors is None:
         use_colors = len(wer_dict) > 1
 
-    plt.clf()
+    plt.cla()
 
     kwargs.update(width=0.8, edgecolor="black")
     kwargs_ins = kwargs.copy()
@@ -618,10 +636,10 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if sort_best:
         keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=sort_best<0)
     positions = range(len(keys))
-    D = [get_stat_average(wer_dict[k], "del") for k in keys]
-    I = [get_stat_average(wer_dict[k], "ins") for k in keys]
-    S = [get_stat_average(wer_dict[k], "sub") for k in keys]
-    W = [get_stat_average(wer_dict[k], "wer") for k in keys]
+    D = [get_stat_average(wer_dict[k], "del")*scale for k in keys]
+    I = [get_stat_average(wer_dict[k], "ins")*scale for k in keys]
+    S = [get_stat_average(wer_dict[k], "sub")*scale for k in keys]
+    W = [get_stat_average(wer_dict[k], "wer")*scale for k in keys]
     
     all_vals = None
     compute_intervals = max([len(get_stat_list(v, "wer") if "wer_samples" not in v else v["wer_samples"]) for v in wer_dict.values()]) > 1
@@ -634,7 +652,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
                     val_list.extend(l)
             else:
                 val_list.extend(get_stat_list(wer_dict[k], "wer"))
-            all_vals.append(val_list)
+            all_vals.append([v*scale for v in val_list])
 
     def do_legend_hatches():
         add_opts_legend = add_opts | {"color": "white"}
@@ -642,9 +660,9 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             kwargs_ins_legend = kwargs_ins | {"hatch": kwargs_ins["hatch"] * 2}
             kwargs_del_legend = kwargs_del | {"hatch": kwargs_del["hatch"] * 2}
             kwargs_sub_legend = kwargs_sub | {"hatch": kwargs_sub["hatch"] * 2}
-        plt.bar([pos], [0], bottom=[d+s], label="Insertion", **kwargs_ins_legend, **add_opts_legend)
-        plt.bar([pos], [0], bottom=[s], label="Deletion", **kwargs_del_legend, **add_opts_legend)
-        plt.bar([pos], [0], label="Substitution", **kwargs_sub_legend, **add_opts_legend)
+        plt.bar([pos], [0], bottom=[d+s], label=LABELS_INS_DEL_SUBS[0], **kwargs_ins_legend, **add_opts_legend)
+        plt.bar([pos], [0], bottom=[s], label=LABELS_INS_DEL_SUBS[1], **kwargs_del_legend, **add_opts_legend)
+        plt.bar([pos], [0], label=LABELS_INS_DEL_SUBS[2], **kwargs_sub_legend, **add_opts_legend)
 
     for i_x, (pos, d, i, s, w) in enumerate(zip(positions, D, I, S, W)):
         assert abs(w - (d + i + s)) < 0.0001, f"{w=} != {d + i + s} = {d=} + {i=} + {s=}"
@@ -652,7 +670,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         add_opts = {}
         label_ins = label_del = label_sub = None
         if complete_label:
-            (label_ins, label_del, label_sub) = ("Insertion", "Deletion", "Substitution")
+            (label_ins, label_del, label_sub) = LABELS_INS_DEL_SUBS
         if use_colors:
             add_opts["color"] = colors[i_x % len(colors)]
             add_opts["alpha"] = 0.5
@@ -671,26 +689,39 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         plt.bar([pos], [s], label=label_sub, **kwargs_sub, **add_opts)
 
     if use_colors and legend_hatches and legend_hatches != "before":
+        add_opts["color"] = "white"
+        kwargs_ins_color["hatch"] = ""
+        kwargs_ins_color["edgecolor"] = "white"
+        # Add empty label to have Ins/Del/Sub alone in the last column
+        # - at least 3 elements in the first column
         if len(keys) <= 2:
-            # Add empty label to have Ins/Del/Sub in the last column
             for n in range(3 - len(keys)):
-                add_opts["color"] = "white"
-                kwargs_ins_color["hatch"] = ""
-                kwargs_ins_color["edgecolor"] = "white"
                 plt.bar([pos], [0], bottom=[d+s], label=" ", **kwargs_ins_color, **add_opts)
         do_legend_hatches()
+        # - same elements in the second column
+        for n in range(len(keys) - 3):
+            plt.bar([pos], [0], bottom=[d+s], label=" ", **kwargs_ins_color, **add_opts)
 
     if all_vals and all_vals[0] and len(all_vals[0]) > 1:
-        if show_boxplot is False:
+        if interval_type == "violinplot":
             if use_colors:
                 for i_x in range(len(all_vals)):
                     plot_violinplot([all_vals[i_x]], positions = [positions[i_x]], color=colors[i_x %len(colors)], alpha=0.5)
             else:
                 plot_violinplot(all_vals, positions = positions, alpha=0.5)
-        elif show_boxplot is True:
+        elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = positions, whis=100)
+        elif interval_type  == "errorbar":
+            highs = np.array([np.percentile(v, 97.5) for v in all_vals])
+            lows = np.array([np.percentile(v, 2.5) for v in all_vals])
+            medians = np.array([np.median(v) for v in all_vals])
+            plt.errorbar(positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
+        elif interval_type in ["none", None]:
+            pass
+        else:
+            raise ValueError(f"Invalid interval_type {interval_type}")
 
-    if not use_colors:
+    if False: # not use_colors:
         plt.xticks(
             range(len(keys)),
             keys,
@@ -698,10 +729,22 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
             fontdict=label_fontdict,
             ha='right'
         )
+        func_ylabel = plt.ylabel
     else:
         # Remove xticks
         plt.xticks([])
+        def func_ylabel(title, *args, **kwargs):
+            middle = (len(positions) - 1) / 2
+            plt.xticks(
+                [middle],
+                [title],
+                rotation=0,
+                fontdict=label_fontdict,
+                ha='center'
+            )
+            plt.tick_params(axis='x', length=0)
     label_size = label_fontdict.get('size')
+    label_weight = label_fontdict.get('weight')
     plt.yticks(fontsize=label_size)
     if ymax is None:
         _, maxi = plt.ylim()
@@ -709,16 +752,25 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     else:
         plt.ylim(bottom=ymin, top=ymax)
     if legend:
+        (y_min, y_max) = plt.ylim()
+        plt.ylim(y_min, (y_max - y_min) * 1.2 + y_min)
         plt.legend(
             fontsize=label_size,
             ncols=2,
+            loc='best',
         )
     if show_axisnames:
-        plt.ylabel("WER (%)", fontsize=label_size)
+        use_percent = (scale == 100)
+        label_wer = "WER (%)" if (use_percent and not add_percents_in_ticks) else "WER"
+        if (use_percent and add_percents_in_ticks):
+            yticks, yticks_labels = plt.yticks()
+            yticks_labels = [f"${y.get_text()}\\%$" for y in yticks_labels]
+            plt.yticks(yticks, labels=yticks_labels)
+        func_ylabel(label_wer, fontsize=label_size, weight=label_weight)
         if x_axisname:
-            plt.xlabel(x_axisname, fontsize=label_size)
+            plt.xlabel(x_axisname, fontsize=label_size, weight=label_weight)
     if title:
-        plt.title(title, fontsize=label_size)
+        plt.title(title, fontsize=label_size, weight=label_weight)
     if isinstance(show, str):
         plt.savefig(show, bbox_inches="tight")
     elif show:
@@ -815,10 +867,11 @@ def plot_f1_scores(
     label_fontdict={'weight': 'bold'},
     ymin=0,
     ymax=None,
-    show_boxplot=True,
+    interval_type=DEFAULT_INTERVAL_TYPE,
     x_axisname=None,
     colors=None,
     scale=100,
+    add_percents_in_ticks=True,
     **kwargs
     ):
     """
@@ -831,6 +884,7 @@ def plot_f1_scores(
     :param sort_best: whether to sort the results by best WER
     :param small_hatch: whether to use small hatches for the bars
     :param colors: list of colors
+    :param interval_type: "none", "boxplot", "violinplot" or "errorbar"
     :param **kwargs: additional arguments to pass to matplotlib.pyplot.bar
     """
     import matplotlib.pyplot as plt
@@ -852,7 +906,7 @@ def plot_f1_scores(
             f"Invalid input (expecting a dictionary of results, a list of results, or a dictionary of results, \
 where a result is a dictionary as returned by compute_wer, or a list of such dictionaries)")
 
-    plt.clf()
+    plt.cla()
 
     kwargs.update(width=0.8, edgecolor="black")
     kwargs_f1 = kwargs.copy()
@@ -865,7 +919,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     
     keys = list(wer_dict.keys())
     if sort_best:
-        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k], "F1"), reverse=not (sort_best<0))
+        keys = sorted(keys, key=lambda k: get_stat_average(wer_dict[k]), reverse=not (sort_best<0))
     positions = range(len(keys))
 
     offset_recall = len(positions) + 1
@@ -881,9 +935,9 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     if compute_intervals:
         all_vals = []
         all_positions = []
-        for pos, k in zip(positions, keys):
-            val_list = []
-            for (offset, stat) in [(0, "F1"), (offset_recall, "recall"), (offset_precision, "precision")]:
+        for (offset, stat) in [(0, "F1"), (offset_recall, "recall"), (offset_precision, "precision")]:
+            for pos, k in zip(positions, keys):
+                val_list = []
                 if f"{stat}_samples" in wer_dict[k]:
                     for l in get_stat_list(wer_dict[k], f"{stat}_samples"):
                         val_list.extend(l)
@@ -918,16 +972,31 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
     # plt.bar([pos], [0], label="Precision", **kwargs_precision, **add_opts)
 
     if all_vals and all_vals[0] and len(all_vals[0]) > 1:
-        if show_boxplot is False:
+        if interval_type == "violinplot":
             for i_x in range(len(all_vals)):
                 plot_violinplot([all_vals[i_x]], positions = [all_positions[i_x]], color=colors[(i_x//3) %len(colors)], alpha=0.5)
-        elif show_boxplot is True:
+        elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = all_positions, whis=100)
+        elif interval_type  == "errorbar":
+            highs = np.array([np.percentile(v, 95) for v in all_vals])
+            lows = np.array([np.percentile(v, 5) for v in all_vals])
+            medians = np.array([np.median(v) for v in all_vals])
+            plt.errorbar(all_positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
+        elif interval_type in ["none", None]:
+            pass
+        else:
+            raise ValueError(f"Invalid interval_type {interval_type}")
 
     middle = (len(positions) - 1) / 2
-    perf_names = ["F1", "Recall", "Precision"]
-    if scale == 100:
-        perf_names = [f"{p} (%)" for p in perf_names]
+    perf_names = ["F1", "Recall", "Prec."]
+    use_percent = (scale == 100)
+    if use_percent:
+        if not add_percents_in_ticks:
+            perf_names = [f"{p} (%)" for p in perf_names]
+        else:
+            yticks, yticks_labels = plt.yticks()
+            yticks_labels = [f"${y.get_text()}\\%$" for y in yticks_labels]
+            plt.yticks(yticks, labels=yticks_labels)
     plt.xticks(
         (middle, middle+offset_recall, middle+offset_precision),
         perf_names,
@@ -935,6 +1004,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         fontdict=label_fontdict,
         ha='center'
     )
+    plt.tick_params(axis='x', length=0)
     label_size = label_fontdict.get('size')
     plt.yticks(fontsize=label_size)
     if ymax is None:
@@ -965,6 +1035,7 @@ if __name__ == "__main__":
     parser.add_argument('--intervals', help="Add confidence intervals", default=False, action="store_true")
     parser.add_argument('--names', help="System names", default=[], nargs="+")
     parser.add_argument('--plot', help="See plots", default=False, action="store_true")
+    parser.add_argument('--fuse_plots', help="Fuse plots into the same figure when there are several plots (WER and F1/Recall/Precision, when --words_list is given)", default=False, action="store_true")
     parser.add_argument('--include_correct_in_alignement', help="To also give correct alignement", action="store_true", default=False)
     parser.add_argument('--norm', help="Language to use for text normalization ('fr', 'ar', ...). Use suffix '+' (ex: 'fr+', 'ar+', ...) to remove all non-alpha-num characters (apostrophes, dashes, ...)", default=None)
     parser.add_argument('--char', default=False, action="store_true", help="For character-level error rate (CER)")
@@ -1043,7 +1114,7 @@ if __name__ == "__main__":
     results = {}
     system_names = args.names or [""]
     for i, predictions_system in enumerate(predictions):
-        system_name = system_names[i % len(system_names)].strip()
+        system_name = system_names[i % len(system_names)].strip().replace("_", " ")
         system_name_0 = system_name
         i_0 = 1
         while system_name in results or (not system_name and len(predictions_system) > 1):
@@ -1065,10 +1136,6 @@ if __name__ == "__main__":
             )
 
     for system_name, result in results.items():
-
-        if system_name:
-            print('=' * 100)
-            print(f"Results for {system_name}:")
     
         result_str = {}
         for k in "wer", "del", "ins", "sub", "word_err", "F1", "precision", "recall":
@@ -1078,29 +1145,59 @@ if __name__ == "__main__":
         if args.intervals:
             for k in result_str:
                 if k+"_stdev" in result:
-                    result_str[k] += f" ± {result[k+'_stdev']*100:.2f}"
+                    new_result = result_str[k]
+                    add_percent = new_result.endswith("%")
+                    if add_percent:
+                        new_result = new_result[:-1].strip()
+                    new_result += f" ± {result[k+'_stdev']*100:.2f}"
+                    if add_percent:
+                        new_result += " %"
+                    result_str[k] = new_result
 
-        line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ deletions: {result_str['del']} | insertions: {result_str['ins']} | substitutions: {result_str['sub']} ](count: {result['count']})"
+        line = f" {'C' if args.char else 'W'}ER: {result_str['wer']} [ del: {result_str['del']} | ins: {result_str['ins']} | subs: {result_str['sub']} ](count: {result['count']})"
         if "word_err" in result:
             line = f" {word_list_name} err: {result_str['word_err']} |" + line
-        print('-' * len(line))
+
+        if system_name:
+            print()
+            print("=" * len(line))
+            print(f"Results for {system_name}:")
+        print("-" * len(line))
         print(line)
-        print('-' * len(line))
+        print("-" * len(line))
         if words_list:
-            extra = f"Details for {len(words_list)} words:\n"
+            extra = f"Details for {len(words_list)} words:\n  "
             extra += " | ".join([f"{w}: {result_str[w]}" for w in ["F1", "precision", "recall"]])
             extra += " | " + " | ".join([f"{w}: {result_str[w]}" for w in ["TP", "FN", "FP"]])
             print(extra)
 
     if args.plot:
         import matplotlib.pyplot as plt
+        kwargs = dict(
+            sort_best=0,
+        )
+        wer_plot = True
         if words_list:
+            if args.fuse_plots:
+                plt.subplot(1, 2, 1)
+                plot_wer(
+                    results,
+                    show=False,
+                    **kwargs
+                )
+                wer_plot = False
+                plt.subplot(1, 2, 2)
             plot_f1_scores(
                 results,
-                show=False,
+                show=args.fuse_plots,
+                legend=not args.fuse_plots,
+                **kwargs
             )
-            plt.figure()
-        plot_wer(
-            results,
-            show=True,
-        )
+            if not args.fuse_plots:
+                plt.figure()
+        if wer_plot:
+            plot_wer(
+                results,
+                show=True,
+                **kwargs
+            )
