@@ -38,12 +38,13 @@ class Reader2Kaldi:
         return kaldi_dataset
     
 class ToKaldi():
-    def __init__(self, input, return_columns, execute_order=0, merge_on="id", sort_merging=True) -> None:
+    def __init__(self, input, return_columns, execute_order=0, merge_on="id", sort_merging=True, force_merge_new_into_old=False) -> None:
         self.execute_order = execute_order
         self.input = input
         self.return_columns = return_columns
         self.merge_on = merge_on
         self.sort_merging = sort_merging
+        self.force_merge_new_into_old = force_merge_new_into_old
     
     def __len__(self):
         return len(self.data)
@@ -79,9 +80,13 @@ class ToKaldi():
             return dataset
         else:       # not optimized, use it when want to keep original order or when lenghts are different (merging speakers list with dataset for example)
             merged_data = []
-            if len(dataset)<len(new_data):
-                dataset, new_data = new_data, dataset     
-            for i in dataset:
+            if len(dataset)<len(new_data) and not self.force_merge_new_into_old:
+                dataset, new_data = new_data, dataset
+            if len(dataset)>100_000:
+                pbar = tqdm(dataset, desc=f"Merging on {self.merge_on} data from {self.__class__.__name__}")
+            else:
+                pbar = dataset
+            for i in pbar:
                 for j in new_data:
                     if i[self.merge_on] == j[self.merge_on]:
                         i.update(j)
@@ -105,7 +110,7 @@ class AudioFolder2Kaldi(ToKaldi):
     
         # Decide whether to use a progress bar based on the file count
         use_progress_bar = file_count >= 5000
-        pbar = tqdm(desc="Processing files") if use_progress_bar else None
+        pbar = tqdm(desc="Processing audio files") if use_progress_bar else None
         
         for root, _, files in os.walk(self.input):
             audios = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
@@ -135,7 +140,7 @@ class TextFolder2Kaldi(ToKaldi):
     
         # Decide whether to use a progress bar based on the file count
         use_progress_bar = file_count >= 5000
-        pbar = tqdm(desc="Processing files") if use_progress_bar else None
+        pbar = tqdm(desc="Processing text files") if use_progress_bar else None
         
         for root, _, files in os.walk(self.input):
             texts = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
@@ -156,7 +161,11 @@ class Row2KaldiInfo(ToKaldi):
         raise NotImplementedError("This method must be implemented in the child class")
 
     def process(self, dataset):
-        for row in dataset:
+        if len(dataset)>100_000:
+            pbar = tqdm(dataset, desc=f"Processing rows with {self.__class__.__name__}")
+        else:
+            pbar = dataset
+        for row in pbar:
             info = self(row)
             row.update(info)
         return dataset
@@ -190,10 +199,10 @@ class Row2Duration(Row2KaldiInfo):
 
 class ColumnFile2Kaldi(ToKaldi):
     
-    def __init__(self, input, return_columns, execute_order, separator: str, merge_on="id", header=False, sort_merging=True) -> None:
+    def __init__(self, input, return_columns, execute_order, separator: str, header=False, **kwargs) -> None:
         if return_columns is None:
             raise ValueError("Columns must be specified")
-        super().__init__(input, return_columns, execute_order, merge_on, sort_merging=sort_merging)
+        super().__init__(input, return_columns, execute_order, **kwargs)
         self.separator = separator
         self.header = header
     
