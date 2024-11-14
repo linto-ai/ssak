@@ -574,7 +574,7 @@ def plot_wer(
     small_hatch=False,
     title=None,
     label_rotation=15,
-    label_fontdict={'weight': 'bold'},
+    label_fontdict={'weight': 'bold', 'size': 12},
     ymin=0,
     ymax=None,
     interval_type=DEFAULT_INTERVAL_TYPE,
@@ -869,7 +869,7 @@ def plot_f1_scores(
     sort_best=-1,
     small_hatch=False,
     title=None,
-    label_fontdict={'weight': 'bold'},
+    label_fontdict={'weight': 'bold', 'size': 12},
     ymin=0,
     ymax=None,
     interval_type=DEFAULT_INTERVAL_TYPE,
@@ -1233,6 +1233,7 @@ if __name__ == "__main__":
             sort_best=0,
         )
         wer_plot = True
+        final_show = True # "WER.pdf" # TODO: add an option to pass a filename
         if words_list:
             if args.fuse_plots:
                 plt.subplot(1, 2, 1)
@@ -1242,18 +1243,24 @@ if __name__ == "__main__":
                     **kwargs
                 )
                 wer_plot = False
-                plt.subplot(1, 2, 2)
+                ax = plt.subplot(1, 2, 2)
+                # Move y-axis to the right
+                ax.yaxis.set_ticks_position('right')
+                ax.yaxis.set_label_position('right')
+                ax.spines['right'].set_position(('outward', 0))
+                ax.spines['left'].set_position(('outward', 0))
             plot_f1_scores(
                 results,
-                show=args.fuse_plots,
+                show=final_show if args.fuse_plots else False,
                 legend=not args.fuse_plots,
                 **kwargs
             )
             if not args.fuse_plots:
                 plt.figure()
+
         if wer_plot:
             plot_wer(
                 results,
-                show=True,
+                show=final_show,
                 **kwargs
             )
