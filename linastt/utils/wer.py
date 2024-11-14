@@ -133,7 +133,6 @@ def compute_wer(refs, preds,
         if normalization.startswith("ar"):
             kwargs={
                 "keep_latin_chars": True,
-                "lang": "ar_tn" if normalization.endswith("tn") else "ar",
                 "normalize_dialect_words": True if normalization.endswith("tn") else False,
             }
             normalize_funcs.append(lambda x: format_text(x, language=normalization, **kwargs))
@@ -163,10 +162,10 @@ def compute_wer(refs, preds,
                 s = f(s)
             return s
 
-        refs = [normalize_func(ref) for ref in refs]
-        preds = [normalize_func(pred) for pred in preds]
+        refs = [normalize_func(ref) for ref in tqdm.tqdm(refs, desc="Normalizing references", leave=False)]
+        preds = [normalize_func(pred) for pred in tqdm.tqdm(preds, desc="Normalizing predictions", leave=False)]
         if words_list:
-            words_list = [normalize_func(w) for w in words_list]
+            words_list = [normalize_func(w) for w in tqdm.tqdm(words_list, desc="Normalizing special words", leave=False)]
             words_list = [w for w in words_list if w]
 
         # Replacements AFTER normalization

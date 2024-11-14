@@ -23,7 +23,10 @@ def format_text(text, language, **kwargs):
         return format_text_latin(text, lang=language, **kwargs)
     if language.startswith("ar"):
         from .text_ar import format_text_ar
-        return format_text_ar(text, **kwargs)
+        if "lang" in kwargs:
+            lang = kwargs.pop("lang")
+            assert lang == language, f"{lang=} from kwargs, inconsistent with {language=}"
+        return format_text_ar(text, lang=language, **kwargs)
     if language == "ru":
         from .text_ru import format_text_ru
         return format_text_ru(text, **kwargs)
