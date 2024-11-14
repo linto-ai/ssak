@@ -21,7 +21,7 @@ from .text_utils import (
 def format_text(text, language, **kwargs):
     if language in ["fr", "en"]:
         return format_text_latin(text, lang=language, **kwargs)
-    if language == "ar":
+    if language.startswith("ar"):
         from .text_ar import format_text_ar
         return format_text_ar(text, **kwargs)
     if language == "ru":

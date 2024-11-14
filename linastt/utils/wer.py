@@ -119,7 +119,7 @@ def compute_wer(refs, preds,
                     preds[i] = re.sub(r"\b" + k + r"\b", v, preds[i])
 
     if normalization:
-        from linastt.utils.text import format_text_latin, collapse_whitespace
+        from linastt.utils.text import format_text, collapse_whitespace
 
         strong_normalization = normalization.endswith("+")
         if strong_normalization:
@@ -130,13 +130,14 @@ def compute_wer(refs, preds,
 
         normalize_funcs = []
         if normalization.startswith("ar"):
-            from linastt.utils.text import format_text_ar
-            normalize_funcs.append(lambda x: format_text_ar(x, keep_latin_chars=True, lang=normalization))
-        elif normalization == "ru":
-            from linastt.utils.text import format_text_ru
-            normalize_funcs.append(lambda x: format_text_ru(x))
+            kwargs={
+                "keep_latin_chars": True,
+                "lang": "ar_tn" if normalization.endswith("tn") else "ar",
+                "normalize_dialect_words": True if normalization.endswith("tn") else False,
+            }
+            normalize_funcs.append(lambda x: format_text(x, language=normalization, **kwargs))
         else:
-            normalize_funcs.append(lambda x: format_text_latin(x, lang=normalization))
+            normalize_funcs.append(lambda x: format_text(x, language=normalization))
 
         if normalization == "fr":
             def further_normalize(s):
