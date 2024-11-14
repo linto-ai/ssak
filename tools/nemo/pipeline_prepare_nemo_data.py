@@ -8,15 +8,16 @@ from generate_dataset_list_files import generate_dataset_list_files
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Prepare data for Nemo')
-    parser.add_argument('--train_input_datasets', help="Input datasets", type=str, default="datasets_list")
+    parser.add_argument('--train_input_datasets', help="Input datasets", type=str, default=None)
     parser.add_argument('--test_input_datasets', help="Input datasets", type=str, default=None)
     parser.add_argument('--dev_input_datasets', help="Input datasets", type=str, default=None)
     parser.add_argument('--datasets_folder', help="Dataset folder", type=str, default=None)
     parser.add_argument('--output_wav_dir', help="Output wav directory", type=str, default="processed_dataset")
-    parser.add_argument('--splits_dir', help="Splits directory", type=str, default="splits")
     parser.add_argument('--manifest_dir', default="input_manifests")
+    # Options for creating a tokenizer using all splits
     parser.add_argument('--create_tokenizer', default=None, help="Folder to save tokenizer (if not set, no tokenizer is created)")
     parser.add_argument('--vocab_size', help="Vocab size", type=int, default=1024)
+    # Options for making buckets for the training data
     parser.add_argument('--create_tarred', action="store_true", default=False)
     parser.add_argument('--output_tarred_dir', help="Output tarred directory", type=str, default="tarred_dataset")
     parser.add_argument('--num_shards', default=24, type=int)
@@ -30,7 +31,6 @@ if __name__=="__main__":
     
     vocab_size = args.vocab_size
     input_datasets = args.train_input_datasets
-    test_input_datasets = args.test_input_datasets
     output_wav_dir = args.output_wav_dir
     output_tarred_dir = args.output_tarred_dir
     
@@ -45,16 +45,19 @@ if __name__=="__main__":
     if datasets_folder is None:
         datasets_folder = ""
     
-    splits_to_process = ["train"]
+    splits_to_process = []
     os.makedirs(os.path.join(tmp_manifest_dir, "datasets_list"), exist_ok=True)
-    generate_dataset_list_files(input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","train_datasets"), mode="train", subset_pattern="nocasepunc_max30")
+    if args.train_input_datasets:
+        splits_to_process.append("train")
+        generate_dataset_list_files(input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","train_datasets"), mode="train", subset_pattern="nocasepunc_max30")
     if args.test_input_datasets:
         splits_to_process.append("test")
-        generate_dataset_list_files(test_input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","test_datasets"), mode="test", subset_pattern="nocasepunc_max30")
+        generate_dataset_list_files(args.test_input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","test_datasets"), mode="test", subset_pattern="nocasepunc_max30")
     if args.dev_input_datasets:
         splits_to_process.append("dev")
-        generate_dataset_list_files(test_input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","dev_datasets"), mode="dev", subset_pattern="nocasepunc_max30")
-
+        generate_dataset_list_files(args.dev_input_datasets, datasets_folder, dest=os.path.join(tmp_manifest_dir, "datasets_list","dev_datasets"), mode="dev", subset_pattern="nocasepunc_max30")
+    if len(splits_to_process) == 0:
+        raise ValueError("No splits to process")
 
     for i in splits_to_process:
         try:
@@ -83,7 +86,7 @@ if __name__=="__main__":
         from process_asr_text_tokenizer import process_asr_text_tokenizer
         path_to_tokenizer = "tokenizer" if args.create_tokenizer is True else args.create_tokenizer
         if not os.path.exists(path_to_tokenizer):
-            process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, "all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
+            process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
                                vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
     if args.create_tarred:
         from convert_to_tarred_audio_dataset import convert_to_tarred_audio_dataset

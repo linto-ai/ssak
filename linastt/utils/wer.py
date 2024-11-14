@@ -319,7 +319,7 @@ def plot_wer(
     small_hatch=True,
     title=None,
     label_rotation=15,
-    label_fontdict={'weight': 'bold'},
+    label_fontdict={'weight': 'bold', 'size': 12},
     ymin=0,
     ymax=None,
     show_boxplot=True,
