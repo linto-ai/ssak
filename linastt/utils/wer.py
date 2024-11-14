@@ -978,6 +978,7 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = all_positions, whis=100)
         elif interval_type  == "errorbar":
+            # 90% confidence interval
             highs = np.array([np.percentile(v, 95) for v in all_vals])
             lows = np.array([np.percentile(v, 5) for v in all_vals])
             medians = np.array([np.median(v) for v in all_vals])
@@ -1149,7 +1150,7 @@ if __name__ == "__main__":
                     add_percent = new_result.endswith("%")
                     if add_percent:
                         new_result = new_result[:-1].strip()
-                    new_result += f" ± {result[k+'_stdev']*100:.2f}"
+                    new_result += f" ± {1.645*result[k+'_stdev']*100:.2f}" # Note : the 1.645 is the z-score for 90% confidence interval
                     if add_percent:
                         new_result += " %"
                     result_str[k] = new_result
