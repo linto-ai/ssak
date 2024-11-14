@@ -474,7 +474,7 @@ def str2bool(string):
         raise ValueError(f"Expected True or False")
 
 
-def list_to_confidence_intervals(measures, n_bootstraps=10000, min_samples=100, max_samples=1000):
+def list_to_confidence_intervals(measures, n_bootstraps=10000, max_samples=1000):
 
     keys_to_sum = [k for k in measures.keys() if k.endswith("_list")]
     assert len(keys_to_sum)
@@ -483,7 +483,7 @@ def list_to_confidence_intervals(measures, n_bootstraps=10000, min_samples=100, 
         if n is None:
             n = len(measures[k])
         assert n == len(measures[k]), f"Length mismatch for {k} : {n} != {len(measures[k])}"
-    n_samples = min(max_samples, max(min_samples, n))
+    n_samples = min(max_samples, n)
 
     # bootstrap
     samples = []
@@ -956,8 +956,8 @@ where a result is a dictionary as returned by compute_wer, or a list of such dic
         elif interval_type == "boxplot":
             plt.boxplot(all_vals, positions = all_positions, whis=100)
         elif interval_type  == "errorbar":
-            highs = np.array([np.percentile(v, 97.5) for v in all_vals])
-            lows = np.array([np.percentile(v, 2.5) for v in all_vals])
+            highs = np.array([np.percentile(v, 95) for v in all_vals])
+            lows = np.array([np.percentile(v, 5) for v in all_vals])
             medians = np.array([np.median(v) for v in all_vals])
             plt.errorbar(all_positions, medians, yerr=[medians-lows, highs-medians], fmt='o', color='black', ecolor='black', elinewidth=1, capsize=2)
         elif interval_type in ["none", None]:
