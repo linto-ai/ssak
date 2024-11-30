@@ -104,6 +104,7 @@ def _curl_do(
     default=None,
     verbose=False,
     use_shell_command=False,
+    return_format="application/json",
     ):
     """
     Perform a curl request with the given action, url, options, headers, and post_as_fields flag.
@@ -123,11 +124,16 @@ def _curl_do(
         The default value to return if the request fails
     - use_shell_command: bool
         Whether to use the shell command instead of the pycurl library
+    - return_format: str
+        The format to return the result in (application/json, text/plain, text/vtt, text/srt)
     """
     assert action in ["GET", "POST", "DELETE"], f"Unknown action {action}"
     
     use_pycurl = not use_shell_command
     c = pycurl.Curl() if use_pycurl else None
+
+    c.setopt(pycurl.SSL_VERIFYPEER, 0)
+    c.setopt(pycurl.SSL_VERIFYHOST, 0)
 
     # Example:
         # ("file", (c.FORM_FILE, "/home/jlouradour/data/audio/bonjour.wav")),
@@ -158,7 +164,7 @@ def _curl_do(
             assert len(options_curl) == 0, "DELETE requests cannot have options"
         if use_pycurl:
             c.setopt(c.URL, url)
-            c.setopt(c.HTTPHEADER, ['accept: application/json'] + headers) # ['Content-Type: multipart/form-data'] ?
+            c.setopt(c.HTTPHEADER, [f'accept: {return_format}'] + headers) # ['Content-Type: multipart/form-data'] ?
         if action == "POST":
             if post_as_fields:
                 if use_pycurl:
@@ -178,7 +184,7 @@ def _curl_do(
             headers_str = " \\\n\t".join([f"-H '{header}'" for header in headers]) + (" \\\n\t" if len(headers) else "")
             cmd_str=f"\ncurl -X '{action}' \\\n\t\
 '{url}' \\\n\t\
--H 'accept: application/json' \\\n\t\
+-H 'accept: {return_format}' \\\n\t\
 {headers_str}\
 {options_str}".rstrip("\\\n\t ")
             # Do not print passwords
@@ -193,7 +199,7 @@ def _curl_do(
             headers_str = " \\\n\t".join([f"-H '{header}'" for header in headers]) + (" \\\n\t" if len(headers) else "")
             cmd_str=f"\ncurl -X '{action}' \\\n\t\
 '{url}' \\\n\t\
--H 'accept: application/json' \\\n\t\
+-H 'accept: {return_format}' \\\n\t\
 {headers_str}\
 {options_str_complete}".rstrip("\\\n\t ")
             if verbose:
@@ -205,11 +211,12 @@ def _curl_do(
         if not response_body and default:
             response_body = default
         else:
-            try:
-                response_body = json.loads(response_body)
-            except json.decoder.JSONDecodeError:
-                if action != "DELETE":
-                    raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
+            if "json" in return_format:
+                try:
+                    response_body = json.loads(response_body)
+                except json.decoder.JSONDecodeError:
+                    if action != "DELETE":
+                        raise RuntimeError(f"Curl request failed with:\n\t{response_body}")
 
     finally:
         global _temporary_files

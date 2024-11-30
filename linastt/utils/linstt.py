@@ -20,28 +20,31 @@ DIARIZATION_SERVICES = {
 }
 
 def linstt_transcribe(
-        audio_file,
-        transcription_server="https://api.linto.ai/stt-french-generic",
-        min_vad_duration=30,
-        diarization_server=None,
-        diarization_service_name=DIARIZATION_SERVICES["simple"],
-        force_16k = False,
-        convert_numbers=True,
-        punctuation=None,
-        diarization=False,
-        return_raw=True,
-        wordsub={},
-        verbose=False,
-        timeout = 3600 * 24,
-        timeout_first = 3600 * 24,
-        ping_interval = 1,
-        delete_temp_files = True,
+    audio_file,
+    transcription_server="https://api.linto.ai/stt-french-generic",
+    output_format="json",
+    min_vad_duration=30,
+    diarization_server=None,
+    diarization_service_name=None, # DIARIZATION_SERVICES["pyannote"],
+    language=None,
+    force_16k = False,
+    convert_numbers=True,
+    punctuation=None,
+    diarization=False,
+    return_raw=True,
+    wordsub={},
+    verbose=False,
+    timeout = 3600 * 24,
+    timeout_first = 3600 * 24,
+    ping_interval = 1,
+    delete_temp_files = True,
     ):
     """
     Transcribe an audio file using the linstt service.
     Args:
         audio_file (str): Path to the audio file to transcribe.
         transcription_server (str): URL of the linstt or transcription service.
+        output_format (str): Format of the output (json, vtt, srt, plain).
         diarization_server (str): URL of the diarization service.
         convert_numbers (bool): Convert numbers to words.
         punctuation (bool): Add punctuation to the transcription.
@@ -98,6 +101,27 @@ def linstt_transcribe(
             "transcription_result": text,
             "raw_transcription": text,
         }
+    
+    transcriptionConfig = {
+        "vadConfig": {
+            "enableVad": True,
+            "methodName": "WebRTC",
+            "minDuration": min_vad_duration,
+        },
+        "punctuationConfig": {
+            "enablePunctuation": punctuation,
+            "serviceName": None,
+        },
+        "diarizationConfig": {
+            "enableDiarization": True if performDiarization else False,
+            "numberOfSpeaker": numberOfSpeaker,
+            "maxNumberOfSpeaker": maxNumberOfSpeaker,
+            "serviceName": diarization_service_name if diarization_service_name else None,
+        }
+    }
+
+    if language:
+        transcriptionConfig["language"] = language
 
     result = curl_post(
         transcription_server_complete,
@@ -106,23 +130,7 @@ def linstt_transcribe(
             "type": "audio/x-wav",
             # "file": "@"+audio_file+";type=audio/x-wav",
             "timestamps": "", # TODO: this is not the way to pass timestamps
-            "transcriptionConfig": {
-                "vadConfig": {
-                    "enableVad": True,
-                    "methodName": "WebRTC",
-                    "minDuration": min_vad_duration,
-                },
-                "punctuationConfig": {
-                    "enablePunctuation": punctuation,
-                    "serviceName": None,
-                },
-                "diarizationConfig": {
-                    "enableDiarization": True if performDiarization else False,
-                    "numberOfSpeaker": numberOfSpeaker,
-                    "maxNumberOfSpeaker": maxNumberOfSpeaker,
-                    "serviceName": diarization_service_name,
-                }
-            },
+            "transcriptionConfig": transcriptionConfig,
             "force_sync": False
         },
         headers=[f"Authorization: Bearer {token}"] if token else [],
@@ -228,10 +236,11 @@ def linstt_transcribe(
             ] + [
                 ("wordsub", f"{k}:{v}") for k, v in (wordsub.items() if isinstance(wordsub, dict) else wordsub)
             ],
-            verbose=verbose
+            verbose=verbose,
+            return_format= "application/json" if "json" in output_format else f"text/{output_format}",
         )
 
-        if explicitDiarization:
+        if explicitDiarization and isinstance(output, dict):
             
             words = []
             for segment in output["segments"]:
