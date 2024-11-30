@@ -178,6 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--s3user", default=None, help="A minio username. If specified, data will be uploaded while being generated, and cleaned. Example: linagora-jerome-louradour")
     parser.add_argument("--s3server", default="https://s3.levoicelab.org", help="A minio server. Example: https://s3.levoicelab.org")
     parser.add_argument("--verbose", default=False, action="store_true", help="Print more information")
+    parser.add_argument("--extension", default=None, help="Only process files with this extension")
     args = parser.parse_args()
 
     SEED = 1
@@ -200,19 +201,32 @@ if __name__ == "__main__":
     if upload_and_clean:
         post_to_minio_and_clean(dir_out, args.s3server, args.s3user, initialize=True)
 
-    annotation_dirs = [d for d in os.listdir(dir_in) if os.path.isdir(dir_in + "/" + d)]
+    print("Scanning folder")
+    all_items = os.listdir(dir_in)
+    print(f"* {len(all_items)} items found in folder")
 
-    now = time2str(datetime.now())
+    def is_folder(fname):
+        if "." in fname:
+            return False
+        return os.path.isdir(os.path.join(dir_in, fname))
+    annotation_dirs = sorted([f for f in all_items if is_folder(f)])
+    print(f"* {len(annotation_dirs)} annotation folders found")
 
-    def is_audio(fname):
-        f = fname.split(".")
-        return len(f) >= 3 and f[-2] == "audio"
-    audio_files = sorted(os.listdir(dir_in))
-    audio_files = [f for f in audio_files if is_audio(f)]
-    print(f"{len(audio_files)} audio files to be processed")    
+    if args.extension:
+        _ending = ".audio." + args.extension.lstrip(".")
+        def is_audio(fname):
+            return fname.endswith(_ending)
+    else:
+        def is_audio(fname):
+            f = fname.split(".")
+            return len(f) >= 3 and f[-2] == "audio"
+    audio_files = sorted([f for f in all_items if is_audio(f)])
+    print(f"* {len(audio_files)} audio files found")    
 
     NUM_MULTI_AUG = get_augmenter().get_num_transforms()
     print(f"{NUM_MULTI_AUG} transformations (augmentation types)")
+
+    now = time2str(datetime.now())
 
     done = 0
     for ifile, fname in enumerate(tqdm(audio_files, desc="Augmenting audio files")):
