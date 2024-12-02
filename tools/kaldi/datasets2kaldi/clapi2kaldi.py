@@ -29,8 +29,8 @@ class Xml2Kaldi(ToKaldi):
                 for i in tmp_rows:
                     i['end'] = end
                     regex = re.compile(r'[\s|hm|chri]+')
-                    t = regex.sub('', i['text'])
-                    if len(t)>0:
+                    t = regex.sub('', i['text'])    # remove 'hm' and 'chri' from the text because lot of segments with just that
+                    if len(t)>0:                    # if the text is not empty (after removing 'hm' and 'chri')
                         data.append(i)
             tmp_rows = []
         start = timecodes[turn.get("synch").strip("#")]
