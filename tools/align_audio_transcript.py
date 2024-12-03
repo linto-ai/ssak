@@ -22,9 +22,13 @@ import os
 import shutil
 import time
 import re
+import logging
 import soxbindings as sox
 import numpy as np
 from tqdm import tqdm
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 lang_spec_sub = {
     "fr": [
@@ -159,7 +163,7 @@ def split_long_audio_kaldifolder(
         for filename in ["utt2dur", "text", "utt2spk", "segments"]:
             if not os.path.isfile(dirout+"/"+filename):
                 raise RuntimeError(f"Folder {dirout} already exists but does not contain file {filename}. Aborting (remove the folder to retry)")
-        print(f"WARNING: {dirout} already exists. Continuing with unprocessed.")
+        logger.warning(f"{dirout} already exists. Continuing with unprocessed.")
         # Get the last line of the file
         line = get_last_line(dirout+"/utt2dur")
         if line:
@@ -218,7 +222,7 @@ def split_long_audio_kaldifolder(
             raise RuntimeError(f"Last processed id {last_id} not found in {dirin}/utt2dur")
         id2dur = dict(zip(list(id2dur.keys())[index_last+1:], list(id2dur.values())[index_last+1:]))
         if len(id2dur) == 0:
-            print(f"WARNING: {dirout} already exists and is complete. Aborting.")
+            logger.warning(f"{dirout} already exists and is complete. Aborting.")
             return
 
     has_segments = os.path.isfile(dirin+"/segments")
@@ -263,13 +267,13 @@ def split_long_audio_kaldifolder(
             transcript_orig = id2text[id]
             transcript = custom_text_normalization(transcript_orig, regex_rm=regex_rm_part, lang=lang)
             if not transcript:
-                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of empty transcript after normalization.")
+                logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of empty transcript after normalization.")
                 continue
             if regex_rm_full:
                 do_continue = False
                 for regex in regex_rm_full:
                     if re.search(r"^" + regex + r"$", transcript):
-                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of regex >{regex}<")
+                        logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of regex >{regex}<")
                         transcript = ""
                         do_continue = True
                         break
@@ -286,13 +290,13 @@ def split_long_audio_kaldifolder(
                     _, next_start, _ = id2seg[next_id]
                     _, start, _ = id2seg[id]
                     new_dur = next_start - start
-                    print(f"WARNING: changing duration from {dur:.3f} to {new_dur:.3f} for {id} with transcript \"{transcript_orig}\"")
+                    logger.warning(f"changing duration from {dur:.3f} to {new_dur:.3f} for {id} with transcript \"{transcript_orig}\"")
                     dur = new_dur
                     end = start + dur
                     id2seg[id] = (wavid, start, end)
                     is_weird = True
             if dur <= min_duration:
-                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of small duration {dur}.")
+                logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of small duration {dur}.")
                 continue
             if dur <= max_duration and not refine_timestamps and not can_reject_based_on_score:
                 f_text.write(f"{id} {transcript}\n")
@@ -318,14 +322,14 @@ def split_long_audio_kaldifolder(
             try:
                 audio = load_audio(path, start, end, sample_rate)
             except RuntimeError as err:
-                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of audio loading error: {err}")
+                logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of audio loading error: {err}")
                 continue
             if verbose:
-                print(f"max processed = {MAX_LEN_PROCESSED} / {MAX_LEN_PROCESSED_}")
-                print(f"Splitting: {path} // {start}-{end} ({dur})")
+                logger.info(f"max processed = {MAX_LEN_PROCESSED} / {MAX_LEN_PROCESSED_}")
+                logger.info(f"Splitting: {path} // {start}-{end} ({dur})")
                 MAX_LEN_PROCESSED = max(MAX_LEN_PROCESSED, dur, end-start)
                 MAX_LEN_PROCESSED_ = max(MAX_LEN_PROCESSED_, audio.shape[0])
-                print(f"---------> {transcript}")
+                logger.info(f"---------> {transcript}")
             tic = time.time()
             try:
                 labels, emission, trellis, segments, word_segments = compute_alignment(
@@ -337,7 +341,7 @@ def split_long_audio_kaldifolder(
                 raise err
             except Exception as err:
                 # raise RuntimeError(f"Failed to align {id}") from err
-                print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of alignment error: {err}")
+                logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of alignment error: {err}")
                 continue
 
             if can_reject_based_on_score:
@@ -357,7 +361,7 @@ def split_long_audio_kaldifolder(
                         except IndexError:
                             is_last_segment = True
                     if not can_reject_only_first_and_last or is_weird or is_first_segment or is_last_segment:
-                        print(f"WARNING: {id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
+                        logger.warning(f"{id} with transcript \"{transcript_orig}\" removed because of score max({char_score},{word_score}) < 0.4")
                         continue
                     # else:
                     #     print(f"WARNING: {id} with transcript \"{transcript_orig}\" kept despite low score max({char_score},{word_score}) < 0.4")
@@ -366,7 +370,7 @@ def split_long_audio_kaldifolder(
             num_frames = emission.size(0)
             ratio = len(audio) / (num_frames * sample_rate)
             if verbose:
-                print(f"Alignment done in {time.time()-tic:.2f}s")
+                logger.info(f"Alignment done in {time.time()-tic:.2f}s")
             global index, first_word_start, last_word_end, new_transcript
             def add_segment():
                 global index, f_text, f_utt2spk, f_utt2dur, f_segments, first_word_start, last_word_end, new_transcript
@@ -375,16 +379,16 @@ def split_long_audio_kaldifolder(
                 new_start = start+first_word_start
                 new_end = start+last_word_end
                 if new_end - new_start > max_duration and not skip_warnings:
-                    print(f"WARNING: {new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
+                    logger.warning(f"{new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 
                 if last_word_end <= first_word_start:
-                    print(f"WARNING: Skipping {new_id}, got null or negative duration (after realignment, start={first_word_start}, end={last_word_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
+                    logger.warning(f"Skipping {new_id}, got null or negative duration (after realignment, start={first_word_start}, end={last_word_end}, transcript='{new_transcript}' ({len(new_transcript)}))")
                 elif new_end - new_start > max_duration and skip_warnings:
-                    print(f"WARNING: Skipping {new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
+                    logger.warning(f"Skipping {new_id} got long sequence {new_end-new_start} (start={new_start}, end={new_end}) > {max_duration} (transcript={new_transcript})")
                 else:
                     assert new_end > new_start
                     if verbose:
-                        print(f"Got: {new_transcript} {first_word_start}-{last_word_end} ({new_end - new_start})")
+                        logger.info(f"{new_transcript} {first_word_start}-{last_word_end} ({new_end - new_start})")
                     f_text.write(f"{new_id} {new_transcript}\n")
                     f_utt2spk.write(f"{new_id} {id2spk[id]}\n")
                     f_utt2dur.write(f"{new_id} {new_end - new_start:.3f}\n")
@@ -417,7 +421,7 @@ def split_long_audio_kaldifolder(
                 if ignore_word(word):
                     segment.end = segment.start
                     if new_transcript == "":
-                        print("WARNING: removed a punctuation mark???")
+                        logger.warning("removed a punctuation mark???")
                 if refine_timestamps and i==0:
                     first_word_start = last_word_end = segment.start * ratio
                 end = segment.end * ratio
@@ -433,7 +437,7 @@ def split_long_audio_kaldifolder(
             idx_processed += 1
 
     if not has_shorten:
-        print("No audio was shorten. Folder should be (quasi) unchanged")
+        logger.info("No audio was shorten. Folder should be (quasi) unchanged")
         if not has_segments:
             os.remove(dirout+"/segments")
 
@@ -475,7 +479,9 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('dirin', help='Input folder', type=str)
-    parser.add_argument('dirout', help='Output folder', type=str)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--pattern_in', help='If specified, activates batch (process all subfolders of dirin)', type=str, default=None)
+    group.add_argument('--dirout', help='Output folder', type=str)
     parser.add_argument('--language', default = "fr", help="Language (for text normalizations: numbers, symbols, ...)")
     parser.add_argument('--model', help="Acoustic model to align", type=str,
                         # default = "speechbrain/asr-wav2vec2-commonvoice-fr",
@@ -512,27 +518,90 @@ if __name__ == "__main__":
     parser.add_argument('--plot', default=False, action="store_true", help="To plot alignment intermediate results")
     parser.add_argument('--verbose', default=False, action="store_true", help="To print more information")
     parser.add_argument('--skip_warnings', default=False, action="store_true", help="If True, it will not keep rows with warnings")
+    parser.add_argument('--force', default=False, action="store_true", help="To force the processing")
     args = parser.parse_args()
 
     if args.model is None:
         args.model = DEFAULT_ALIGN_MODELS_TORCH.get(args.language, DEFAULT_ALIGN_MODELS_HF.get(args.language, None))
         if args.model is None:
             raise ValueError(f"No default model defined for {args.language}. Please specify a model")
-
-    dirin = args.dirin
-    dirout = args.dirout
-    assert dirin != dirout
-    split_long_audio_kaldifolder(dirin, dirout,
-        model = args.model,
-        lang = args.language,
-        min_duration = args.min_duration,
-        max_duration = args.max_duration,
-        debug_folder = args.debug_folder,
-        refine_timestamps = args.refine_timestamps,
-        can_reject_based_on_score = bool(args.refine_timestamps),
-        regex_rm_part = args.regex_rm_part,
-        regex_rm_full = args.regex_rm_full,
-        plot = args.plot,
-        verbose = args.verbose,
-        skip_warnings=args.skip_warnings,
-    )
+    if not args.pattern_in:
+        dirin = args.dirin
+        dirout = args.dirout
+        assert dirin != dirout
+        split_long_audio_kaldifolder(dirin, dirout,
+            model = args.model,
+            lang = args.language,
+            min_duration = args.min_duration,
+            max_duration = args.max_duration,
+            debug_folder = args.debug_folder,
+            refine_timestamps = args.refine_timestamps,
+            can_reject_based_on_score = bool(args.refine_timestamps),
+            regex_rm_part = args.regex_rm_part,
+            regex_rm_full = args.regex_rm_full,
+            plot = args.plot,
+            verbose = args.verbose,
+            skip_warnings=args.skip_warnings,
+        )
+    else:
+        pbar = tqdm(os.listdir(args.dirin))
+        for file_object in pbar:
+            pbar.set_description(f"Processing {file_object}")
+            subfolders = os.listdir(os.path.join(args.dirin, file_object))
+            # search in FOLDER>DATASETS>CASING(>SPLITS)
+            for i in subfolders:
+                dirs_in = []
+                if i.startswith(args.pattern_in):
+                    i_s=i.split("_")
+                    if i_s[-1].startswith("max"):
+                        logger.info(f"Skipping {i} (already processed)")
+                        continue
+                    i = os.path.join(args.dirin, file_object, i)
+                    if not os.path.exists(os.path.join(i, "text")):
+                        dirs = os.listdir(i)
+                        for d in dirs:
+                            if os.path.exists(os.path.join(i, d, "text")):
+                                dirs_in.append(os.path.join(i, d))
+                    else:
+                        dirs_in.append(i)
+                else:
+                    logger.debug(f"Skipping {i} (not matching pattern)")
+                    continue
+                if not dirs_in:
+                    raise ValueError(f"No text folder found in {i}")
+                for input_folder in dirs_in:
+                    output_folder = f"{input_folder}_max{args.max_duration:.0f}"
+                    if not os.path.basename(input_folder).startswith(args.pattern_in):
+                        split = os.path.basename(input_folder)
+                        new_input = os.path.dirname(input_folder)
+                        output_folder = os.path.join(os.path.dirname(new_input), f"{args.pattern_in}_max{args.max_duration:.0f}", split)
+                    if input_folder == output_folder:
+                        raise ValueError(f"Input and output folders are the same: {input_folder}")
+                    if os.path.exists(output_folder):
+                        if args.force:
+                            logger.info(f"Removing already existing {output_folder}")
+                            shutil.rmtree(output_folder)
+                        else:
+                            logger.info(f"Skip {output_folder} (already exists)")
+                            continue
+                    try:
+                        split_long_audio_kaldifolder(
+                                dirin=input_folder,
+                                dirout=output_folder,
+                                lang = args.language,
+                                model = args.model,
+                                min_duration = args.min_duration,
+                                max_duration = args.max_duration,
+                                refine_timestamps = args.refine_timestamps,
+                                regex_rm_part = args.regex_rm_part,
+                                regex_rm_full = args.regex_rm_full,
+                                debug_folder = args.debug_folder,
+                                plot = args.plot,
+                                verbose = args.verbose,
+                                skip_warnings=True,
+                            )
+                        logger.info(f"Segmented: {output_folder}")
+                    except Exception as e:
+                        logger.error(f"Error {input_folder}: {e} {'(skipped)' if args.skip_erros else ''}")
+                        if not args.skip_erros:
+                            raise e
