@@ -18,8 +18,7 @@ if __name__=="__main__":
     parser.add_argument('--create_tokenizer', default=None, help="Folder to save tokenizer (if not set, no tokenizer is created)")
     parser.add_argument('--vocab_size', help="Vocab size", type=int, default=1024)
     # Options for making buckets for the training data
-    parser.add_argument('--create_tarred', action="store_true", default=False)
-    parser.add_argument('--output_tarred_dir', help="Output tarred directory", type=str, default="tarred_dataset")
+    parser.add_argument('--create_tarred', default=None, help="Folder to save tarred dataset (if not set, no tarred dataset is created)")
     parser.add_argument('--num_shards', default=24, type=int)
     parser.add_argument('--num_buckets', default=12, type=int)
     parser.add_argument('--num_workers', default=12, type=int)
@@ -33,14 +32,34 @@ if __name__=="__main__":
     input_datasets = args.train_input_datasets
     output_wav_dir = args.output_wav_dir
     output_tarred_dir = args.output_tarred_dir
-    
-    logger.info(f"Vocab_size is set to {vocab_size}")
-    logger.info(f"Input_datasets is set to {input_datasets}")
-    logger.info(f"Output_wav_dir is set to {output_wav_dir}")
-    logger.info(f"Output_tarred_dir is set to {output_tarred_dir}")
-    
     tmp_manifest_dir = args.manifest_dir
-        
+
+    logger.info(f"Train input is set to {input_datasets}")
+    logger.infof(f"Test input is set to {args.test_input_datasets}")
+    logger.info(f"Dev input is set to {args.dev_input_datasets}")
+    
+    logger.info(f"Output_wav_dir is set to {output_wav_dir}")
+    logger.info(f"Manifest_dir is set to {tmp_manifest_dir}")
+    
+    if args.create_tokenizer:
+        path_to_tokenizer = "tokenizer" if args.create_tokenizer is True else args.create_tokenizer
+        logger.info(f"Create_tokenizer is set to {args.create_tokenizer}")
+        logger.info(f"\tVocab_size is set to {vocab_size}")
+    else:
+        path_to_tokenizer = None
+        logger.info(f"No tokenizer will be created")
+
+    if args.create_tarred:
+        output_tarred_dir = "tarred_dataset" if args.create_tarred is True else args.create_tarred
+        logger.info(f"Output_tarred_dir is set to {output_tarred_dir}")
+        logger.info(f"\tNum_shards is set to {args.num_shards}")
+        logger.info(f"\tNum_buckets is set to {args.num_buckets}")
+        logger.info(f"\tNum_workers is set to {args.num_workers}")
+        logger.info(f"\tMax_duration is set to {args.max_duration}")
+    else:
+        output_tarred_dir = None
+        logger.info(f"No tarred dataset will be created")
+            
     datasets_folder = args.datasets_folder
     if datasets_folder is None:
         datasets_folder = ""
@@ -84,11 +103,15 @@ if __name__=="__main__":
             shutil.copy2(os.path.join(f"{tmp_manifest_dir}", f"{splits_to_process[0]}_manifest_clean.jsonl"), os.path.join(f"{tmp_manifest_dir}", f"all_manifest_clean.jsonl"))
     if args.create_tokenizer:
         from process_asr_text_tokenizer import process_asr_text_tokenizer
-        path_to_tokenizer = "tokenizer" if args.create_tokenizer is True else args.create_tokenizer
         if not os.path.exists(path_to_tokenizer):
+            logging.info(f"Creating tokenizer in {path_to_tokenizer}")
             process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
                                vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
+            logging.info(f"Tokenizer created")
+        else:
+            logging.info(f"Tokenizer already exists in {path_to_tokenizer}")
     if args.create_tarred:
         from convert_to_tarred_audio_dataset import convert_to_tarred_audio_dataset
+        logging.info(f"Creating tarred dataset in {output_tarred_dir}")
         convert_to_tarred_audio_dataset(manifest_path=os.path.join(tmp_manifest_dir,"train_manifest_clean.jsonl"), target_dir=output_tarred_dir, num_shards=args.num_shards, max_duration=args.max_duration, min_duration=0.1, 
                                     workers=args.num_workers, buckets_num=args.num_buckets, shuffle_seed=42, shuffle=True, sort_in_shards=False)

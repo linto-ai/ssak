@@ -27,9 +27,9 @@ if __name__=="__main__":
     nocasepunc_test = os.path.join(output_path, "nocasepunc/test")
     nocasepunc_train = os.path.join(output_path, "nocasepunc/train")
     
-    if os.path.exists(nocasepunc_dev) and not args.force:
+    if os.path.exists(nocasepunc_train) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")
-    elif os.path.exists(nocasepunc_dev):
+    elif os.path.exists(nocasepunc_train):
         shutil.rmtree(nocasepunc_dev)
         shutil.rmtree(nocasepunc_test, ignore_errors=True)
         shutil.rmtree(nocasepunc_train, ignore_errors=True)
