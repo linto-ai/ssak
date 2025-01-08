@@ -376,9 +376,12 @@ if __name__ == "__main__":
     parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
     args = parser.parse_args()
 
-    process_asr_text_tokenizer(args.manifest, args.data_file, args.data_root, args.vocab_size, args.tokenizer,
-                               args.spe_type, args.spe_character_coverage, args.spe_sample_size,
-                               args.spe_train_extremely_large_corpus, args.spe_max_sentencepiece_length,
-                               args.spe_split_by_unicode_script, args.spe_bos, args.spe_eos, args.spe_pad,
-                               args.spe_control_symbols, args.spe_user_defined_symbols, args.spe_byte_fallback,
-                               args.spe_split_digits, args.lower_case)
+    process_asr_text_tokenizer(manifests=args.manifest, data_file=args.data_file, data_root=args.data_root,
+                                vocab_size=args.vocab_size, tokenizer=args.tokenizer, spe_type=args.spe_type,
+                                spe_character_coverage=args.spe_character_coverage, spe_sample_size=args.spe_sample_size,
+                                spe_train_extremely_large_corpus=args.spe_train_extremely_large_corpus,
+                                spe_max_sentencepiece_length=args.spe_max_sentencepiece_length,
+                                spe_split_by_unicode_script=args.spe_split_by_unicode_script, spe_bos=args.spe_bos,
+                                spe_eos=args.spe_eos, spe_pad=args.spe_pad, spe_control_symbols=args.spe_control_symbols,
+                                spe_user_defined_symbols=args.spe_user_defined_symbols, spe_byte_fallback=args.spe_byte_fallback,
+                                spe_split_digits=args.spe_split_digits, lower_case=args.lower_case)

@@ -17,6 +17,7 @@ if __name__=="__main__":
     # Options for creating a tokenizer using all splits
     parser.add_argument('--create_tokenizer', default=None, help="Folder to save tokenizer (if not set, no tokenizer is created)")
     parser.add_argument('--vocab_size', help="Vocab size", type=int, default=1024)
+    parser.add_argument('--spe_type', help="Type of tokenizer", choices=["unigram", "bpe", "char", "word"], type=str, default="bpe")
     # Options for making buckets for the training data
     parser.add_argument('--create_tarred', default=None, help="Folder to save tarred dataset (if not set, no tarred dataset is created)")
     parser.add_argument('--num_shards', default=24, type=int)
@@ -31,11 +32,10 @@ if __name__=="__main__":
     vocab_size = args.vocab_size
     input_datasets = args.train_input_datasets
     output_wav_dir = args.output_wav_dir
-    output_tarred_dir = args.output_tarred_dir
     tmp_manifest_dir = args.manifest_dir
 
     logger.info(f"Train input is set to {input_datasets}")
-    logger.infof(f"Test input is set to {args.test_input_datasets}")
+    logger.info(f"Test input is set to {args.test_input_datasets}")
     logger.info(f"Dev input is set to {args.dev_input_datasets}")
     
     logger.info(f"Output_wav_dir is set to {output_wav_dir}")
@@ -106,7 +106,7 @@ if __name__=="__main__":
         if not os.path.exists(path_to_tokenizer):
             logging.info(f"Creating tokenizer in {path_to_tokenizer}")
             process_asr_text_tokenizer(manifests=os.path.join(tmp_manifest_dir, f"all_manifest_clean.jsonl"), data_root=path_to_tokenizer, 
-                               vocab_size=vocab_size, tokenizer="spe", spe_type="bpe", spe_split_digits=True)
+                               vocab_size=vocab_size, tokenizer="spe", spe_type=args.spe_type, spe_split_digits=True)
             logging.info(f"Tokenizer created")
         else:
             logging.info(f"Tokenizer already exists in {path_to_tokenizer}")

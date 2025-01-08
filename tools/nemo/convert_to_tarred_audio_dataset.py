@@ -745,7 +745,7 @@ def create_tar_datasets(
 
     if os.path.exists(os.path.join(target_dir, "metadata.yaml")):
         print(
-            f"Skipping bucket {min_duration:2.f}->{max_duration:.2f} because metadata file already exists. Please remove it if you want to regenerate."
+            f"Skipping bucket {min_duration:.2f}->{max_duration:.2f} because metadata file already exists. Please remove it if you want to regenerate."
         )
         return
     builder = ASRTarredDatasetBuilder()
