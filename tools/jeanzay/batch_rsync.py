@@ -13,6 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("folder_list", help="Source directory")
     parser.add_argument("src", help="Source directory")
     parser.add_argument("dest", help="Destination directory")
+    parser.add_argument("--only_audios", action="store_true", help="Only rsync audio files")
     
     
     args = parser.parse_args()
@@ -30,7 +31,10 @@ if __name__ == "__main__":
             logger.info(f"Skipping {folder}, already rsynced")
             continue
         logger.info(f"Rsyncing {folder}")
-        cmd = f"rsync -rlDvz --chmod=u=rwX,g=rX,o= --size-only --exclude='*.zip' --exclude='*.tar' --exclude='*.gz' {folder} {args.dest} > {log_file}"
+        if args.only_audios:
+            cmd = f"rsync -rlDvz --chmod=u=rwX,g=rX,o= --size-only --copy-links --include='*.wav' --include='*.flac' --include='*.mp3' --include='*/' --exclude='*' {folder} {args.dest} > {log_file}"
+        else:
+            cmd = f"rsync -rlDvz --chmod=u=rwX,g=rX,o= --size-only --copy-links --exclude='*.zip' --exclude='*.tar' --exclude='*.gz' {folder} {args.dest} > {log_file}"
         # cmd = f"ls {folder} > {log_file}"
         subprocess.run(cmd, shell=True)
         logger.info(f"Rsynced {folder}")

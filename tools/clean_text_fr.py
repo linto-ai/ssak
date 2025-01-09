@@ -12,6 +12,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
     extract_parenthesis=False,  ignore_first=0, file_acronyms=None, file_special_char=None):
     
     if file_clean_mode == "kaldi":
+        ignore_first = 1
         if not os.path.isdir(input):
             if os.path.isfile(input):
                 raise FileNotFoundError(f"Input folder {input} is a file, not a folder")
@@ -28,7 +29,7 @@ def clean_text_fr(input, output, file_clean_mode="file", keep_punc=False, keep_n
         raw_file = open(os.path.join(output, "text_raw"), "w", encoding="utf-8")
         for fn in "utt2spk", "utt2dur", "segments", "wav.scp", "spk2utt":
             if os.path.exists(os.path.join(input, fn)):
-                # shutil.copyfile(os.path.join(input, fn), os.path.join(output, fn))    # use it when you don't have write permissions
+                # shutil.copyfile(os.path.join(input, fn), os.path.join(output, fn))    # use it when you don't have write permissions (CORPUS_FINAL)
                 shutil.copy2(os.path.join(input, fn), os.path.join(output, fn))
     else:
         if output:
@@ -120,7 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('--ignore_first', default=0, type=int, help="Ignore the first N words (can be set to 1 to ignore the first word that can be an ID)")
     parser.add_argument('--file_acronyms', help="A file to list acronyms found", default= None, type = str)
     parser.add_argument('--file_special_char', help="A file to list special characters that were removed", default= None, type = str)
-    parser.add_argument('--file_clean_mode', choices=["file", "kaldi"], default="file", help="Type of input and output (file or kaldi folder)")
+    parser.add_argument('--file_clean_mode', choices=["file", "kaldi"], default="file", help="Type of input and output (file or kaldi folder). If kaldi, it sets ignore_first to 1")
     args = parser.parse_args()
 
     clean_text_fr(input=args.input, output=args.output, file_clean_mode=args.file_clean_mode, keep_punc=args.keep_punc, keep_num=args.keep_num, \

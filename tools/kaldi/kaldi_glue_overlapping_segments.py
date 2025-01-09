@@ -117,7 +117,7 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Glue overlapping segments to adjacent segments")
     parser.add_argument("input_folder", type=str, help="Kaldi folder containing segments and text files")
     parser.add_argument("--output_folder", type=str, default=None, help="Output folder (default: input_folder)")
-    parser.add_argument("--max_silence_duration_to_glue", type=float, default=0.5, help="Minimum silence duration to concatenate segments")
+    parser.add_argument("--max_silence_duration_to_glue", type=float, default=0.5, help="Maximum silence duration between 2 segments to glue them")
     parser.add_argument("--max_segment_duration", type=float, default=15, help="Maximum segment duration")
     parser.add_argument("--glue_mode", type=str, choices=['overlap', 'all'], default="overlap", help="What to glue mode")
     args = parser.parse_args()

@@ -1,10 +1,10 @@
 from linastt.utils.kaldi_converter import ToKaldi, Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info
 from tools.clean_text_fr import clean_text_fr
 import logging
+import re
 import os
 import shutil
 import argparse
-import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 
 
@@ -28,7 +28,10 @@ class Xml2Kaldi(ToKaldi):
                 end = timecodes[turn.get("synch").strip("# ")]
                 for i in tmp_rows:
                     i['end'] = end
-                    data.append(i)
+                    regex = re.compile(r'[\s|hm|chri]+')
+                    t = regex.sub('', i['text'])    # remove 'hm' and 'chri' from the text because lot of segments with just that
+                    if len(t)>0:                    # if the text is not empty (after removing 'hm' and 'chri')
+                        data.append(i)
             tmp_rows = []
         start = timecodes[turn.get("synch").strip("#")]
         return data, tmp_rows, start
@@ -149,11 +152,11 @@ if __name__=="__main__":
     elif os.path.exists(nocasepunc):
         shutil.rmtree(nocasepunc)
         
-    xmls = Xml2Kaldi(input_dataset, ["id", "text", "start", "duration"], execute_order=2, merge_on="audio_id", subfolders=True)
     audios = AudioFolder2Kaldi(input_dataset, execute_order=0, extracted_id="audio_id", audio_extensions=[".mp3"])
     audios_ids = Row2Info("audio_id", ["audio_id", "id"], execute_order=1, separator="_", info_position=[0,-2])
+    xmls = Xml2Kaldi(input_dataset, ["id", "text", "start", "duration"], execute_order=2, merge_on="audio_id", subfolders=True)
     dataset_reader = Reader2Kaldi(input_dataset, processors=[audios, audios_ids, xmls])
-    dataset = dataset_reader.load()
+    dataset = dataset_reader.load(check_if_segments_in_audio=True)
     dataset.save(raw, True)
     
     clean_text_fr(raw,

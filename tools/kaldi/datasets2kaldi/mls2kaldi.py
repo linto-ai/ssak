@@ -1,4 +1,4 @@
-from linastt.utils.kaldi_converter import Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info
+from linastt.utils.kaldi_converter import Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info, Row2Duration, TextRegexFilter
 from tools.clean_text_fr import clean_text_fr
 import logging
 import os
@@ -27,9 +27,9 @@ if __name__=="__main__":
     nocasepunc_test = os.path.join(output_path, "nocasepunc/test")
     nocasepunc_train = os.path.join(output_path, "nocasepunc/train")
     
-    if os.path.exists(nocasepunc_dev) and not args.force:
+    if os.path.exists(nocasepunc_train) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")
-    elif os.path.exists(nocasepunc_dev):
+    elif os.path.exists(nocasepunc_train):
         shutil.rmtree(nocasepunc_dev)
         shutil.rmtree(nocasepunc_test, ignore_errors=True)
         shutil.rmtree(nocasepunc_train, ignore_errors=True)
@@ -38,11 +38,12 @@ if __name__=="__main__":
 
     speakers = Row2Info(input="id", return_columns=["speaker"], execute_order=3, separator="_", info_position=0)
     audio_ids = Row2Info(input="id", return_columns=["audio_id"], execute_order=1, separator=None, info_position=None)
-    genders = ColumnFile2Kaldi("metainfo.txt", ["speaker", "gender"], 4, "|", merge_on="speaker", header=True)
+    genders = ColumnFile2Kaldi("metainfo.txt", ["speaker", "gender"], 4, "|", merge_on="speaker", header=True, force_merge_new_into_old=True)
+    durations = Row2Duration(execute_order=5)
 
     transcripts = ColumnFile2Kaldi("dev/transcripts.txt", ["id", "text"], 0, "\t")
     audios = AudioFolder2Kaldi(input="dev/audio", execute_order=2, extracted_id="audio_id", audio_extensions=".flac")
-    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders])
+    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders, durations])
     dataset = dev_reader.load()
     dataset.save(raw_dev, True)
 
@@ -53,7 +54,7 @@ if __name__=="__main__":
 
     transcripts = ColumnFile2Kaldi("test/transcripts.txt", ["id", "text"], 0, "\t")
     audios = AudioFolder2Kaldi("test/audio", 2, extracted_id="audio_id", audio_extensions=".flac")  
-    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders])
+    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders, durations])
     dataset = dev_reader.load()
     dataset.save(raw_test, True)
     
@@ -64,7 +65,8 @@ if __name__=="__main__":
     
     transcripts = ColumnFile2Kaldi("train/transcripts.txt", ["id", "text"], 0, "\t")
     audios = AudioFolder2Kaldi("train/audio", 2, extracted_id="audio_id", audio_extensions=".flac")
-    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders])
+    regex_text_filter = TextRegexFilter(execute_order=6, regex=r"^[a-zA-Z0-9\sâ'-]+$", filter_out=True)
+    dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audio_ids, audios, speakers, genders, regex_text_filter, durations])
     dataset = dev_reader.load()
     dataset.save(raw_train, True)
 

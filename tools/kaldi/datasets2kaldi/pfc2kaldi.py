@@ -19,9 +19,9 @@ if __name__=="__main__":
     
     output_path = args.output
     
-    raw = os.path.join(output_path, "casepunc/PFC")
+    raw = os.path.join(output_path, "casepunc")
     
-    nocasepunc = os.path.join(output_path, "nocasepunc/PFC")
+    nocasepunc = os.path.join(output_path, "nocasepunc")
     
     if os.path.exists(nocasepunc) and not args.force:
         raise RuntimeError("The output folder already exists. Use --force to overwrite it.")
@@ -31,7 +31,7 @@ if __name__=="__main__":
     transcripts = TextGrid2Kaldi("", ["text", "start", "duration"], execute_order=0, subfolders=True, extract_items=[0])
     audios = AudioFolder2Kaldi("", execute_order=1, extracted_id="audio_id", audio_extensions=[".mp3"])
     dev_reader = Reader2Kaldi(input_dataset, processors=[transcripts, audios])
-    dataset = dev_reader.load()
+    dataset = dev_reader.load(check_if_segments_in_audio=True)
     dataset.save(raw, True)
     
     clean_text_fr(raw, 

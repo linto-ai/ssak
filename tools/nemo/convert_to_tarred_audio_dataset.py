@@ -124,7 +124,9 @@ class ASRTarredDatasetMetadata:
     num_samples_per_shard: Optional[int] = None
     is_concatenated_manifest: bool = False
 
-    dataset_config: Optional[ASRTarredDatasetConfig] = field(default_factory=lambda: ASRTarredDatasetConfig())
+    dataset_config: Optional[ASRTarredDatasetConfig] = field(
+        default_factory=lambda: ASRTarredDatasetConfig()
+    )
     history: Optional[List[Any]] = field(default_factory=lambda: [])
 
     def __post_init__(self):
@@ -164,9 +166,18 @@ class ASRTarredDatasetBuilder:
         self.config = config  # type: ASRTarredDatasetConfig
 
         if self.config.num_shards < 0:
-            raise ValueError("`num_shards` must be > 0. Please fill in the metadata information correctly.")
+            raise ValueError(
+                "`num_shards` must be > 0. Please fill in the metadata information correctly."
+            )
 
-    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/", num_workers: int = 0, buckets_num: int = 1, dynamic_buckets_num: int = 30):
+    def create_new_dataset(
+        self,
+        manifest_path: str,
+        target_dir: str = "./tarred/",
+        num_workers: int = 0,
+        buckets_num: int = 1,
+        dynamic_buckets_num: int = 30,
+    ):
         """
         Creates a new tarred dataset from a given manifest file.
 
@@ -181,7 +192,9 @@ class ASRTarredDatasetBuilder:
             Also preserves a record of the metadata used to construct this tarred dataset.
         """
         if self.config is None:
-            raise ValueError("Config has not been set. Please call `configure(config: ASRTarredDatasetConfig)`")
+            raise ValueError(
+                "Config has not been set. Please call `configure(config: ASRTarredDatasetConfig)`"
+            )
 
         if manifest_path is None:
             raise FileNotFoundError("Manifest filepath cannot be None !")
@@ -192,16 +205,22 @@ class ASRTarredDatasetBuilder:
             os.makedirs(target_dir)
 
         # Read the existing manifest
-        entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
+        entries, total_duration, filtered_entries, filtered_duration = (
+            self._read_manifest(manifest_path, config)
+        )
 
         if len(filtered_entries) > 0:
-            print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
+            print(
+                f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio."
+            )
         print(
             f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
         )
 
         if len(entries) == 0:
-            print("No tarred dataset was created as there were 0 valid samples after filtering!")
+            print(
+                "No tarred dataset was created as there were 0 valid samples after filtering!"
+            )
             return
         if config.shuffle:
             random.seed(config.shuffle_seed)
@@ -230,13 +249,16 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // config.num_shards) * i
             end_idx = start_idx + (len(entries) // config.num_shards)
             print(f"Shard {i} has entries {start_idx} ~ {end_idx}")
-            files = set()
-            for ent_id in range(start_idx, end_idx):
-                files.add(entries[ent_id]["audio_filepath"])
-            print(f"Shard {i} contains {len(files)} files")
+            # files = set()
+            # for ent_id in range(start_idx, end_idx):
+            #     files.add(entries[ent_id]["audio_filepath"])
+            # print(f"Shard {i} contains {len(files)} files")
+            print(f"Shard {i} contains {end_idx-start_idx+1} files")
             if i == config.num_shards - 1:
                 # We discard in order to have the same number of entries per shard.
-                print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
+                print(
+                    f"Have {len(entries) - end_idx} entries left over that will be discarded."
+                )
 
             start_indices.append(start_idx)
             end_indices.append(end_idx)
@@ -246,22 +268,27 @@ class ASRTarredDatasetBuilder:
         with Parallel(n_jobs=num_workers, verbose=config.num_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i, manifest_folder)
-                for i, (start_idx, end_idx) in enumerate(zip(start_indices, end_indices))
+                delayed(self._create_shard)(
+                    entries[start_idx:end_idx], target_dir, i, manifest_folder
+                )
+                for i, (start_idx, end_idx) in enumerate(
+                    zip(start_indices, end_indices)
+                )
             )
-
         if config.shard_manifests:
-            sharded_manifests_dir = target_dir + '/sharded_manifests'
+            sharded_manifests_dir = target_dir + "/sharded_manifests"
             if not os.path.exists(sharded_manifests_dir):
                 os.makedirs(sharded_manifests_dir)
 
             for manifest in new_entries_list:
-                shard_id = manifest[0]['shard_id']
-                new_manifest_shard_path = os.path.join(sharded_manifests_dir, f'manifest_{shard_id}.json')
-                with open(new_manifest_shard_path, 'w', encoding='utf-8') as m2:
+                shard_id = manifest[0]["shard_id"]
+                new_manifest_shard_path = os.path.join(
+                    sharded_manifests_dir, f"manifest_{shard_id}.json"
+                )
+                with open(new_manifest_shard_path, "w", encoding="utf-8") as m2:
                     for entry in manifest:
                         json.dump(entry, m2, ensure_ascii=False)
-                        m2.write('\n')
+                        m2.write("\n")
 
         # Flatten the list of list of entries to a list of entries
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
@@ -270,14 +297,14 @@ class ASRTarredDatasetBuilder:
         print("Total number of entries in manifest :", len(new_entries))
 
         # Write manifest
-        new_manifest_path = os.path.join(target_dir, 'tarred_audio_manifest.json')
-        with open(new_manifest_path, 'w', encoding='utf-8') as m2:
+        new_manifest_path = os.path.join(target_dir, "tarred_audio_manifest.json")
+        with open(new_manifest_path, "w", encoding="utf-8") as m2:
             for entry in new_entries:
                 json.dump(entry, m2, ensure_ascii=False)
-                m2.write('\n')
+                m2.write("\n")
 
         # Write metadata (default metadata for new datasets)
-        new_metadata_path = os.path.join(target_dir, 'metadata.yaml')
+        new_metadata_path = os.path.join(target_dir, "metadata.yaml")
         metadata = ASRTarredDatasetMetadata()
 
         # Update metadata
@@ -296,7 +323,9 @@ class ASRTarredDatasetBuilder:
         metadata_yaml = OmegaConf.structured(metadata)
         OmegaConf.save(metadata_yaml, new_metadata_path, resolve=True)
 
-    def estimate_dynamic_bucketing_duration_bins(self, manifest_path: str, num_buckets: int = 30) -> dict:
+    def estimate_dynamic_bucketing_duration_bins(
+        self, manifest_path: str, num_buckets: int = 30
+    ) -> dict:
         from lhotse import CutSet
         from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
         from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
@@ -318,7 +347,9 @@ class ASRTarredDatasetBuilder:
             use_lhotse=True,
             use_bucketing=True,
             num_buckets=num_buckets,
-            bucket_duration_bins=list(map(float, bins)),  # np.float -> float for YAML serialization
+            bucket_duration_bins=list(
+                map(float, bins)
+            ),  # np.float -> float for YAML serialization
         )
 
     def create_concatenated_dataset(
@@ -355,7 +386,9 @@ class ASRTarredDatasetBuilder:
             raise FileNotFoundError("Base manifest filepath cannot be None !")
 
         if manifest_paths is None or len(manifest_paths) == 0:
-            raise FileNotFoundError("List of additional manifest filepaths cannot be None !")
+            raise FileNotFoundError(
+                "List of additional manifest filepaths cannot be None !"
+            )
 
         config = ASRTarredDatasetConfig(**(metadata.dataset_config))
 
@@ -377,8 +410,8 @@ class ASRTarredDatasetBuilder:
 
         entries = []
         for new_manifest_idx in range(len(manifest_paths)):
-            new_entries, total_duration, filtered_new_entries, filtered_duration = self._read_manifest(
-                manifest_paths[new_manifest_idx], config
+            new_entries, total_duration, filtered_new_entries, filtered_duration = (
+                self._read_manifest(manifest_paths[new_manifest_idx], config)
             )
 
             if len(filtered_new_entries) > 0:
@@ -393,7 +426,9 @@ class ASRTarredDatasetBuilder:
             entries.extend(new_entries)
 
         if len(entries) == 0:
-            print("No tarred dataset was created as there were 0 valid samples after filtering!")
+            print(
+                "No tarred dataset was created as there were 0 valid samples after filtering!"
+            )
             return
 
         if config.shuffle:
@@ -426,7 +461,9 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // num_added_shards) * i
             end_idx = start_idx + (len(entries) // num_added_shards)
             shard_idx = i + config.num_shards
-            print(f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}")
+            print(
+                f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}"
+            )
 
             start_indices.append(start_idx)
             end_indices.append(end_idx)
@@ -437,22 +474,28 @@ class ASRTarredDatasetBuilder:
         with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder)
-                for i, (start_idx, end_idx, shard_idx) in enumerate(zip(start_indices, end_indices, shard_indices))
+                delayed(self._create_shard)(
+                    entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder
+                )
+                for i, (start_idx, end_idx, shard_idx) in enumerate(
+                    zip(start_indices, end_indices, shard_indices)
+                )
             )
 
         if config.shard_manifests:
-            sharded_manifests_dir = target_dir + '/sharded_manifests'
+            sharded_manifests_dir = target_dir + "/sharded_manifests"
             if not os.path.exists(sharded_manifests_dir):
                 os.makedirs(sharded_manifests_dir)
 
             for manifest in new_entries_list:
-                shard_id = manifest[0]['shard_id']
-                new_manifest_shard_path = os.path.join(sharded_manifests_dir, f'manifest_{shard_id}.json')
-                with open(new_manifest_shard_path, 'w', encoding='utf-8') as m2:
+                shard_id = manifest[0]["shard_id"]
+                new_manifest_shard_path = os.path.join(
+                    sharded_manifests_dir, f"manifest_{shard_id}.json"
+                )
+                with open(new_manifest_shard_path, "w", encoding="utf-8") as m2:
                     for entry in manifest:
                         json.dump(entry, m2, ensure_ascii=False)
-                        m2.write('\n')
+                        m2.write("\n")
 
         # Flatten the list of list of entries to a list of entries
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
@@ -460,29 +503,38 @@ class ASRTarredDatasetBuilder:
 
         # Write manifest
         if metadata is None:
-            new_version = 1  # start with `1`, where `0` indicates the base manifest + dataset
+            new_version = (
+                1  # start with `1`, where `0` indicates the base manifest + dataset
+            )
         else:
             new_version = metadata.version + 1
 
-        print("Total number of entries in manifest :", len(base_entries) + len(new_entries))
+        print(
+            "Total number of entries in manifest :",
+            len(base_entries) + len(new_entries),
+        )
 
-        new_manifest_path = os.path.join(target_dir, f'tarred_audio_manifest_version_{new_version}.json')
-        with open(new_manifest_path, 'w', encoding='utf-8') as m2:
+        new_manifest_path = os.path.join(
+            target_dir, f"tarred_audio_manifest_version_{new_version}.json"
+        )
+        with open(new_manifest_path, "w", encoding="utf-8") as m2:
             # First write all the entries of base manifest
             for entry in base_entries:
                 json.dump(entry, m2, ensure_ascii=False)
-                m2.write('\n')
+                m2.write("\n")
 
             # Finally write the new entries
             for entry in new_entries:
                 json.dump(entry, m2, ensure_ascii=False)
-                m2.write('\n')
+                m2.write("\n")
 
         # Preserve historical metadata
         base_metadata = metadata
 
         # Write metadata (updated metadata for concatenated datasets)
-        new_metadata_path = os.path.join(target_dir, f'metadata_version_{new_version}.yaml')
+        new_metadata_path = os.path.join(
+            target_dir, f"metadata_version_{new_version}.yaml"
+        )
         metadata = ASRTarredDatasetMetadata()
 
         # Update config
@@ -510,33 +562,72 @@ class ASRTarredDatasetBuilder:
         total_duration = 0.0
         filtered_entries = []
         filtered_duration = 0.0
-        with open(manifest_path, 'r', encoding='utf-8') as m:
+        with open(manifest_path, "r", encoding="utf-8") as m:
             for line in m:
                 entry = json.loads(line)
-                audio_key = "audio_filepath" if "audio_filepath" in entry else "audio_file"
+                audio_key = (
+                    "audio_filepath" if "audio_filepath" in entry else "audio_file"
+                )
                 if audio_key not in entry:
-                    raise KeyError(f"Manifest entry does not contain 'audio_filepath' or  'audio_file' key: {entry}")
+                    raise KeyError(
+                        f"Manifest entry does not contain 'audio_filepath' or  'audio_file' key: {entry}"
+                    )
                 audio_filepath = entry[audio_key]
-                if not os.path.isfile(audio_filepath) and not os.path.isabs(audio_filepath):
-                    audio_filepath_abs = os.path.join(os.path.dirname(manifest_path), audio_filepath)
+                if not os.path.isfile(audio_filepath) and not os.path.isabs(
+                    audio_filepath
+                ):
+                    audio_filepath_abs = os.path.join(
+                        os.path.dirname(manifest_path), audio_filepath
+                    )
                     if not os.path.isfile(audio_filepath_abs):
-                        raise FileNotFoundError(f"Could not find {audio_filepath} or {audio_filepath_abs}!")
+                        raise FileNotFoundError(
+                            f"Could not find {audio_filepath} or {audio_filepath_abs}!"
+                        )
                     entry[audio_key] = audio_filepath_abs
-                if (config.max_duration is None or entry['duration'] < config.max_duration) and (
-                    config.min_duration is None or entry['duration'] >= config.min_duration
+                if (
+                    config.max_duration is None
+                    or entry["duration"] < config.max_duration
+                ) and (
+                    config.min_duration is None
+                    or entry["duration"] >= config.min_duration
                 ):
                     entries.append(entry)
                     total_duration += entry["duration"]
                 else:
                     filtered_entries.append(entry)
-                    filtered_duration += entry['duration']
+                    filtered_duration += entry["duration"]
 
         return entries, total_duration, filtered_entries, filtered_duration
 
-    def _write_to_tar(self, tar, audio_filepath: str, squashed_filename: str) -> None:
-        if (codec := self.config.force_codec) is None or audio_filepath.endswith(f".{codec}"):
+    def _write_to_tar(
+        self,
+        tar,
+        audio_filepath: str,
+        squashed_filename: str,
+        offset: float,
+        duration: float,
+    ) -> None:
+        if (codec := self.config.force_codec) is None or audio_filepath.endswith(
+            f".{codec}"
+        ):
             # Add existing file without transcoding.
-            tar.add(audio_filepath, arcname=squashed_filename)
+            if duration is None or offset <= 0.1:
+                tar.add(audio_filepath, arcname=squashed_filename)
+            else:
+                # Transcode to the desired format in-memory and add the result to the tar file.
+                audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
+                audio = audio[
+                    int(offset * sampling_rate) : int(
+                        (offset + duration) * sampling_rate
+                    )
+                ]
+                encoded_audio = BytesIO()
+                soundfile.write(encoded_audio, audio, sampling_rate, format="wav")
+                ti = tarfile.TarInfo(squashed_filename)
+                encoded_audio.seek(0)
+                ti.size = len(encoded_audio.getvalue())
+                tar.addfile(ti, encoded_audio)
+                return 0.0
         else:
             # Transcode to the desired format in-memory and add the result to the tar file.
             audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
@@ -545,12 +636,15 @@ class ASRTarredDatasetBuilder:
                 kwargs = {"format": "ogg", "subtype": "opus"}
             else:
                 kwargs = {"format": codec}
-            soundfile.write(encoded_audio, audio, sampling_rate, closefd=False, **kwargs)
+            soundfile.write(
+                encoded_audio, audio, sampling_rate, closefd=False, **kwargs
+            )
             encoded_squashed_filename = f"{squashed_filename.split('.')[0]}.{codec}"
             ti = tarfile.TarInfo(encoded_squashed_filename)
             encoded_audio.seek(0)
             ti.size = len(encoded_audio.getvalue())
             tar.addfile(ti, encoded_audio)
+        return offset
 
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
         """Creates a tarball containing the audio files from `entries`."""
@@ -558,7 +652,11 @@ class ASRTarredDatasetBuilder:
             entries.sort(key=lambda x: x["duration"], reverse=False)
 
         new_entries = []
-        tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w', dereference=True)
+        tar = tarfile.open(
+            os.path.join(target_dir, f"audio_{shard_id}.tar"),
+            mode="w",
+            dereference=True,
+        )
 
         count = dict()
         for entry in entries:
@@ -568,15 +666,32 @@ class ASRTarredDatasetBuilder:
             else:
                 audio_filepath = os.path.join(manifest_folder, entry["audio_filepath"])
                 if not os.path.exists(audio_filepath):
-                    raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
+                    raise FileNotFoundError(
+                        f"Could not find {entry['audio_filepath']}!"
+                    )
 
             base, ext = os.path.splitext(audio_filepath)
-            base = base.replace('/', '_')
+            base = base.replace("/", "_")
             # Need the following replacement as long as WebDataset splits on first period
-            base = base.replace('.', '_')
-            squashed_filename = f'{base}{ext}'
+            base = base.replace(".", "_")
+
+            offset = entry["offset"] if "offset" in entry else 0.0
+            duration = entry["duration"] if "duration" in entry else None
+            if duration is None:
+                squashed_filename = f"{base}-{offset:.2f}"
+            else:
+                squashed_filename = f"{base}-{offset:.2f}-{duration:.2f}"
+            squashed_filename = squashed_filename.replace(".", "_")
+            squashed_filename = f"{squashed_filename}{ext}"
+            new_offset = offset
             if squashed_filename not in count:
-                self._write_to_tar(tar, audio_filepath, squashed_filename)
+                new_offset = self._write_to_tar(
+                    tar,
+                    audio_filepath,
+                    squashed_filename,
+                    float(offset),
+                    float(duration) if duration is not None else None,
+                )
                 to_write = squashed_filename
                 count[squashed_filename] = 1
             else:
@@ -586,8 +701,9 @@ class ASRTarredDatasetBuilder:
             # Carry over every key in the entry, override audio_filepath and shard_id
             new_entry = {
                 **entry,
-                'audio_filepath': to_write,
-                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+                "audio_filepath": to_write,
+                "offset": new_offset,
+                "shard_id": shard_id,  # Keep shard ID for recordkeeping
             }
             new_entries.append(new_entry)
 
@@ -596,23 +712,42 @@ class ASRTarredDatasetBuilder:
 
     @classmethod
     def setup_history(cls, base_metadata: ASRTarredDatasetMetadata, history: List[Any]):
-        if 'history' in base_metadata.keys():
+        if "history" in base_metadata.keys():
             for history_val in base_metadata.history:
                 cls.setup_history(history_val, history)
 
         if base_metadata is not None:
             metadata_copy = copy.deepcopy(base_metadata)
             with open_dict(metadata_copy):
-                metadata_copy.pop('history', None)
+                metadata_copy.pop("history", None)
             history.append(metadata_copy)
 
 
-def create_tar_datasets(min_duration: float, max_duration: float, target_dir: str,
-                        num_shards: int = -1, shuffle: bool = False, shuffle_seed: Optional[int] = None,
-                        sort_in_shards: bool = True, buckets_num: int = 1, dynamic_buckets_num: int = 30,
-                        keep_files_together: bool = False, force_codec: Optional[str] = None, workers: int = 1,
-                        write_metadata: bool = False, no_shard_manifests: bool = False, manifest_path: Optional[str] = None,
-                        concat_manifest_paths: Optional[List[str]] = None, metadata_path: Optional[str] = None):
+def create_tar_datasets(
+    min_duration: float,
+    max_duration: float,
+    target_dir: str,
+    num_shards: int = -1,
+    shuffle: bool = False,
+    shuffle_seed: Optional[int] = None,
+    sort_in_shards: bool = True,
+    buckets_num: int = 1,
+    dynamic_buckets_num: int = 30,
+    keep_files_together: bool = False,
+    force_codec: Optional[str] = None,
+    workers: int = 1,
+    write_metadata: bool = False,
+    no_shard_manifests: bool = False,
+    manifest_path: Optional[str] = None,
+    concat_manifest_paths: Optional[List[str]] = None,
+    metadata_path: Optional[str] = None,
+):
+
+    if os.path.exists(os.path.join(target_dir, "metadata.yaml")):
+        print(
+            f"Skipping bucket {min_duration:.2f}->{max_duration:.2f} because metadata file already exists. Please remove it if you want to regenerate."
+        )
+        return
     builder = ASRTarredDatasetBuilder()
 
     shard_manifests = False if no_shard_manifests else True
@@ -632,7 +767,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
         )
         metadata.dataset_config = dataset_cfg
 
-        output_path = os.path.join(target_dir, 'default_metadata.yaml')
+        output_path = os.path.join(target_dir, "default_metadata.yaml")
         OmegaConf.save(metadata, output_path, resolve=True)
         print(f"Default metadata written to {output_path}")
         exit(0)
@@ -653,7 +788,13 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             force_codec=force_codec,
         )
         builder.configure(config)
-        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=workers, buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num)
+        builder.create_new_dataset(
+            manifest_path=manifest_path,
+            target_dir=target_dir,
+            num_workers=workers,
+            buckets_num=buckets_num,
+            dynamic_buckets_num=dynamic_buckets_num,
+        )
 
     else:
         if buckets_num > 1:
@@ -692,49 +833,101 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
 
     if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
         print("Constructing DALI Tarfile Index - ", target_dir)
-        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
+        index_config = dali_index.DALITarredIndexConfig(
+            tar_dir=target_dir, workers=workers
+        )
         dali_index.main(index_config)
 
-def convert_to_tarred_audio_dataset(manifest_path=None, concat_manifest_paths=None, target_dir="./tarred", metadata_path=None, 
-         num_shards=-1, max_duration=None, min_duration=None, shuffle=False, shuffle_seed=None, 
-         sort_in_shards=False, buckets_num=1, dynamic_buckets_num=30, keep_files_together=False, 
-         force_codec=None, workers=1, write_metadata=False, no_shard_manifests=False):
+
+def convert_to_tarred_audio_dataset(
+    manifest_path=None,
+    concat_manifest_paths=None,
+    target_dir="./tarred",
+    metadata_path=None,
+    num_shards=-1,
+    max_duration=None,
+    min_duration=None,
+    shuffle=False,
+    shuffle_seed=None,
+    sort_in_shards=False,
+    buckets_num=1,
+    dynamic_buckets_num=30,
+    keep_files_together=False,
+    force_codec=None,
+    workers=1,
+    write_metadata=False,
+    no_shard_manifests=False,
+):
     if buckets_num > 1:
         bucket_length = (max_duration - min_duration) / float(buckets_num)
         for i in range(buckets_num):
             bucket_min_duration = min_duration + i * bucket_length
-            bucket_max_duration = min_duration + bucket_length
+            bucket_max_duration = bucket_min_duration + bucket_length
             if i == buckets_num - 1:
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 max_duration += 1e-5
-            target_dir = os.path.join(target_dir, f"bucket{i+1}")
-            print(f"Creating bucket {i+1} with min_duration={bucket_min_duration} and max_duration={bucket_max_duration} ...")
-            print(f"Results are being saved at: {target_dir}.")
-            create_tar_datasets(min_duration=bucket_min_duration, max_duration=bucket_max_duration, target_dir=target_dir,
-                                num_shards=num_shards, shuffle=shuffle, shuffle_seed=shuffle_seed, sort_in_shards=sort_in_shards,
-                                buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num, keep_files_together=keep_files_together,
-                                force_codec=force_codec, workers=workers, write_metadata=write_metadata, no_shard_manifests=no_shard_manifests,
-                                manifest_path=manifest_path, concat_manifest_paths=concat_manifest_paths, metadata_path=metadata_path)
+            bucket_dir = os.path.join(target_dir, f"bucket{i+1}")
+            print(
+                f"Creating bucket {i+1} with min_duration={bucket_min_duration} and max_duration={bucket_max_duration} ..."
+            )
+            print(f"Results are being saved at: {bucket_dir}.")
+            create_tar_datasets(
+                min_duration=bucket_min_duration,
+                max_duration=bucket_max_duration,
+                target_dir=bucket_dir,
+                num_shards=num_shards,
+                shuffle=shuffle,
+                shuffle_seed=shuffle_seed,
+                sort_in_shards=sort_in_shards,
+                buckets_num=buckets_num,
+                dynamic_buckets_num=dynamic_buckets_num,
+                keep_files_together=keep_files_together,
+                force_codec=force_codec,
+                workers=workers,
+                write_metadata=write_metadata,
+                no_shard_manifests=no_shard_manifests,
+                manifest_path=manifest_path,
+                concat_manifest_paths=concat_manifest_paths,
+                metadata_path=metadata_path,
+            )
             print(f"Bucket {i+1} is created.")
     else:
-        create_tar_datasets(min_duration=min_duration, max_duration=max_duration, target_dir=target_dir,
-                            num_shards=num_shards, shuffle=shuffle, shuffle_seed=shuffle_seed, sort_in_shards=sort_in_shards,
-                            buckets_num=buckets_num, dynamic_buckets_num=dynamic_buckets_num, keep_files_together=keep_files_together,
-                            force_codec=force_codec, workers=workers, write_metadata=write_metadata, no_shard_manifests=no_shard_manifests,
-                            manifest_path=manifest_path, concat_manifest_paths=concat_manifest_paths, metadata_path=metadata_path)
-        
+        create_tar_datasets(
+            min_duration=min_duration,
+            max_duration=max_duration,
+            target_dir=target_dir,
+            num_shards=num_shards,
+            shuffle=shuffle,
+            shuffle_seed=shuffle_seed,
+            sort_in_shards=sort_in_shards,
+            buckets_num=buckets_num,
+            dynamic_buckets_num=dynamic_buckets_num,
+            keep_files_together=keep_files_together,
+            force_codec=force_codec,
+            workers=workers,
+            write_metadata=write_metadata,
+            no_shard_manifests=no_shard_manifests,
+            manifest_path=manifest_path,
+            concat_manifest_paths=concat_manifest_paths,
+            metadata_path=metadata_path,
+        )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
     )
     parser.add_argument(
-        "--manifest_path", default=None, type=str, required=False, help="Path to the existing dataset's manifest."
+        "--manifest_path",
+        default=None,
+        type=str,
+        required=False,
+        help="Path to the existing dataset's manifest.",
     )
 
     parser.add_argument(
-        '--concat_manifest_paths',
-        nargs='+',
+        "--concat_manifest_paths",
+        nargs="+",
         default=None,
         type=str,
         required=False,
@@ -744,7 +937,7 @@ if __name__ == "__main__":
     # Optional arguments
     parser.add_argument(
         "--target_dir",
-        default='./tarred',
+        default="./tarred",
         type=str,
         help="Target directory for resulting tarballs and manifest. Defaults to `./tarred`. Creates the path if necessary.",
     )
@@ -764,33 +957,33 @@ if __name__ == "__main__":
         help="Number of shards (tarballs) to create. Used for partitioning data among workers.",
     )
     parser.add_argument(
-        '--max_duration',
+        "--max_duration",
         default=None,
         required=True,
         type=float,
-        help='Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.',
+        help="Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.",
     )
     parser.add_argument(
-        '--min_duration',
+        "--min_duration",
         default=None,
         type=float,
-        help='Minimum duration of audio clip in the dataset. By default, it is None and will not filter files.',
+        help="Minimum duration of audio clip in the dataset. By default, it is None and will not filter files.",
     )
     parser.add_argument(
         "--shuffle",
-        action='store_true',
+        action="store_true",
         help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
     )
 
     parser.add_argument(
         "--keep_files_together",
-        action='store_true',
+        action="store_true",
         help="Whether or not to keep entries from the same file (but different offsets) together when sorting before tarring/sharding.",
     )
 
     parser.add_argument(
         "--sort_in_shards",
-        action='store_true',
+        action="store_true",
         help="Whether or not to sort samples inside the shards based on their duration.",
     )
 
@@ -809,10 +1002,15 @@ if __name__ == "__main__":
         "Estimates optimal bucket duration bins for a given number of buckets.",
     )
 
-    parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
     parser.add_argument(
-        '--write_metadata',
-        action='store_true',
+        "--shuffle_seed",
+        type=int,
+        default=None,
+        help="Random seed for use if shuffling is enabled.",
+    )
+    parser.add_argument(
+        "--write_metadata",
+        action="store_true",
         help=(
             "Flag to write a blank metadata with the current call config. "
             "Note that the metadata will not contain the number of shards, "
@@ -821,7 +1019,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--no_shard_manifests",
-        action='store_true',
+        action="store_true",
         help="Do not write sharded manifests along with the aggregated manifest.",
     )
     parser.add_argument(
@@ -833,11 +1031,27 @@ if __name__ == "__main__":
             "Supports libnsndfile formats (example values: 'opus', 'flac')."
         ),
     )
-    parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
+    parser.add_argument(
+        "--workers", type=int, default=1, help="Number of worker processes"
+    )
     args = parser.parse_args()
-    convert_to_tarred_audio_dataset(manifest_path=args.manifest_path, target_dir=args.target_dir, metadata_path=args.metadata_path,
-                                    num_shards=args.num_shards, max_duration=args.max_duration, min_duration=args.min_duration,
-                                    shuffle=args.shuffle, shuffle_seed=args.shuffle_seed, sort_in_shards=args.sort_in_shards,
-                                    buckets_num=args.buckets_num, dynamic_buckets_num=args.dynamic_buckets_num,
-                                    keep_files_together=args.keep_files_together, force_codec=args.force_codec, workers=args.workers,
-                                    write_metadata=args.write_metadata, no_shard_manifests=args.no_shard_manifests, concat_manifest_paths=args.concat_manifest_paths)
+    print("Lauching conversion")
+    convert_to_tarred_audio_dataset(
+        manifest_path=args.manifest_path,
+        target_dir=args.target_dir,
+        metadata_path=args.metadata_path,
+        num_shards=args.num_shards,
+        max_duration=args.max_duration,
+        min_duration=args.min_duration,
+        shuffle=args.shuffle,
+        shuffle_seed=args.shuffle_seed,
+        sort_in_shards=args.sort_in_shards,
+        buckets_num=args.buckets_num,
+        dynamic_buckets_num=args.dynamic_buckets_num,
+        keep_files_together=args.keep_files_together,
+        force_codec=args.force_codec,
+        workers=args.workers,
+        write_metadata=args.write_metadata,
+        no_shard_manifests=args.no_shard_manifests,
+        concat_manifest_paths=args.concat_manifest_paths,
+    )

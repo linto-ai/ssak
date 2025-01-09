@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def split_dataset(input, output, split_on_speaker=False, seed=42, train=0.8, validation=0.1, test=0.1):
+def split_dataset(input, output, split_on_speaker=True, seed=42, train=0.8, validation=0.1, test=0.1):
     if os.path.exists(os.path.join(output, "train.jsonl")):
         raise FileExistsError(f'Output folder "{output}" already exists')
     if round(train+validation+test, 2)>1.0:
@@ -52,7 +52,20 @@ def split_dataset(input, output, split_on_speaker=False, seed=42, train=0.8, val
             dev = [data for speaker in remaining_speakers for data in remaining_with_spks[speaker]]
             test = []
         else:
-            dev, test = train_test_split(remaining_speakers, test_size=test/(test+validation), random_state=seed)
+            try:
+                dev, test = train_test_split(remaining_speakers, test_size=test/(test+validation), random_state=seed)
+            except ValueError as e:
+                logger.warning(f"Could not split speakers on test and dev sets because there are {len(remaining_speakers)} speakers, trying to split them")
+                if len(remaining_speakers)==1:
+                    dev = []
+                    test = remaining_speakers
+                elif len(remaining_speakers)<10:
+                    if test>validation:
+                        dev, test = train_test_split(remaining_speakers, test_size=0.6, random_state=seed)
+                    else:
+                        dev, test = train_test_split(remaining_speakers, test_size=0.4, random_state=seed)
+                else:
+                    raise e
             dev = [data for speaker in dev for data in remaining_with_spks[speaker]]
             test = [data for speaker in test for data in remaining_with_spks[speaker]]
         splits['train'].extend(train)

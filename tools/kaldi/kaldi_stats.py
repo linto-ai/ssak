@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
 import os
+import logging
 import warnings
 
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+
 from linastt.utils.misc import commonprefix
+from linastt.utils.kaldi_dataset import KaldiDataset, parse_utt2dur_file
 from linastt.utils.kaldi import parse_kaldi_wavscp
 
 UNK = "_"
@@ -17,6 +21,7 @@ def get_utt2dur_duration(
     check_wav_duration=False,
     warn_if_longer_than=3600,
     warn_if_shorter_than=0.005,
+    check_if_segments_in_audio=False
     ):
 
     if os.path.isdir(utt2dur_file):
@@ -77,6 +82,17 @@ def get_utt2dur_duration(
                         print(f"WARNING: missing file {path}")
                         duration_wav = UNK
                         break
+        if check_if_segments_in_audio:
+            from linastt.utils.audio import get_audio_duration
+            if os.path.isfile(segments):
+                with open(segments, 'r') as f:
+                    for line in f:
+                        id, audio_id, start, end = line.strip().split(" ")
+                        start = float(start)
+                        end = float(end)
+                        audio_duration = get_audio_duration(wav[audio_id])
+                        if start < 0 or start >= audio_duration-warn_if_shorter_than:
+                            warnings.warn(f"Segment {id} in {segments} is not in audio duration {audio_id}: {start} -> {end} (audio duration: {audio_duration})")
 
     res = {
         "name": os.path.dirname(utt2dur_file),
@@ -185,9 +201,10 @@ if __name__ == "__main__":
     parser.add_argument("--warn-if-longer-than", default=1800, type=float, help="Warn if duration is longer than this value (in seconds).")
     parser.add_argument("--warn-if-shorter-than", default=0.005, type=float, help="Warn if duration is shorter than this value (in seconds).")
     parser.add_argument("--dataset_list", default=None, type=str, help="Path to a file containing a list of dataset to process.")
-    parser.add_argument("--subset_pattern", default=None, type=str)
+    parser.add_argument("--subset_pattern", default=None, nargs='+', type=str)
+    parser.add_argument("--check-if-segments-in-audio", action='store_true', help="Check if segments are in audio duration.")
     args = parser.parse_args()
-    
+
     datasets=[]
     if args.dataset_list is not None:
         with open(args.dataset_list, 'r') as f:
@@ -199,13 +216,13 @@ if __name__ == "__main__":
         else:
             all_files = []
             for root, dirs, files in os.walk(file_or_folder):
+                path = root.split("/")
                 if len(datasets)>0:
-                    path = root.split("/")
                     if not any([d in path for d in datasets]):
                         continue
-                    if not args.subset_pattern is None:
-                        if not args.subset_pattern in path:
-                            continue
+                if not args.subset_pattern is None:
+                    if not any([pattern in root for pattern in args.subset_pattern]):
+                        continue
                 if "utt2dur" in files:
                     all_files.append(os.path.join(root, "utt2dur"))
         for filename in all_files:
@@ -215,7 +232,7 @@ if __name__ == "__main__":
                     check_wav_duration=args.check_wav_duration,
                     warn_if_longer_than=args.warn_if_longer_than,
                     warn_if_shorter_than=args.warn_if_shorter_than,
+                    check_if_segments_in_audio=args.check_if_segments_in_audio
                 )
             )
-
     print_stats(all_stats)

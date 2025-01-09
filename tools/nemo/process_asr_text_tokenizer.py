@@ -272,18 +272,21 @@ def process_asr_text_tokenizer(manifests=None, data_file=None, data_root=None, v
                                 spe_type="bpe", spe_character_coverage=1.0, spe_bos=False, spe_eos=False, spe_pad=False,
                                 spe_user_defined_symbols=None, spe_control_symbols=None, spe_split_digits=False,
                                 spe_sample_size=-1, spe_train_extremely_large_corpus=False, spe_max_sentencepiece_length=-1,
-                                spe_split_by_unicode_script=True, spe_byte_fallback=False, lower_case=True, log=False):
+                                spe_split_by_unicode_script=True, spe_byte_fallback=False, lower_case=True, log=True):
                                 
     if not os.path.exists(data_root):
         os.makedirs(data_root)
-
     if log:
         logging.basicConfig(level=logging.INFO)
-
+        logger = logging.getLogger(__name__)
+    logger.info('Starting tokenizer creation')
     if manifests:
+        logger.info('Building document from manifests')
         text_corpus_path = __build_document_from_manifests(data_root, manifests)
+        logger.info('Document built')
     else:
         text_corpus_path = data_file
+    logger.info('Building tokenizer')
     tokenizer_path = __process_data(
         text_corpus_path,
         data_root,
@@ -306,7 +309,7 @@ def process_asr_text_tokenizer(manifests=None, data_file=None, data_root=None, v
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)
-    logging.info('Done!')
+    logger.info('Done!')
 
 
 if __name__ == "__main__":
@@ -373,9 +376,12 @@ if __name__ == "__main__":
     parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
     args = parser.parse_args()
 
-    process_asr_text_tokenizer(args.manifest, args.data_file, args.data_root, args.vocab_size, args.tokenizer,
-                               args.spe_type, args.spe_character_coverage, args.spe_sample_size,
-                               args.spe_train_extremely_large_corpus, args.spe_max_sentencepiece_length,
-                               args.spe_split_by_unicode_script, args.spe_bos, args.spe_eos, args.spe_pad,
-                               args.spe_control_symbols, args.spe_user_defined_symbols, args.spe_byte_fallback,
-                               args.spe_split_digits, args.lower_case)
+    process_asr_text_tokenizer(manifests=args.manifest, data_file=args.data_file, data_root=args.data_root,
+                                vocab_size=args.vocab_size, tokenizer=args.tokenizer, spe_type=args.spe_type,
+                                spe_character_coverage=args.spe_character_coverage, spe_sample_size=args.spe_sample_size,
+                                spe_train_extremely_large_corpus=args.spe_train_extremely_large_corpus,
+                                spe_max_sentencepiece_length=args.spe_max_sentencepiece_length,
+                                spe_split_by_unicode_script=args.spe_split_by_unicode_script, spe_bos=args.spe_bos,
+                                spe_eos=args.spe_eos, spe_pad=args.spe_pad, spe_control_symbols=args.spe_control_symbols,
+                                spe_user_defined_symbols=args.spe_user_defined_symbols, spe_byte_fallback=args.spe_byte_fallback,
+                                spe_split_digits=args.spe_split_digits, lower_case=args.lower_case)

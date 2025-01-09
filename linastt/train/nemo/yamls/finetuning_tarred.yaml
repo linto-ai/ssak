@@ -1,4 +1,4 @@
-name: "STT_Finetuning_bucketing"
+name: "STT_parakeet_finetuning_tarred"
 
 # use `init_from_nemo_model` or `init_from_pretrained_model` to initialize the model
 # We do not currently support `init_from_ptl_ckpt` to create a single script for all types of models.
@@ -16,10 +16,10 @@ model:
   seed: 42
   train_ds:
     manifest_filepath: 
-    - - BUCKET2/manifest.json
+    - - BUCKET1/manifest.json
     - - BUCKET2/manifest.json
     tarred_audio_filepaths: 
-    - - BUCKET2/audio__OP_0..7_CL_.tar
+    - - BUCKET1/audio__OP_0..7_CL_.tar
     - - BUCKET2/audio__OP_0..7_CL_.tar
     sample_rate: ${model.sample_rate}
     batch_size: 1 # must be 1 if using bucketing_batch_size
