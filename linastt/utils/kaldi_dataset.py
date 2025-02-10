@@ -58,9 +58,11 @@ class KaldiDatasetRow:
             self.end = self.duration
         if self.audio_id is None:
             self.audio_id = self.id
+        if self.audio_path is None:
+            raise ValueError(f"Audio path must be specified for {self.id} ({self})")
         if self.duration is None:
             raise ValueError(f"Duration (or end and start) must be specified for row {self}")
-        if warn_if_shorter_than is not None and self.duration <= warn_if_shorter_than:
+        if warn_if_shorter_than is not None and self.duration < warn_if_shorter_than:
             if show_warnings:
                 logger.warning(f"{'Skipping: ' if not accept_warnings else ''}Duration too short for {self.id}: {self.duration:.3f} ({self.start}->{self.end}) (file: {self.audio_id})")
             if not accept_warnings:
@@ -71,7 +73,7 @@ class KaldiDatasetRow:
             if not accept_warnings:
                 return False
         if self.text is not None:   # should not check if None (Should only be None when load_text is False)
-            self.text = re.sub(r'\s+', ' ', self.text)
+            self.text = re.sub(r'\s+', ' ', self.text).strip()
             BOM = '\ufeff'
             self.text = self.text.replace(BOM, '')
             if len(self.text)==0:
@@ -218,15 +220,15 @@ class KaldiDataset:
         """
         return [i for i in self.dataset if i.speaker==speaker]
     
-    def get_duration(self, mode=sum):
-        if mode=="wav":
-            from linastt.utils.audio import get_audio_duration
-            sum = 0
-            for i in self.get_audio_paths(unique=True):
-                sum += get_audio_duration(i)
-            return sum
-        elif mode=="sum" or mode=="min" or mode=="max":
+    def get_duration(self, mode=sum, target="segment"):
+        if mode=="sum" or mode=="min" or mode=="max":
             mode = eval(mode)
+        if target=="wav" or target=="audio":
+            from linastt.utils.audio import get_audio_duration
+            durations = []
+            for i in self.get_audio_paths(unique=True):
+                durations.append(get_audio_duration(i))
+            return mode(durations)
         return mode([i.duration for i in self.dataset])
     
     def filter_by_audio_ids(self, audio_ids):

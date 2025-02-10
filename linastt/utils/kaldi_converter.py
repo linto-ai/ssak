@@ -20,7 +20,7 @@ class Reader2Kaldi:
                         raise FileNotFoundError(f"File {i.input} not found")
         self.processors = processors
     
-    def load(self, warn_if_shorter_than=0.05, warn_if_longer_than=None, check_if_segments_in_audio=False, debug=False):
+    def load(self, warn_if_shorter_than=0.05, warn_if_longer_than=None, check_if_segments_in_audio=False, debug=False, accept_missing_speaker=False):
         if debug:
             logger.warning("Debug mode is on, will only process the first row")
         dataset = []
@@ -32,7 +32,7 @@ class Reader2Kaldi:
         logger.info(f"Dataset processed with {len(dataset)} rows")
         logger.info(f"First row: {dataset[0]}")
         kaldi_dataset = KaldiDataset(row_checking_kwargs={"show_warnings": True, "warn_if_shorter_than": warn_if_shorter_than, \
-            "warn_if_longer_than": warn_if_longer_than, "check_if_segments_in_audio": check_if_segments_in_audio})
+            "warn_if_longer_than": warn_if_longer_than, "check_if_segments_in_audio": check_if_segments_in_audio}, accept_missing_speaker=accept_missing_speaker)
         keys_to_keep = ['id', 'audio_id', 'audio_path', 'text', 'speaker', 'gender', 'start', 'end', 'duration', 'normalized_text']
         # find the filters by finding all keys in first row that starts with "filter_"
         filters = [k for k in dataset[0] if k.startswith("filter_")]
@@ -49,6 +49,7 @@ class Reader2Kaldi:
                 for f in filters:
                     if not row[f]:
                         filter_files[f].write(f"{row}\n")
+        logger.info(f"Removed {len(dataset)-len(kaldi_dataset)} rows (from {len(dataset)} rows to {len(kaldi_dataset)})")
         return kaldi_dataset
     
 class ToKaldi():
@@ -79,20 +80,37 @@ class ToKaldi():
     def merge_data(self, dataset, new_data):
         if len(dataset)==0:
             return new_data
-        if self.sort_merging and self.merge_on!="list" and len(dataset)==len(new_data):
-            dataset = sorted(dataset, key=lambda x: x[self.merge_on])
-            new_data = sorted(new_data, key=lambda x: x[self.merge_on])
-            for i in zip(dataset, new_data):
-                if i[0][self.merge_on]!=i[1][self.merge_on]:
-                    raise ValueError(f"Merge key value do not match: {i[0][self.merge_on]} != {i[1][self.merge_on]}")
-                i[0].update(i[1])
-            return dataset
+        if self.sort_merging and self.merge_on!="list":
+            dict_dataset = {i[self.merge_on]: i for i in dataset}
+            dict_new_data = {i[self.merge_on]: i for i in new_data}     # just for logging
+            if len(dataset)!=len(new_data):
+                diff_a_b = set(dict_dataset.keys()).difference(set(dict_new_data.keys()))
+                diff_b_a = set(dict_new_data.keys()).difference(set(dict_dataset.keys()))
+                logger.warning(f"The data you are trying to merge have different lengths at step {self.__class__.__name__} (execute_order={self.execute_order})!")
+                logger.warning(f"Dataset {len(dataset)} has {len(diff_a_b)} not present in new data")
+                logger.warning(f"New data {len(new_data)} has {len(diff_b_a)} not present in dataset")
+                logger.warning(f"Writing ids to debug.txt")
+                with open('debug.txt', "w") as f:
+                    if len(diff_a_b)>0:
+                        f.write("In datset but not in new data:\n")
+                        for i in diff_a_b:
+                            f.write(f"{i}\n")
+                    if len(diff_b_a)>0:
+                        f.write("In new data but not in dataset:\n")
+                        for i in diff_b_a:
+                            f.write(f"{i}\n")
+            merged_dict = {}
+            for key in dict_dataset.keys() & dict_new_data.keys():
+                merged_dict[key] = {**dict_dataset[key], **dict_new_data[key]}
+            merged_data = [merged_dict[i] for i in merged_dict]
+            return merged_data
         elif self.merge_on=="list":
             logger.warning("Merging a list with a dataset, the list must be aligned with the dataset! Check the order of the elements! Set sort_merging to False")
             for i, j in zip(dataset, new_data):
                 i.update(j)
             return dataset
         else:       # not optimized, use it when want to keep original order or when lenghts are different (merging speakers list with dataset for example)
+            logger.warning("Using unoptimized merging, use it when want to keep original order or when lenghts are different")
             merged_data = []
             if len(dataset)<len(new_data) and not self.force_merge_new_into_old:
                 dataset, new_data = new_data, dataset
@@ -134,18 +152,16 @@ class AudioFolder2Kaldi(ToKaldi):
                 if pbar is not None:
                     pbar.update(1)
                 if debug:
-                    break
-            if debug:
-                break
+                    return self.merge_data(dataset, new_data=data)
         if pbar is not None:
             pbar.close()
         return self.merge_data(dataset, new_data=data)
 
 class TextFolder2Kaldi(ToKaldi):
-
-    def __init__(self, input, execute_order, sort_merging=True, extracted_id="id", supported_extensions=[".txt"]) -> None:
-        super().__init__(input, [extracted_id, "text"], execute_order, extracted_id, sort_merging=sort_merging)
-        self.supported_extensions = supported_extensions
+    
+    def __init__(self, input, execute_order, sort_merging=True, extracted_id="id", extracted_info="text", files_extensions=[".txt"]) -> None:
+        super().__init__(input, [extracted_id, extracted_info], execute_order, extracted_id, sort_merging=sort_merging)
+        self.supported_extensions = files_extensions
 
     def process(self, dataset, debug=False):
         data = []
@@ -158,19 +174,51 @@ class TextFolder2Kaldi(ToKaldi):
         # Decide whether to use a progress bar based on the file count
         use_progress_bar = file_count >= 5000
         pbar = tqdm(desc="Processing text files") if use_progress_bar else None
-        
+
         for root, _, files in os.walk(self.input):
-            texts = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
-            ids = [os.path.splitext(i)[0] for i in texts]
-            for id, audio in zip(ids, texts):
-                text = open(os.path.join(root, audio), encoding="utf-8").read()
-                data.append({self.return_columns[0]: id, self.return_columns[1]: text})
+            files = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
+            ids = [os.path.splitext(i)[0] for i in files]
+            for id, file in zip(ids, files):
+                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                    content = " ".join(f.readlines())
+                data.append({self.return_columns[0]: id, self.return_columns[1]: content.strip()})
                 if pbar is not None:
                     pbar.update(1)
                 if debug:
-                    break
-            if debug:
+                    return self.merge_data(dataset, new_data=data)
+        if pbar is not None:
+            pbar.close()
+        return self.merge_data(dataset, new_data=data)
+
+class ColumnFileFolder2Kaldi(ToKaldi):
+    
+    
+    def __init__(self, input, execute_order, sort_merging=True, columnfile2kaldi=None, extracted_id="id", extracted_info="text", files_extensions=[".txt"]) -> None:
+        super().__init__(input, [extracted_id, extracted_info], execute_order, extracted_id, sort_merging=sort_merging)
+        self.supported_extensions = files_extensions
+        self.columnfile2kaldi = columnfile2kaldi
+
+    def process(self, dataset, debug):
+        data = []
+        file_count = 0
+        for _, _, files in os.walk(self.input):
+            file_count += len([f for f in files if os.path.splitext(f)[1] in self.supported_extensions])
+            if file_count>=5000:
                 break
+    
+        use_progress_bar = file_count > 5000
+        pbar = tqdm(desc="Processing files") if use_progress_bar else None
+        for root, _, files in os.walk(self.input):
+            files = [i for i in files if os.path.splitext(i)[1] in self.supported_extensions]
+            ids = [os.path.splitext(i)[0] for i in files]
+            for id, file in zip(ids, files):
+                self.columnfile2kaldi.input = os.path.join(root, file)
+                new_data = self.columnfile2kaldi.process([])
+                data.extend(new_data)
+                if pbar is not None:
+                    pbar.update(1)
+                if debug:
+                    return self.merge_data(dataset, new_data=data)
         if pbar is not None:
             pbar.close()
         return self.merge_data(dataset, new_data=data)
@@ -241,7 +289,7 @@ class Row2Duration(Row2KaldiInfo):
         from linastt.utils.audio import get_audio_duration
         return {self.return_columns[0]: round(get_audio_duration(row[self.input]), 2)}
 
-class ColumnFile2Kaldi(ToKaldi):
+class CsvFile2Kaldi(ToKaldi):
     
     def __init__(self, input, return_columns, execute_order, separator: str, header=False, **kwargs) -> None:
         if return_columns is None:
@@ -260,6 +308,23 @@ class ColumnFile2Kaldi(ToKaldi):
                 data.append({col: row[i].strip() for i, col in enumerate(self.return_columns) if col is not None})
                 if debug:
                     break
+        return self.merge_data(dataset, new_data=data)
+
+class TextFile2Kaldi(ToKaldi):
+    
+    def __init__(self, input, return_columns, execute_order, separator: str, merge_on="id", max_split=1, sort_merging=True) -> None:
+        if return_columns is None:
+            raise ValueError("Columns must be specified")
+        super().__init__(input, return_columns, execute_order, merge_on, sort_merging=sort_merging)
+        self.separator = separator
+        self.max_split = max_split
+    
+    def process(self, dataset, debug=False):
+        data = []
+        with open(self.input) as f:
+            for line in f:
+                columns = line.strip().split(" ", maxsplit=self.max_split)  # Split only at the first space
+                data.append({col: columns[i].strip() for i, col in enumerate(self.return_columns) if col is not None})
         return self.merge_data(dataset, new_data=data)
     
 class ListFile2Kaldi(ToKaldi):

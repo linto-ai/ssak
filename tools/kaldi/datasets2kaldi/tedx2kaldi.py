@@ -1,4 +1,4 @@
-from linastt.utils.kaldi_converter import Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info, ListFile2Kaldi
+from linastt.utils.kaldi_converter import Reader2Kaldi, CsvFile2Kaldi, AudioFolder2Kaldi, Row2Info, ListFile2Kaldi
 from tools.clean_text_fr import clean_text_fr
 import logging
 import os
@@ -34,7 +34,7 @@ if __name__=="__main__":
         shutil.rmtree(nocasepunc_test, ignore_errors=True)
         shutil.rmtree(nocasepunc_train, ignore_errors=True)
     
-    segments = ColumnFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
+    segments = CsvFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
     texts = ListFile2Kaldi("txt/valid.fr", ["text"], separator=None, execute_order=1)
     audios = AudioFolder2Kaldi("wav", execute_order=2, extracted_id="audio_id", audio_extensions=".flac")
     speakers = Row2Info("audio_id", ["speaker"], execute_order=3, separator=None, info_position=None)
@@ -48,7 +48,7 @@ if __name__=="__main__":
         ignore_first=1,
         file_clean_mode="kaldi")
 
-    segments = ColumnFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
+    segments = CsvFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
     texts = ListFile2Kaldi("txt/test.fr", ["text"], separator=None, execute_order=1)
     audios = AudioFolder2Kaldi("wav", execute_order=2, extracted_id="audio_id", audio_extensions=".flac")
     speakers = Row2Info("audio_id", ["speaker"], execute_order=3, separator=None, info_position=None)
@@ -63,7 +63,7 @@ if __name__=="__main__":
         ignore_first=1,
         file_clean_mode="kaldi")
 
-    segments = ColumnFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
+    segments = CsvFile2Kaldi("txt/segments", ["id", "audio_id", "start", "end"], separator=" ", execute_order=0, merge_on="id", sort_merging=False)
     texts = ListFile2Kaldi("txt/train.fr", ["text"], separator=None, execute_order=1)
     audios = AudioFolder2Kaldi("wav", execute_order=2, extracted_id="audio_id", audio_extensions=".flac")
     speakers = Row2Info("audio_id", ["speaker"], execute_order=3, separator=None, info_position=None)
