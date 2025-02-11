@@ -80,11 +80,11 @@ if __name__=="__main__":
 
     for i in splits_to_process:
         try:
-            convert_datasets([os.path.join(tmp_manifest_dir, "datasets_list",f"{i}_datasets")], f"{tmp_manifest_dir}_{i}", output_wav_dir, check_audio=True)
+            convert_datasets([os.path.join(tmp_manifest_dir, "datasets_list",f"{i}_datasets")], os.path.join(tmp_manifest_dir, f"{i}_manifests"), output_wav_dir, check_audio=True)
         except FileExistsError:
             pass
         try:
-            merge_manifests([f"{tmp_manifest_dir}_{i}"], os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest.jsonl"))
+            merge_manifests([os.path.join(tmp_manifest_dir, f"{i}_manifests")], os.path.join(f"{tmp_manifest_dir}", f"{i}_manifest.jsonl"))
         except FileExistsError:
             logger.info(f"{i} merged manifest already exists")
         try:
