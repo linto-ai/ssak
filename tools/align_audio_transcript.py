@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from linastt.utils.env import * # manage option --gpus
-from linastt.utils.audio import load_audio
-from linastt.utils.text_utils import (
+from sak.utils.env import * # manage option --gpus
+from sak.utils.audio import load_audio
+from sak.utils.text_utils import (
     remove_special_characters,
     numbers_and_symbols_to_letters,   
 )
-from linastt.utils.text_basic import (
+from sak.utils.text_basic import (
     format_special_characters,
     remove_punctuations,
     remove_special_words,
@@ -14,9 +14,9 @@ from linastt.utils.text_basic import (
     collapse_whitespace,
     _punctuation,
 )
-from linastt.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
-from linastt.infer.general import load_model, get_model_sample_rate, get_model_vocab
-from linastt.utils.align_transcriptions import compute_alignment
+from sak.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
+from sak.infer.general import load_model, get_model_sample_rate, get_model_vocab
+from sak.utils.align_transcriptions import compute_alignment
 
 import os
 import shutil

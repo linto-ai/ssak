@@ -1,4 +1,4 @@
-from linastt.utils.kaldi_converter import *
+from sak.utils.kaldi_converter import *
 from tools.clean_text_fr import clean_text_fr
 import logging
 import os

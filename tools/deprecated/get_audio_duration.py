@@ -15,8 +15,8 @@ if __name__ == "__main__":
     assert os.path.isfile(input_file), f"Input file not found: {input_file}"
 
     import sys
-    from linastt.utils.audio import get_audio_duration
-    from linastt.utils.kaldi import parse_kaldi_wavscp
+    from sak.utils.audio import get_audio_duration
+    from sak.utils.kaldi import parse_kaldi_wavscp
 
     with (open(args.dest, "w") if args.dest else sys.stdout) as fout:
 

@@ -191,9 +191,10 @@ if __name__ == "__main__":
 
     if os.path.isfile(dir_out):
         raise RuntimeError(f"Output directory {dir_out} is a file. Please remove it or specify another directory.")
-    if not args.continue_ and os.path.exists(dir_out):
-        print(f"Output directory {dir_out} already exists. Please remove it or use --continue.")
-        sys.exit(0)
+    # NOCOMMIT
+    # if not args.continue_ and os.path.exists(dir_out):
+    #     print(f"Output directory {dir_out} already exists. Please remove it or use --continue.")
+    #     sys.exit(0)
     os.makedirs(dir_out, exist_ok=True)
 
     upload_and_clean = bool(args.s3user)
@@ -230,6 +231,9 @@ if __name__ == "__main__":
 
     done = 0
     for ifile, fname in enumerate(tqdm(audio_files, desc="Augmenting audio files")):
+        # NOCOMMIT
+        if ifile < 107358:
+            continue
         f = fname.split(".")
         base = ".".join(f[:-2]) 
         audio = os.path.join(dir_in, fname)

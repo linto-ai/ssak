@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from linastt.utils.kaldi import check_kaldi_dir
-from linastt.utils.text_utils import format_special_characters
-from linastt.utils.audio import mix_audios, AUDIO_EXTENSIONS
+from sak.utils.kaldi import check_kaldi_dir
+from sak.utils.text_utils import format_special_characters
+from sak.utils.audio import mix_audios, AUDIO_EXTENSIONS
 
 import os
 import csv

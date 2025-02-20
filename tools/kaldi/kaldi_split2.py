@@ -1,4 +1,4 @@
-from linastt.utils.kaldi_dataset import KaldiDataset
+from sak.utils.kaldi_dataset import KaldiDataset
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import logging

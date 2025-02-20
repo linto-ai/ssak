@@ -8,9 +8,9 @@ import warnings
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-from linastt.utils.misc import commonprefix
-from linastt.utils.kaldi_dataset import KaldiDataset, parse_utt2dur_file
-from linastt.utils.kaldi import parse_kaldi_wavscp
+from sak.utils.misc import commonprefix
+from sak.utils.kaldi_dataset import KaldiDataset, parse_utt2dur_file
+from sak.utils.kaldi import parse_kaldi_wavscp
 
 UNK = "_"
 
@@ -69,7 +69,7 @@ def get_utt2dur_duration(
             global ALL_WAVS
             ALL_WAVS = ALL_WAVS.union(set([os.path.splitext(os.path.basename(path))[0] for path in wav.values()]))
         if check_wav_duration:
-            from linastt.utils.audio import get_audio_duration
+            from sak.utils.audio import get_audio_duration
             
             if not os.path.isfile(segments):
                 duration_wav = total_duration
@@ -83,7 +83,7 @@ def get_utt2dur_duration(
                         duration_wav = UNK
                         break
         if check_if_segments_in_audio:
-            from linastt.utils.audio import get_audio_duration
+            from sak.utils.audio import get_audio_duration
             if os.path.isfile(segments):
                 with open(segments, 'r') as f:
                     for line in f:

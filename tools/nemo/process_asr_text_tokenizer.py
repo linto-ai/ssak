@@ -134,7 +134,7 @@ def __build_document_from_manifests(
                     item = json.loads(line)
                     text = item['text']
                     if CLEAN_TEXT:
-                        from linastt.utils.text_latin import format_text_latin
+                        from sak.utils.text_latin import format_text_latin
                         text = format_text_latin(text,
                             lower_case = False,
                             keep_punc = True,

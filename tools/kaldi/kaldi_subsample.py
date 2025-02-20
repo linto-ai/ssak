@@ -7,7 +7,7 @@ import regex as re
 import tqdm
 
 
-from linastt.utils.kaldi import check_kaldi_dir
+from sak.utils.kaldi import check_kaldi_dir
 
 
 def kaldi_subsample(

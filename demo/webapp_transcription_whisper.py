@@ -1,10 +1,10 @@
 import websockets
 from audio_recorder_streamlit import audio_recorder
 import streamlit as st
-from linastt.infer.whisper_infer import *
-from linastt.infer.kaldi_infer import *
+from sak.infer.whisper_infer import *
+from sak.infer.kaldi_infer import *
 import asyncio
-from linastt.utils.linstt import _linstt_streaming
+from sak.utils.linstt import _linstt_streaming
 import os
 import tempfile
 import librosa

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from linastt.utils.text import format_text_ar
+from sak.utils.text import format_text_ar
 
 if __name__ == "__main__":
 

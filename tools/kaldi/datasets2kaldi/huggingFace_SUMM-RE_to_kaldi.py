@@ -5,7 +5,7 @@ import os
 import soundfile
 from tqdm import tqdm
 from datasets import load_dataset
-from linastt.utils.kaldi_dataset import KaldiDataset
+from sak.utils.kaldi_dataset import KaldiDataset
                     
 def write_dataset(huggingface_dataset, kaldi_dir="kaldi", wavs_path="wavs", existing_wavs_path=None, language=None, subset=None, trust_remote_code=False, set_name=None):
     if existing_wavs_path is None:

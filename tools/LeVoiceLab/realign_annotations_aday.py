@@ -3,8 +3,8 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-from linastt.utils.align import find_best_position_dtw
-from linastt.utils.text import format_text_latin, split_around_space_and_apostrophe
+from sak.utils.align import find_best_position_dtw
+from sak.utils.text import format_text_latin, split_around_space_and_apostrophe
 import re
 
 from math import floor, ceil

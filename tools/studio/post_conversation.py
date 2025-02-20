@@ -7,11 +7,11 @@ import datetime
 import numpy as np
 import re
 
-from linastt.utils.curl import curl_post, curl_get, curl_delete
-from linastt.utils.linstt import linstt_transcribe
-from linastt.utils.misc import hashmd5
-from linastt.utils.format_transcription import to_linstt_transcription, shorten_transcription
-from linastt.utils.format_diarization import to_linstt_diarization
+from sak.utils.curl import curl_post, curl_get, curl_delete
+from sak.utils.linstt import linstt_transcribe
+from sak.utils.misc import hashmd5
+from sak.utils.format_transcription import to_linstt_transcription, shorten_transcription
+from sak.utils.format_diarization import to_linstt_diarization
 
 ####################
 # Conversation Manager 

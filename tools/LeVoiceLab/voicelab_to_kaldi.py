@@ -5,9 +5,9 @@ import tempfile
 import urllib.request
 import zipfile
 from operator import itemgetter
-from linastt.utils.kaldi import check_kaldi_dir
+from sak.utils.kaldi import check_kaldi_dir
 
-from linastt.utils.text import format_text_latin, transliterate
+from sak.utils.text import format_text_latin, transliterate
 
 char_set_fr = "abcdefghijklmnopqrstuvwxyzàâçéèêëîïôûùüÿñæœ-' "
 

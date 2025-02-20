@@ -1,4 +1,4 @@
-from linastt.utils.kaldi_converter import ToKaldi, Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info
+from sak.utils.kaldi_converter import ToKaldi, Reader2Kaldi, ColumnFile2Kaldi, AudioFolder2Kaldi, Row2Info
 from tools.clean_text_fr import clean_text_fr
 import logging
 import re

@@ -5,7 +5,7 @@ import os
 import random
 import regex as re
 
-from linastt.utils.kaldi import check_kaldi_dir, parse_kaldi_wavscp
+from sak.utils.kaldi import check_kaldi_dir, parse_kaldi_wavscp
 
 def kaldi_split(
     input_folders,

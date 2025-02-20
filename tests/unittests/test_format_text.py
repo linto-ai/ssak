@@ -1,6 +1,6 @@
 import os
 
-from linastt.utils.text import format_text_latin, format_text_ar, format_text_ru
+from sak.utils.text import format_text_latin, format_text_ar, format_text_ru
 
 from .utils import Test
 
@@ -383,7 +383,7 @@ class TestFormatTextArabic(Test):
         )
     # def test_digit_round_check(self):
 
-    #     from linastt.utils.language import translate_language
+    #     from sak.utils.language import translate_language
     #     from text_to_num import alpha2digit
 
     #     def _round(num, lang="fr"):

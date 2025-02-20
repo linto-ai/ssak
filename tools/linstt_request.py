@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from linastt.utils.linstt import linstt_transcribe
+from sak.utils.linstt import linstt_transcribe
 
 if __name__ == "__main__":
 
@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument('--diarization_server', help='Diarization server', default= None)
     parser.add_argument('--language', default=None, help='Target language')
     parser.add_argument('--num_speakers', type=int, help='Number of speakers', default= None)
+    parser.add_argument('--speaker_names', type=str, help='Names of speakers to identify', default= None)
     parser.add_argument('--convert_numbers', default = False, action='store_true', help='Convert numbers to text')
     parser.add_argument('--min_vad_duration', default=30, type=float, help='Minimum duration of speech segments after VAD')
     parser.add_argument('--disable_punctuation', default=False, action='store_true', help='Disable punctuation')
@@ -50,6 +51,7 @@ if __name__ == "__main__":
                 language=args.language,
                 diarization_server=args.diarization_server,
                 diarization=args.num_speakers,
+                speaker_identification=args.speaker_names,
                 convert_numbers=args.convert_numbers,
                 punctuation=not args.disable_punctuation,
                 min_vad_duration=args.min_vad_duration,

@@ -154,7 +154,7 @@ if __name__ == "__main__":
     assert os.path.exists(dir_in), f"Input file or folder {dir_in} does not exist."
 
     if dir_out2:
-        from linastt.utils.text import format_text_latin
+        from sak.utils.text import format_text_latin
         if os.path.isdir(dir_in):
             os.makedirs(dir_out2, exist_ok = True)
     if os.path.isdir(dir_in):

@@ -2,7 +2,7 @@ import os
 from tqdm import tqdm
 import argparse
 import shutil
-from linastt.utils.kaldi import check_kaldi_dir
+from sak.utils.kaldi import check_kaldi_dir
 
 def load_segment_file(filename):
     data = []

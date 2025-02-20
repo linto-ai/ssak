@@ -5,9 +5,9 @@ import csv
 import argparse
 import warnings
 
-from linastt.utils.kaldi import check_kaldi_dir
-from linastt.utils.text_utils import format_special_characters
-from linastt.utils.audio import get_audio_duration
+from sak.utils.kaldi import check_kaldi_dir
+from sak.utils.text_utils import format_special_characters
+from sak.utils.audio import get_audio_duration
 
 
 def generate_kaldi_data(

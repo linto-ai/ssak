@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from linastt.utils.env import * # manage option --gpus
-from linastt.utils.audio import load_audio
-from linastt.utils.text import remove_special_words
-from linastt.utils.dataset import to_audio_batches
-from linastt.infer.general import load_model, get_model_sample_rate
-from linastt.utils.align_transcriptions import compute_alignment
-from linastt.utils.kaldi import check_kaldi_dir
+from sak.utils.env import * # manage option --gpus
+from sak.utils.audio import load_audio
+from sak.utils.text import remove_special_words
+from sak.utils.dataset import to_audio_batches
+from sak.infer.general import load_model, get_model_sample_rate
+from sak.utils.align_transcriptions import compute_alignment
+from sak.utils.kaldi import check_kaldi_dir
 
 import os
 import json

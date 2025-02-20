@@ -7,7 +7,7 @@ import shutil
 import re
 from tqdm import tqdm
 from datasets import load_dataset
-from linastt.utils.kaldi import check_kaldi_dir
+from sak.utils.kaldi import check_kaldi_dir
 
 def write_set(data, dir_out="Voxpopuli-fr", file_mode="W", speakers=None, missing_raw_replacement=None, utterences_to_remove=None):
     with open(os.path.join(dir_out,"text"), file_mode) as text_f, \
