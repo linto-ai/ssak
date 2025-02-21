@@ -1,28 +1,58 @@
-#!/usr/bin/env python3
 import os
-import sys
-import setuptools
-from distutils.core import setup
 
-with open("README.md") as f:
-    long_description = f.read()
+from setuptools import setup, find_packages
+
+install_requires = [
+    "Cython",
+    "dtw-python",
+    "openai-whisper",
+]
+
+required_packages_filename = os.path.join(os.path.dirname(__file__), "requirements.txt")
+if os.path.exists(required_packages_filename):
+    install_requires2 = [l.strip() for l in open(required_packages_filename).readlines()]
+    assert install_requires == install_requires2, f"requirements.txt is not up-to-date: {install_requires} != {install_requires2}"
+
+version = None
+license = None
+with open(os.path.join(os.path.dirname(__file__), "sak", "version.py")) as f:
+    for line in f:
+        if line.strip().startswith("__version__"):
+            version = line.split("=")[1].strip().strip("\"'")
+            if version and license:
+                break
+        if line.strip().startswith("__license__"):
+            license = line.split("=")[1].strip().strip("\"'")
+            if version and license:
+                break
+assert version and license
+
+description="Multi-lingual Automatic Speech Recognition (ASR) based on Whisper models, with accurate word timestamps, access to language detection confidence, several options for Voice Activity Detection (VAD), and more."
 
 setup(
     name="sak",
-    version="1.0",
-    description="Tools to experiment with speech recognition, using several Python libraries",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    author="Jérôme Louradour",
-    author_email="jlouradour@linagora.com",
-    classifiers=[
-        "Programming Language :: Python :: 3",
-    ],
-    packages=setuptools.find_packages(),
-    package_data={"sak": []},
-    install_requires=[
-        # TODO
-    ],
+    py_modules=["sak"],
+    version=version,
+    description=description,
+    long_description=description+"\nSee https://github.com/linto-ai/sak for more information.",
+    long_description_content_type='text/markdown',
     python_requires=">=3.7",
-    url="https://github.com/linto-ai/stt-end2end-expes",
+    author="Jeronymous",
+    url="https://github.com/linto-ai/sak",
+    license=license,
+    packages=find_packages(exclude=["tests*"]),
+    install_requires=install_requires,
+    entry_points = {
+        'console_scripts': [
+            'sak=sak.transcribe:cli',
+            'sak_make_subtitles=sak.make_subtitles:cli'
+        ],
+    },
+    include_package_data=True,
+    extras_require={
+        'dev': ['matplotlib==3.7.4', 'transformers'],
+        'vad_silero': ['onnxruntime', 'torchaudio'],
+        'vad_auditok': ['auditok'],
+        'test': ['jsonschema'],
+    },
 )
