@@ -1,4 +1,6 @@
-# Speech-Army-Knife
+# Speech Army Knife (SAK)
+
+![SAK](assets/SAK2.png)
 
 This repository contains helpers and tools to train end-to-end ASR, and do inference with ASR.
 
