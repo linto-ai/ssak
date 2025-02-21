@@ -132,6 +132,9 @@ class KaldiDataset:
     def __len__(self) -> int:
         return len(self.dataset)
 
+    def __getitem__(self, index) -> KaldiDatasetRow:
+        return self.dataset[index]
+
     def __next__(self):
         for row in self.dataset:
             yield row
