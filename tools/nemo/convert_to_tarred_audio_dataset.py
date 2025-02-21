@@ -652,12 +652,15 @@ class ASRTarredDatasetBuilder:
             entries.sort(key=lambda x: x["duration"], reverse=False)
 
         new_entries = []
-        tar = tarfile.open(
-            os.path.join(target_dir, f"audio_{shard_id}.tar"),
-            mode="w",
-            dereference=True,
-        )
-
+        tar = None
+        if not os.path.exists(os.path.join(target_dir, f"audio_{shard_id}.tar")):
+            tar = tarfile.open(
+                os.path.join(target_dir, f"audio_{shard_id}.tar"),
+                mode="w",
+                dereference=True,
+            )
+        else:
+            print(f"Tarfile {shard_id} already exists. Skipping.")
         count = dict()
         for entry in entries:
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
@@ -677,21 +680,23 @@ class ASRTarredDatasetBuilder:
 
             offset = entry["offset"] if "offset" in entry else 0.0
             duration = entry["duration"] if "duration" in entry else None
-            if duration is None:
-                squashed_filename = f"{base}-{offset:.2f}"
-            else:
-                squashed_filename = f"{base}-{offset:.2f}-{duration:.2f}"
+            squashed_filename = f"{base}-{offset:.2f}"
+            if duration is not None:
+                squashed_filename = f"{squashed_filename}-{duration:.2f}"
             squashed_filename = squashed_filename.replace(".", "_")
             squashed_filename = f"{squashed_filename}{ext}"
             new_offset = offset
             if squashed_filename not in count:
-                new_offset = self._write_to_tar(
-                    tar,
-                    audio_filepath,
-                    squashed_filename,
-                    float(offset),
-                    float(duration) if duration is not None else None,
-                )
+                if tar:
+                    new_offset = self._write_to_tar(
+                        tar,
+                        audio_filepath,
+                        squashed_filename,
+                        float(offset),
+                        float(duration) if duration is not None else None,
+                    )
+                else:
+                    new_offset = 0.0
                 to_write = squashed_filename
                 count[squashed_filename] = 1
             else:
@@ -707,7 +712,8 @@ class ASRTarredDatasetBuilder:
             }
             new_entries.append(new_entry)
 
-        tar.close()
+        if tar:
+            tar.close()
         return new_entries
 
     @classmethod

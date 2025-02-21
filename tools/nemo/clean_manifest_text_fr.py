@@ -71,7 +71,7 @@ def clean_text_fr(input, output, keep_punc=True, keep_num=False, keep_case=True,
                 remove_suspicious_entry = remove_suspicious_entry,
             )
             
-            if line['text'][-1]=='"' and line['text'][0]=='"':
+            if len(line['text'])>0 and line['text'][-1]=='"' and line['text'][0]=='"':
                 line['text'] = line['text'][1:-1]
             num_dumps = 0
             if line['text'] or empty_string_policy == "allow":
