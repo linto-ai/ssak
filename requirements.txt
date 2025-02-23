@@ -3,7 +3,6 @@ audiomentations
 bitsandbytes
 cyrtranslit
 datasets
-datasets[audio]
 dtw-python
 envsubst
 googletrans==3.1.0a0
@@ -15,7 +14,7 @@ Levenshtein
 librosa
 loralib
 matplotlib==3.7.4
-git+https://github.com/hedhoud/num2words.git
+num2words
 onnxruntime
 openai-whisper
 peft

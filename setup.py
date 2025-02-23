@@ -2,16 +2,9 @@ import os
 
 from setuptools import setup, find_packages
 
-install_requires = [
-    "Cython",
-    "dtw-python",
-    "openai-whisper",
-]
-
 required_packages_filename = os.path.join(os.path.dirname(__file__), "requirements.txt")
 if os.path.exists(required_packages_filename):
-    install_requires2 = [l.strip() for l in open(required_packages_filename).readlines()]
-    assert install_requires == install_requires2, f"requirements.txt is not up-to-date: {install_requires} != {install_requires2}"
+    install_requires = [l.strip() for l in open(required_packages_filename).readlines()]
 
 version = None
 license = None
@@ -36,8 +29,8 @@ setup(
     description=description,
     long_description=description+"\nSee https://github.com/linto-ai/sak for more information.",
     long_description_content_type='text/markdown',
-    python_requires=">=3.7",
-    author="Jeronymous",
+    python_requires=">=3.9",
+    author="linto-ai",
     url="https://github.com/linto-ai/sak",
     license=license,
     packages=find_packages(exclude=["tests*"]),

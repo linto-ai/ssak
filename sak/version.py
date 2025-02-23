@@ -1,4 +1,3 @@
-
 __author__ = "LINAGORA Labs"
 __credits__ = ["LINAGORA Labs"]
 __license__ = "GPLv3"
