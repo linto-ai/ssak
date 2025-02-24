@@ -7,9 +7,9 @@ import os
 import csv
 import webvtt
 
-from sak.utils.kaldi import check_kaldi_dir
-from sak.utils.text_utils import format_special_characters
-from sak.utils.audio import get_audio_total_duration
+from ssak.utils.kaldi import check_kaldi_dir
+from ssak.utils.text_utils import format_special_characters
+from ssak.utils.audio import get_audio_total_duration
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning) # remove warning : the 'mangle_dupe_cols' keyword is deprecated and will be removed in a future version. Please take steps to stop the use of 'mangle_dupe_cols'
 

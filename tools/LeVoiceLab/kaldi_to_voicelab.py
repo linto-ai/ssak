@@ -12,8 +12,8 @@ from datetime import datetime
 import json
 import random
 
-from sak.utils.misc import commonprefix
-from sak.utils.audio import get_audio_total_duration
+from ssak.utils.misc import commonprefix
+from ssak.utils.audio import get_audio_total_duration
 
 CONVERT_ALL_WAV_TO_THE_SAME = False
 
@@ -93,7 +93,7 @@ def _extract_all(root, field):
 #     return s
 
 
-# TODO: use "from sak.utils.audio import get_audio_duration" instead?
+# TODO: use "from ssak.utils.audio import get_audio_duration" instead?
 def get_audio_duration(audio_file):
     if audio_file in _durations:
         return _durations[audio_file]

@@ -2,9 +2,9 @@
  
 import os
 
-from sak.utils.player import play_audiofile
-from sak.utils.format_transcription import to_linstt_transcription
-from sak.utils.dataset import kaldi_folder_to_dataset
+from ssak.utils.player import play_audiofile
+from ssak.utils.format_transcription import to_linstt_transcription
+from ssak.utils.dataset import kaldi_folder_to_dataset
 
 import tempfile
 import csv

@@ -8,7 +8,7 @@ if os.path.exists(required_packages_filename):
 
 version = None
 license = None
-with open(os.path.join(os.path.dirname(__file__), "sak", "version.py")) as f:
+with open(os.path.join(os.path.dirname(__file__), "ssak", "version.py")) as f:
     for line in f:
         if line.strip().startswith("__version__"):
             version = line.split("=")[1].strip().strip("\"'")
@@ -23,22 +23,22 @@ assert version and license
 description="Multi-lingual Automatic Speech Recognition (ASR) based on Whisper models, with accurate word timestamps, access to language detection confidence, several options for Voice Activity Detection (VAD), and more."
 
 setup(
-    name="sak",
-    py_modules=["sak"],
+    name="ssak",
+    py_modules=["ssak"],
     version=version,
     description=description,
-    long_description=description+"\nSee https://github.com/linto-ai/sak for more information.",
+    long_description=description+"\nSee https://github.com/linto-ai/ssak for more information.",
     long_description_content_type='text/markdown',
     python_requires=">=3.9",
     author="linto-ai",
-    url="https://github.com/linto-ai/sak",
+    url="https://github.com/linto-ai/ssak",
     license=license,
     packages=find_packages(exclude=["tests*"]),
     install_requires=install_requires,
     entry_points = {
         'console_scripts': [
-            'sak_infer=sak.infer.transformers_infer:cli',
-            'sak_infer_speechbrain=sak.infer.speechbrain_infer:cli',
+            'sak_infer=ssak.infer.transformers_infer:cli',
+            'sak_infer_speechbrain=ssak.infer.speechbrain_infer:cli',
         ],
     },
     include_package_data=True,

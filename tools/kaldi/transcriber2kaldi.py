@@ -7,8 +7,8 @@ import warnings
 from glob import glob
 from tqdm import tqdm
 
-from sak.utils.kaldi import check_kaldi_dir
-from sak.utils.transcriber import read_transcriber
+from ssak.utils.kaldi import check_kaldi_dir
+from ssak.utils.transcriber import read_transcriber
 
 
 def do_ignore_text(text):

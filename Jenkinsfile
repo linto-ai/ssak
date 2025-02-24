@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        DOCKER_HUB_REPO = "lintoai/sak"
+        DOCKER_HUB_REPO = "lintoai/ssak"
         DOCKER_HUB_CRED = 'docker-hub-credentials'
         
         VERSION = ''
@@ -48,12 +48,12 @@ pipeline {
             }
         }
 
-        stage('Docker build for sak branch'){
+        stage('Docker build for ssak branch'){
             when{
-                branch 'sak'
+                branch 'ssak'
             }
             steps {
-                echo 'Publishing sak'
+                echo 'Publishing ssak'
                 script {
                     image = docker.build(env.DOCKER_HUB_REPO, "-f Dockerfile .")
                     VERSION = sh(
@@ -61,7 +61,7 @@ pipeline {
                         script: "awk -v RS='' '/#/ {print; exit}' RELEASE.md | head -1 | sed 's/#//' | sed 's/ //'"
                     ).trim()
                     docker.withRegistry('https://registry.hub.docker.com', env.DOCKER_HUB_CRED) {
-                        image.push('sak-latest')
+                        image.push('ssak-latest')
                     }
                 }
             }

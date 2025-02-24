@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-from sak.utils.env import *
-from sak.utils.text import remove_special_words, format_text_latin, collapse_whitespace
-from sak.utils.align_transcriptions import *
-from sak.utils.audio import load_audio
-from sak.infer.speechbrain_infer import speechbrain_load_model, speechbrain_infer
-from sak.infer.kaldi_infer import kaldi_infer
-from sak.infer.transformers_infer import transformers_infer
-from sak.utils.monitoring import tic, toc
+from ssak.utils.env import *
+from ssak.utils.text import remove_special_words, format_text_latin, collapse_whitespace
+from ssak.utils.align_transcriptions import *
+from ssak.utils.audio import load_audio
+from ssak.infer.speechbrain_infer import speechbrain_load_model, speechbrain_infer
+from ssak.infer.kaldi_infer import kaldi_infer
+from ssak.infer.transformers_infer import transformers_infer
+from ssak.utils.monitoring import tic, toc
 
 
 import os
@@ -218,7 +218,7 @@ if __name__ == "__main__":
             #full_reco = list(kaldi_infer("vosk-model-fr-0.22", [audio]))[0]
             cmd = [
                 sys.executable,
-                "/home/jlouradour/src/stt-end2end-expes/sak/infer/kaldi_infer.py",
+                "/home/jlouradour/src/stt-end2end-expes/ssak/infer/kaldi_infer.py",
                 "--model", "vosk-model-fr-0.22",
                 "--gpus", "1",
                 filename,

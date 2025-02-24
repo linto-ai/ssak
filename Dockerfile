@@ -44,6 +44,7 @@ RUN python3 -m pip install --upgrade pip
 
 # Python
 COPY requirements.txt ./
+RUN pip3 install --no-cache-dir PyAudio pypi-kenlm soxbindings
 RUN pip3 install --no-cache-dir -r requirements.txt
 RUN rm requirements.txt
 

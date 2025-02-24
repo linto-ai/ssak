@@ -2,7 +2,7 @@
 
 from __init__ import *
 
-from sak.utils.linstt import linstt_streaming
+from ssak.utils.linstt import linstt_streaming
 
 if __name__ == "__main__":
 

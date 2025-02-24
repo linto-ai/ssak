@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from sak.utils.text_latin import format_text_latin
-from sak.utils.kaldi import check_kaldi_dir
+from ssak.utils.text_latin import format_text_latin
+from ssak.utils.kaldi import check_kaldi_dir
 import shutil
 import os
 import sys

@@ -2,7 +2,7 @@ import argparse
 from tqdm import tqdm
 import json
 import os
-from sak.utils.kaldi_dataset import KaldiDataset
+from ssak.utils.kaldi_dataset import KaldiDataset
 import logging
 
 logging.basicConfig(level=logging.INFO)

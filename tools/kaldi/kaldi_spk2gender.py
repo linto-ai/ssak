@@ -1,9 +1,9 @@
 import numpy as np
-from sak.utils.audio import load_audio
-from sak.utils.dataset import kaldi_folder_to_dataset
-from sak.utils.kaldi import check_kaldi_dir
+from ssak.utils.audio import load_audio
+from ssak.utils.dataset import kaldi_folder_to_dataset
+from ssak.utils.kaldi import check_kaldi_dir
 import torch
-from sak.utils.gender import predict_gender 
+from ssak.utils.gender import predict_gender 
 from tqdm import tqdm
 import os
 import argparse

@@ -1,10 +1,10 @@
 
 #!/usr/bin/env python3
 
-from sak.utils.format_transcription import to_linstt_transcription
-from sak.utils.misc import commonprefix
-from sak.utils.text import split_around, remove_punctuations
-from sak.utils.curl import curl_post
+from ssak.utils.format_transcription import to_linstt_transcription
+from ssak.utils.misc import commonprefix
+from ssak.utils.text import split_around, remove_punctuations
+from ssak.utils.curl import curl_post
 
 from num2words import num2words
 import re

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from sak.utils.kaldi import check_kaldi_dir
-from sak.utils.text_utils import format_special_characters
+from ssak.utils.kaldi import check_kaldi_dir
+from ssak.utils.text_utils import format_special_characters
 
 import os
 import csv

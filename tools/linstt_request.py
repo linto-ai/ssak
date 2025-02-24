@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from sak.utils.linstt import linstt_transcribe
+from ssak.utils.linstt import linstt_transcribe
 
 if __name__ == "__main__":
 

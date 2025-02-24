@@ -5,11 +5,11 @@ import shutil
 import json
 from tqdm import tqdm
 
-from sak.utils.language import (
+from ssak.utils.language import (
     check_language,
     is_hate_speech,
 )
-from sak.utils.text import (
+from ssak.utils.text import (
     collapse_whitespace,
     remove_special_characters,
     format_special_characters,
@@ -79,9 +79,9 @@ def transcription_dont_match(
     threshold=0.6,
     ):
 
-    from sak.utils.audio import load_audio
-    from sak.infer.general import infer
-    from sak.utils.wer import compute_wer
+    from ssak.utils.audio import load_audio
+    from ssak.infer.general import infer
+    from ssak.utils.wer import compute_wer
 
     def text_normalize(text):
         text = custom_clean_text(text)
@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
     model = None
     if args.model:
-        from sak.infer.general import load_model
+        from ssak.infer.general import load_model
         model = load_model(args.model) # device?
 
     do_stt = bool(model)

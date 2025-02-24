@@ -2,7 +2,7 @@ import os
 import random
 import pandas as pd
 import re 
-from sak.utils.kaldi import check_kaldi_dir
+from ssak.utils.kaldi import check_kaldi_dir
 
 
 def stm_to_dataframe(stm_file):

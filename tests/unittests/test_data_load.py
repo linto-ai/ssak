@@ -1,5 +1,5 @@
-from sak.utils.dataset import kaldi_folder_to_dataset, process_dataset, to_audio_batches
-from sak.utils.misc import flatten
+from ssak.utils.dataset import kaldi_folder_to_dataset, process_dataset, to_audio_batches
+from ssak.utils.misc import flatten
 
 import os
 import time

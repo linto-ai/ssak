@@ -532,7 +532,7 @@ def http_proxies(proxy):
     }
 
 if __name__ == '__main__':
-    from sak.utils.misc import hashmd5
+    from ssak.utils.misc import hashmd5
     import os
     import argparse
     parser = argparse.ArgumentParser(

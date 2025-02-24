@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from sak.utils.text_latin import format_text_latin
+from ssak.utils.text_latin import format_text_latin
 import json
 import logging
 import sys

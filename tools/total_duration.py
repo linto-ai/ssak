@@ -5,7 +5,7 @@ import os
 import subprocess
 from tqdm import tqdm
 
-from sak.utils.audio import get_audio_total_duration
+from ssak.utils.audio import get_audio_total_duration
 
 def second2time(val):
     if val == float("inf"):

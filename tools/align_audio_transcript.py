@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from sak.utils.env import * # manage option --gpus
-from sak.utils.audio import load_audio
-from sak.utils.text_utils import (
+from ssak.utils.env import * # manage option --gpus
+from ssak.utils.audio import load_audio
+from ssak.utils.text_utils import (
     remove_special_characters,
     numbers_and_symbols_to_letters,   
 )
-from sak.utils.text_basic import (
+from ssak.utils.text_basic import (
     format_special_characters,
     remove_punctuations,
     remove_special_words,
@@ -14,9 +14,9 @@ from sak.utils.text_basic import (
     collapse_whitespace,
     _punctuation,
 )
-from sak.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
-from sak.infer.general import load_model, get_model_sample_rate, get_model_vocab
-from sak.utils.align_transcriptions import compute_alignment
+from ssak.utils.kaldi import parse_kaldi_wavscp, check_kaldi_dir
+from ssak.infer.general import load_model, get_model_sample_rate, get_model_vocab
+from ssak.utils.align_transcriptions import compute_alignment
 
 import os
 import shutil
