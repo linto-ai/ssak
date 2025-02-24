@@ -1,6 +1,6 @@
-# Speech Army Knife (SAK)
+# Speech Swiss Army Knife (SSAK)
 
-![SAK logo](assets/SAK3.png)
+![SSAK logo](assets/logo-SSAK-3.png)
 
 This repository contains helpers and tools to train end-to-end ASR, and do inference with ASR.
 
