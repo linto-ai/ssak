@@ -1,3 +1,5 @@
+numpy
+typing_extensions
 accelerate
 audiomentations
 bitsandbytes
@@ -14,24 +16,23 @@ Levenshtein
 librosa
 loralib
 matplotlib<=3.7.4
-numpy
 num2words
 onnxruntime
 openai-whisper
 peft
 psutil
 praat-textgrids
-# PyAudio
+PyAudio
 py3nvml
 pyannote.audio
 pyannote.pipeline
 pyarabic
 pyctcdecode
-# pypi-kenlm
+pypi-kenlm
 python-magic
 python-slugify
 so-vits-svc-fork
-# soxbindings
+soxbindings
 speechbrain
 tensorboard
 text2num

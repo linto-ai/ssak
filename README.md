@@ -1,6 +1,6 @@
 # Speech Swiss Army Knife (SSAK)
 
-![SSAK logo](assets/logo-SSAK.png)
+![SSAK logo](https://raw.githubusercontent.com/linto-ai/ssak/refs/heads/master/assets/logo-SSAK.png)
 
 This repository contains helpers and tools to train end-to-end ASR, and do inference with ASR.
 
@@ -80,12 +80,11 @@ sudo apt-get install -y --no-install-recommends firefox-esr
 
 If not done, pull the docker image:
 ```
-docker login registry.linto.ai
-docker pull registry.linto.ai/training/jlouradour_wav2vec:latest
+docker pull lintoai/sak:latest
 ```
 or build it:
 ```
-docker build -t jlouradour_wav2vec:latest .
+docker build -t lintoai/sak:latest .
 ```
 
 Run it, with advised options:
@@ -95,18 +94,7 @@ docker run -it --rm \
     --user $(id -u):$(id -g) \
     --env HOME=~ --workdir ~ \
     -v /home:/home \
-    --name XXX_wav2vec_workspace \
-    registry.linto.ai/training/jlouradour_wav2vec:latest
+    --name sak_workspace \
+    lintoai/sak:latest
 ```
 (also add `--gpus all` to use GPU).
-
-If you plan to use `vosk` (kaldi models) with GPU, there is also a (heavier) image:
-```
-docker login registry.linto.ai
-docker pull registry.linto.ai/training/jlouradour_wav2vec_voskgpu:latest
-```
-that can be built with:
-```
-cd docker/
-docker build -f Dockerfile.vosk_gpu -t jlouradour_wav2vec_voskgpu:latest .
-```

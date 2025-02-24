@@ -1,7 +1,7 @@
 FROM python:3.9
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt-get install -y \
         apt-utils \
         autoconf \
         automake \
@@ -18,7 +18,9 @@ RUN apt-get update && \
         make \
         nano \
         pkg-config \
+        python3-dev python3-launchpadlib \
         rsync \
+        software-properties-common \
         time \
         tmux \
         unzip \
@@ -27,25 +29,25 @@ RUN apt-get update && \
         zlib1g-dev
 
 # Audio specific
-RUN apt-get install -y --no-install-recommends \
+RUN apt-get install -y \
         sox \
         libsox-fmt-mp3 \
         libsox-dev \
         ffmpeg \
         libssl-dev \
         libsndfile1 \
-        python3-dev \
         portaudio19-dev \
         libcurl4-openssl-dev \
-        xvfb \
-        firefox-esr
+        xvfb
 
-RUN python3 -m pip install --upgrade pip
+# Web-Crawling specific
+RUN add-apt-repository ppa:mozillateam/ppa && apt-get update && apt-get install -y firefox-esr
 
 # Python
+RUN python3 -m pip install --upgrade pip
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir PyAudio pypi-kenlm soxbindings
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install numpy numpy typing_extensions
+RUN pip3 install -r requirements.txt
 RUN rm requirements.txt
 
 # Speechbrain
@@ -65,7 +67,7 @@ RUN pip3 install git+https://github.com/speechbrain/HyperPyYAML@1e47fa63982933cd
 
 # Used to scrap
 COPY tools/requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install -r requirements.txt
 RUN rm requirements.txt
 
 # Locale
