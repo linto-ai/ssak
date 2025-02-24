@@ -372,7 +372,8 @@ def speechbrain_get_device(model):
         return model.model.device
     raise NotImplementedError(f"Cannot find device for model {type(model)}")
 
-if __name__ == "__main__":
+
+def cli():
 
     import sys
     import argparse
@@ -423,3 +424,6 @@ if __name__ == "__main__":
         else:
             print(*reco, file = args.output)
         args.output.flush()
+
+if __name__ == "__main__":
+    cli()

@@ -35,7 +35,12 @@ setup(
     license=license,
     packages=find_packages(exclude=["tests*"]),
     install_requires=install_requires,
-    entry_points = {},
+    entry_points = {
+        'console_scripts': [
+            'sak_infer=sak.infer.transformers_infer:cli',
+            'sak_infer_speechbrain=sak.infer.speechbrain_infer:cli',
+        ],
+    },
     include_package_data=True,
     extras_require={},
 )
