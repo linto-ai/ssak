@@ -35,17 +35,7 @@ setup(
     license=license,
     packages=find_packages(exclude=["tests*"]),
     install_requires=install_requires,
-    entry_points = {
-        'console_scripts': [
-            'sak=sak.transcribe:cli',
-            'sak_make_subtitles=sak.make_subtitles:cli'
-        ],
-    },
+    entry_points = {},
     include_package_data=True,
-    extras_require={
-        'dev': ['matplotlib==3.7.4', 'transformers'],
-        'vad_silero': ['onnxruntime', 'torchaudio'],
-        'vad_auditok': ['auditok'],
-        'test': ['jsonschema'],
-    },
+    extras_require={},
 )
