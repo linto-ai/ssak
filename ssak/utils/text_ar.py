@@ -58,7 +58,7 @@ def load_json_file(filepath):
     return _cache[filepath]
 
 def normalize_chars(text):
-    normalization_rules = load_json_file(f'{assets_path}/Arabic_normalization_chars.json')
+    normalization_rules = load_json_file(f'{assets_path}/norm-char-ar-tunisian.json')
     regex = re.compile("[" + "".join(map(re.escape, normalization_rules.keys())) + "]")
     return regex.sub(lambda match: normalization_rules[match.group(0)], text)
 
@@ -73,7 +73,7 @@ def normalize_chars(text):
 # to process large texts. For datasets exceeding 4,000,000 words, this optimized
 # version can save approximately 8 hours of normalization time compared to previous implementations.
 def normalize_tunisan_words(text):
-    normalization_words = load_json_file(f'{assets_path}/Tunisian_normalization_words.json')
+    normalization_words = load_json_file(f'{assets_path}/norm-words-ar-tunisian.json')
     
     dict_one_word = {}
     dict_mult_word = {}
